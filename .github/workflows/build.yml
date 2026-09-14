@@ -72,9 +72,8 @@ jobs:
           mkdir -p release
           VERSION="${{ steps.ver.outputs.version }}"
           SRC=$(ls dist/*.exe | head -n 1)
-          echo "产物: $SRC"
-          cp "$SRC" "release/塔可夫离线地图-${VERSION}.exe"
-          # 同时给一个纯 ASCII 文件名，方便脚本/下载器使用
+          echo "产物: $SRC ($(du -h "$SRC" | cut -f1))"
+          # Release 资源文件名统一用 ASCII（中文名在部分下载器/命令行里会被转义或截断）
           cp "$SRC" "release/tarkov-offline-map-${VERSION}-win-x64-portable.exe"
           cd release
           sha256sum *.exe > SHA256SUMS.txt
@@ -99,12 +98,15 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            Windows 免安装单文件（portable，x64），双击即用。
+            **塔可夫离线地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
 
-            - 文件名：`塔可夫离线地图-${{ steps.ver.outputs.version }}.exe`（另有同内容的 ASCII 文件名版本）
-            - 校验：`SHA256SUMS.txt`
-            - 内含刷新后的离线地图数据与赛季文件刷点/位置参考截图，运行时不联网
+            下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 145MB）
+            校验：`SHA256SUMS.txt`（同目录）
+
+            - 纯本地运行：监听游戏日志自动识图 + 监听截图目录定位，运行时不联网、无遥测
+            - 内含 15 张地图中文数据、赛季文件刷点 419 处与位置参考截图，离线可查
             - 未做代码签名，SmartScreen 提示"未知发布者"时选择"仍要运行"
-            - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏之上
+            - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏画面之上
+            - 使用说明与原理见 [README](https://github.com/NepPure/tarkov-offline-map#readme)
 
-            更新日志见本次 Release 的自动生成内容。
+            更新内容见下方自动生成条目。
