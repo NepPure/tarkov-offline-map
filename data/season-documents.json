@@ -1,0 +1,4381 @@
+{
+  "fetchedAt": "2026-09-14T12:12:26.690Z",
+  "season": 1,
+  "source": "https://member.kaedeori.com/api/tarkov/season-document/location/list",
+  "note": "赛季文件刷点 = 版本活动在各地图刷新的\"赛季文件\"位置（社区提交 + 官方审核通过）。",
+  "types": {
+    "6a317b9692cfdcddcb02a58e": {
+      "itemId": "6a317b9692cfdcddcb02a58e",
+      "type": "pmc",
+      "name": "PMC 个人档案",
+      "shortName": "PMC",
+      "shortNameApi": "PMC",
+      "description": "有传言说，TerraGroup 针对几乎每一名 PMC 行动人员都有留档，打造了庞大的个人档案数据库。从这些文件来看，那些传言并非空穴来风。\n\n可在以下地点找到此类文件： \n- 储备站\n- 灯塔\n- 破冰船",
+      "color": "#f97316",
+      "icon": "season_pmc.webp"
+    },
+    "6a3182dc6cd8de21cf0a3a7d": {
+      "itemId": "6a3182dc6cd8de21cf0a3a7d",
+      "type": "medical",
+      "name": "医疗文件",
+      "shortName": "医疗",
+      "shortNameApi": "医疗",
+      "description": "包含大量实验数据与研究成果的医疗记录。其中许多项目根本不可能通过伦理审查，但成果却是无可争议地大获成功。至于将其视为伟大的医学成就还是血迹斑斑的罪恶宣告，真理因人而异。\n\n可在以下地点找到此类文件：\n- 实验室\n- 中心区\n- 迷宫",
+      "color": "#22c55e",
+      "icon": "season_medical.webp"
+    },
+    "6a31807f17005505b70d5827": {
+      "itemId": "6a31807f17005505b70d5827",
+      "type": "finances",
+      "name": "财务文件",
+      "shortName": "财务",
+      "shortNameApi": "财务",
+      "description": "包含 TerraGroup 与附属公司财务报告的情报文件。 只要愿意深挖，肯定能从里面找到大量自相矛盾之处，乃至作为集团非法行动的直接证据，但你真的愿意花上好几个小时尝试去搞懂那些枯燥的财务名词吗？\n\n可在以下地点找到此类文件： \n- 海关\n- 塔科夫街区\n- 立交桥",
+      "color": "#eab308",
+      "icon": "season_finances.webp"
+    },
+    "6a3182b72fd891345e047eef": {
+      "itemId": "6a3182b72fd891345e047eef",
+      "type": "employee",
+      "name": "员工文档",
+      "shortName": "员工",
+      "shortNameApi": "员工",
+      "description": "所有 TerraGroup 新员工都需要签署的业务文件。 其中既有各类高价值信息，也不可避免地容纳了大量令人昏昏欲睡的办公室往来文书，比如怎么为同事的生日礼物凑钱。\n\n可在以下地点找到此类文件：\n- 中心区\n- 塔科夫街区\n- 实验室",
+      "color": "#38bdf8",
+      "icon": "season_employee.webp"
+    },
+    "6a31830dde69ceafd805afa0": {
+      "itemId": "6a31830dde69ceafd805afa0",
+      "type": "technical",
+      "name": "技术文档",
+      "shortName": "技术",
+      "shortNameApi": "技术",
+      "description": "TerraGroup 资产与设备的操作手册。如果不想在工作的时候被机器吃掉几根手指，或者胡乱操作弄坏价值连城的集团资产，那就最好把里面的东西都背得滚瓜烂熟——对于那些嗅探情报的商业间谍来说，这些文件更是一座富矿。\n\n可在以下地点找到此类文件：\n- 海岸线\n- 森林\n- 灯塔",
+      "color": "#a78bfa",
+      "icon": "season_technical.webp"
+    },
+    "6a31824878450ec91c0ea1ae": {
+      "itemId": "6a31824878450ec91c0ea1ae",
+      "type": "blueprints",
+      "name": "蓝图与技术文档",
+      "shortName": "蓝图",
+      "shortNameApi": "蓝图",
+      "description": "属于 TerraGroup 的蓝图与技术文档。为方便起见，有人把所有数据往磁盘上也备份了一份。\n\n可在以下地点找到此类文件：\n- 立交桥\n- 工厂\n- 迷宫",
+      "color": "#06b6d4",
+      "icon": "season_blueprints.webp"
+    },
+    "6a31828557705071410ca00e": {
+      "itemId": "6a31828557705071410ca00e",
+      "type": "test",
+      "name": "测试文档",
+      "shortName": "测试",
+      "shortNameApi": "测试",
+      "description": "记录有 TerraGroup 旗下秘密实验室开展的各类实验以及原型化合物各项细节的文件。这些数据居然还完整保留在塔科夫，简直难以置信。\n\n可在以下地点找到此类文件：\n- 海岸线\n- 森林\n- 破冰船",
+      "color": "#f472b6",
+      "icon": "season_test.webp"
+    },
+    "6a3181f178450ec91c0ea1aa": {
+      "itemId": "6a3181f178450ec91c0ea1aa",
+      "type": "project",
+      "name": "项目文件",
+      "shortName": "项目",
+      "shortNameApi": "项目",
+      "description": "来自塔科夫 Infraline 公司的项目文件。这家公司明面上主营道路建设，但查获的这些蓝图显然与路桥设施毫无关系。\n\n可在以下地点找到此类文件：\n- 工厂\n- 储备站\n- 海关",
+      "color": "#fb7185",
+      "icon": "season_project.webp"
+    }
+  },
+  "typeOrder": [
+    "6a317b9692cfdcddcb02a58e",
+    "6a3182dc6cd8de21cf0a3a7d",
+    "6a31807f17005505b70d5827",
+    "6a3182b72fd891345e047eef",
+    "6a31830dde69ceafd805afa0",
+    "6a31824878450ec91c0ea1ae",
+    "6a31828557705071410ca00e",
+    "6a3181f178450ec91c0ea1aa"
+  ],
+  "total": 419,
+  "maps": {
+    "69af492a4819ea4ba10a69c5": {
+      "key": "icebreaker",
+      "name": "破冰船",
+      "points": [
+        {
+          "uuid": "a8b124f5cb714acd90355ebb71f24e99",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 0.97,
+          "y": 20.13,
+          "z": 62.02,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ee53e97fd27942859b6ab9368f21695c/aead1c047fdc480fa6ed7fc03a12314a.webp",
+          "imageLocal": "season-images/a8b124f5cb714acd90355ebb71f24e99.webp"
+        },
+        {
+          "uuid": "17eccffbaa3743a18d8f2377629ec581",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 3.07,
+          "y": 8.94,
+          "z": -18.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/523bd5cac3834260af9b54243f6fae05/9b4fc62193544e4ebe6f2daa29070b60.webp",
+          "imageLocal": "season-images/17eccffbaa3743a18d8f2377629ec581.webp"
+        },
+        {
+          "uuid": "3da79cac0dfc4846bd35ac88980793e9",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 3.84,
+          "y": 41.47,
+          "z": 36.23,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f6db7fa5438f4706b8866a28c97d13a5/fa9ea5d754e642f5943edf48d72c0594.webp",
+          "imageLocal": "season-images/3da79cac0dfc4846bd35ac88980793e9.webp"
+        },
+        {
+          "uuid": "9602350632544244bee881be147f39c8",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -1.62,
+          "y": 17.1,
+          "z": 36.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/a38ca22242b14ec79f93c8a4f37d4ed5.webp",
+          "imageLocal": "season-images/9602350632544244bee881be147f39c8.webp"
+        },
+        {
+          "uuid": "9dc4a2aa4b364771a9743d3611c720fb",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -0.61,
+          "y": 19.82,
+          "z": 29.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/e630691ba4624151973943938d4bd0f6.webp",
+          "imageLocal": "season-images/9dc4a2aa4b364771a9743d3611c720fb.webp"
+        },
+        {
+          "uuid": "54648a674193434ca1da70cae21bf844",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -4.77,
+          "y": 21.96,
+          "z": -21.56,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/696f8864cfd94dcdb4bfe30ce18c46e8.webp",
+          "imageLocal": "season-images/54648a674193434ca1da70cae21bf844.webp"
+        },
+        {
+          "uuid": "d2f16fb348264a949adf982febd836f2",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -1.98,
+          "y": 29.24,
+          "z": -33.17,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/b5415f48ac684cb98b2685c4bff5b7e1.webp",
+          "imageLocal": "season-images/d2f16fb348264a949adf982febd836f2.webp"
+        },
+        {
+          "uuid": "36335a3d2fe6406293aae8c922bfef63",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 1.52,
+          "y": 29.11,
+          "z": -33.75,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/e3f960cdabec4c6bbe0854f5d5dc5710.webp",
+          "imageLocal": "season-images/36335a3d2fe6406293aae8c922bfef63.webp"
+        },
+        {
+          "uuid": "d9d2a72ac3a8497ebb8938e9da56ed57",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -11.51,
+          "y": 27.84,
+          "z": 39.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/93b8f3a31d324b72a393441f84e00331/cc49aafa19be421c8bfc35b494e81a96.webp",
+          "imageLocal": "season-images/d9d2a72ac3a8497ebb8938e9da56ed57.webp"
+        },
+        {
+          "uuid": "1dc2c65145ab4838a3e830dba5b24a73",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -1.65,
+          "y": 19.91,
+          "z": -62.99,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0355bfaaba1540e899469f63f8066079/85617b7f124b45edbefb30300c5493a5.webp",
+          "imageLocal": "season-images/1dc2c65145ab4838a3e830dba5b24a73.webp"
+        },
+        {
+          "uuid": "6a3686633dfa42de9322ee312f784be2",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -0.02,
+          "y": 22.29,
+          "z": -25.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/549248eb714e4a74a2d85d1b2595469e.webp",
+          "imageLocal": "season-images/6a3686633dfa42de9322ee312f784be2.webp"
+        },
+        {
+          "uuid": "7734db33d499405eb597b26567ccacb5",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -3.71,
+          "y": 19.79,
+          "z": 30.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/0dee75776b614cf1b4448d85ca3d7968.webp",
+          "imageLocal": "season-images/7734db33d499405eb597b26567ccacb5.webp"
+        },
+        {
+          "uuid": "c590b8c24eee4eecb5171489a7e21487",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -2.66,
+          "y": 27.24,
+          "z": 42.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/9bf4b21d1b094dde95ae17ce2734d6d5.webp",
+          "imageLocal": "season-images/c590b8c24eee4eecb5171489a7e21487.webp"
+        },
+        {
+          "uuid": "e11f28fe0c0a4c1196c05c25d3b5e83c",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 10.38,
+          "y": 25.18,
+          "z": 47.49,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/41a272c809414e31aff20197bb5aa615.webp",
+          "imageLocal": "season-images/e11f28fe0c0a4c1196c05c25d3b5e83c.webp"
+        },
+        {
+          "uuid": "5cd04703fd1a47ebab109c049c5b37f8",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 2.28,
+          "y": 20.31,
+          "z": 64.5,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/829b284681ad4fbbb1cf59b531362c19.webp",
+          "imageLocal": "season-images/5cd04703fd1a47ebab109c049c5b37f8.webp"
+        },
+        {
+          "uuid": "f01923b05397423badde6a637c39595c",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 9.52,
+          "y": 19.91,
+          "z": 39.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/c91594125f5d441498be6f270f0e1f25.webp",
+          "imageLocal": "season-images/f01923b05397423badde6a637c39595c.webp"
+        },
+        {
+          "uuid": "3ed05acf94cf4ce0a0f0b025d291dcc1",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -1.87,
+          "y": 30.64,
+          "z": 33.3,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7de0c95900c74b18a65b5cefcd6b0957/8302e2fa595d4d4aa121a22ac7a10881.webp",
+          "imageLocal": "season-images/3ed05acf94cf4ce0a0f0b025d291dcc1.webp"
+        },
+        {
+          "uuid": "da8f42cf15cd4a69b0d2e6ca89e9126f",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 8.15,
+          "y": 11.77,
+          "z": -17.01,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/170435e55eed40c9ab8fe2e252ce41da.webp",
+          "imageLocal": "season-images/da8f42cf15cd4a69b0d2e6ca89e9126f.webp"
+        },
+        {
+          "uuid": "dfafe3c58b4c45eab1b8f34b4cf71aae",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 3.76,
+          "y": 22.54,
+          "z": -28.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/6b926074d32243fda9f7368e8cfa2eb7.webp",
+          "imageLocal": "season-images/dfafe3c58b4c45eab1b8f34b4cf71aae.webp"
+        },
+        {
+          "uuid": "6f572824c2494473a0de55581140529a",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -10.33,
+          "y": 27.4,
+          "z": 43.36,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/80da75a2a4b94718a8ceb4d8e53e59d4.webp",
+          "imageLocal": "season-images/6f572824c2494473a0de55581140529a.webp"
+        },
+        {
+          "uuid": "a88320762cb44243b3183fab04447756",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -10.91,
+          "y": 25.11,
+          "z": 46.2,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ddcaf0bcb41e459dbad7f37a02507f58/6edf0d0ebf4b4725a5c721d550945c8c.webp",
+          "imageLocal": "season-images/a88320762cb44243b3183fab04447756.webp"
+        }
+      ]
+    },
+    "5714dc692459777137212e12": {
+      "key": "streets-of-tarkov",
+      "name": "塔科夫街区",
+      "points": [
+        {
+          "uuid": "6acad921854d4fe4982b56c24740af4e",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -37.77,
+          "y": 7.98,
+          "z": -111.08,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/64562e008693414aaed866e9c0bd18cb.webp",
+          "imageLocal": "season-images/6acad921854d4fe4982b56c24740af4e.webp"
+        },
+        {
+          "uuid": "6734ae912ef04b1eb883caef48d7c55c",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -41.92,
+          "y": 6.74,
+          "z": -45.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/c2303bcf690a4a439e5e5adbc7f49116.webp",
+          "imageLocal": "season-images/6734ae912ef04b1eb883caef48d7c55c.webp"
+        },
+        {
+          "uuid": "a0108ec75127466b8b4f37495905bd05",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 116.69,
+          "y": 5.62,
+          "z": -42.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/15732dac5d5a4cad8554188ef757e28a.webp",
+          "imageLocal": "season-images/a0108ec75127466b8b4f37495905bd05.webp"
+        },
+        {
+          "uuid": "fbddc72fa79d4f7c8642b3f3c30b0f64",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 66.18,
+          "y": 1.71,
+          "z": -59.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/6e842ae790ee4b109336e4acd27d872a.webp",
+          "imageLocal": "season-images/fbddc72fa79d4f7c8642b3f3c30b0f64.webp"
+        },
+        {
+          "uuid": "ec1ed163177944cc89562965bb91fd84",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 59.7,
+          "y": 1.47,
+          "z": -72.94,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/c0cea423a871410790ec9d6a323e6ce1.webp",
+          "imageLocal": "season-images/ec1ed163177944cc89562965bb91fd84.webp"
+        },
+        {
+          "uuid": "b6595476badd4762b39bf95b2c3366fc",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 169.01,
+          "y": 1.41,
+          "z": 165.49,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/a30eb9f4f55e4f4e93ff92375bcdfefb.webp",
+          "imageLocal": "season-images/b6595476badd4762b39bf95b2c3366fc.webp"
+        },
+        {
+          "uuid": "26f13b8721f24d588a77c5a83dfc7782",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 170.33,
+          "y": 2.14,
+          "z": 159.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/3a0f28fa82b1425b8095a331fd3ba188.webp",
+          "imageLocal": "season-images/26f13b8721f24d588a77c5a83dfc7782.webp"
+        },
+        {
+          "uuid": "77ad15fbb0e249309e70c15e76462226",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 159.24,
+          "y": 2.11,
+          "z": 149.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/aa91742793b446a6874f54314468443d.webp",
+          "imageLocal": "season-images/77ad15fbb0e249309e70c15e76462226.webp"
+        },
+        {
+          "uuid": "86a3bb8c1857460e98f19d7fd18e84ad",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -11.27,
+          "y": 37.97,
+          "z": -99.72,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/66f1148d6853433582c893c47f7d7376/4515b10a5ed0455c8e0d5675f095d776.webp",
+          "imageLocal": "season-images/86a3bb8c1857460e98f19d7fd18e84ad.webp"
+        },
+        {
+          "uuid": "a4fcfdfc1e17442ab85d9cd05f4f011e",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -148.8,
+          "y": 5.53,
+          "z": -394.34,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/66f1148d6853433582c893c47f7d7376/6f6ab90b1d6847dbb5d684b3be536326.webp",
+          "imageLocal": "season-images/a4fcfdfc1e17442ab85d9cd05f4f011e.webp"
+        },
+        {
+          "uuid": "9fada79a6449487b8b6b68641c56c188",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 54.89,
+          "y": 1.79,
+          "z": -73.01,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3cd140629baa450a85859f45fe51c90a/7b76a6a58f374533b7e1934dabb9a364.webp",
+          "imageLocal": "season-images/9fada79a6449487b8b6b68641c56c188.webp"
+        },
+        {
+          "uuid": "e566c27633934535b8f6197fa6c529ca",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -31.34,
+          "y": 8.03,
+          "z": -113.41,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3cd140629baa450a85859f45fe51c90a/13f75ee031ff4bc982d1a62b8dc9046c.webp",
+          "imageLocal": "season-images/e566c27633934535b8f6197fa6c529ca.webp"
+        },
+        {
+          "uuid": "ee4608f1cd4b454091f913dc0c2cb8fb",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 61.29,
+          "y": 1.19,
+          "z": -62.85,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/cfdcc29b5be04e0fb443aaae6f5e6d47/65cce685eb394c81b177d732d0fe6fd4.webp",
+          "imageLocal": "season-images/ee4608f1cd4b454091f913dc0c2cb8fb.webp"
+        },
+        {
+          "uuid": "35f4b075313243189c6c27cef30a01d3",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 131.51,
+          "y": 4.67,
+          "z": -55.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/0f81c212fe8b4f399e8ec0b548df432d.webp",
+          "imageLocal": "season-images/35f4b075313243189c6c27cef30a01d3.webp"
+        },
+        {
+          "uuid": "84ac4588cc934dba970c990a2bec9b47",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 48.06,
+          "y": 2.01,
+          "z": 33.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/c884cb0a5a9e4589a0386e5b7a6906c8.webp",
+          "imageLocal": "season-images/84ac4588cc934dba970c990a2bec9b47.webp"
+        },
+        {
+          "uuid": "59b33934cf8d46229f44d64f63c71e1c",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 137.37,
+          "y": 7.81,
+          "z": 369.85,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/177d9e7aca0c41b297b8a3d44896cf75.webp",
+          "imageLocal": "season-images/59b33934cf8d46229f44d64f63c71e1c.webp"
+        },
+        {
+          "uuid": "bed5179a5dce4fd5b57b99a778a92dbf",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -52.61,
+          "y": 2.65,
+          "z": 60.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/3595ea4d809241f0a8217f8a8cc95ef0.webp",
+          "imageLocal": "season-images/bed5179a5dce4fd5b57b99a778a92dbf.webp"
+        },
+        {
+          "uuid": "0ad15bf0970a4fd497a2e52da2834fb4",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 146.36,
+          "y": 3.97,
+          "z": -18.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/bb4da07b66894dfb88d13aa0f8e43043.webp",
+          "imageLocal": "season-images/0ad15bf0970a4fd497a2e52da2834fb4.webp"
+        },
+        {
+          "uuid": "5d835211de7d49369ac605ab4b0f6ea3",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -26.61,
+          "y": 6.61,
+          "z": -35.83,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/56a3aef28f834334a2d25eecc912b9c7/3c16ec050e3b4e2a9ebe2b1806387c6e.webp",
+          "imageLocal": "season-images/5d835211de7d49369ac605ab4b0f6ea3.webp"
+        },
+        {
+          "uuid": "b37417cd74314b3e9e197e152bc31fb1",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 138.16,
+          "y": 4.62,
+          "z": -18.87,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/438d12ba636348c897822326f4cc4348/d26caef7e508402983a0cf7129cd195d.webp",
+          "imageLocal": "season-images/b37417cd74314b3e9e197e152bc31fb1.webp"
+        },
+        {
+          "uuid": "558d6c7e051f4c70ababf735d152ce5c",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 134.39,
+          "y": -2.35,
+          "z": 2.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/392f29c9ff884dd78cb82ea2032c26ea/35766c89a91d474ba31e6a80f305ba2b.webp",
+          "imageLocal": "season-images/558d6c7e051f4c70ababf735d152ce5c.webp"
+        },
+        {
+          "uuid": "e2bb3dfe259243798a744fc96e26de35",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -171.05,
+          "y": 7.45,
+          "z": 223.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8a43a5ffd8304c6d966ae9d2330aa4c4/6ab0d97456b44fa2ba6737c97122435e.webp",
+          "imageLocal": "season-images/e2bb3dfe259243798a744fc96e26de35.webp"
+        },
+        {
+          "uuid": "5b9d42add65e4fa59896fbfa4ba5bc8d",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 139.39,
+          "y": 7.9,
+          "z": 375.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ec24f398fe804fae83f6d84cf129160a/a6e04c3c3bbb41889955d3bf53bc900b.webp",
+          "imageLocal": "season-images/5b9d42add65e4fa59896fbfa4ba5bc8d.webp"
+        },
+        {
+          "uuid": "4505ae71ac6f4161a935a0b52679c613",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 219.75,
+          "y": 10.6,
+          "z": 397.95,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e47382cc6c94d1a8b6956ed76140e7a/075f381d0a794c4cab82b47bbe52ae1b.webp",
+          "imageLocal": "season-images/4505ae71ac6f4161a935a0b52679c613.webp"
+        },
+        {
+          "uuid": "8d85b34db1644fa9a5bbfc9e637f658c",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 83.71,
+          "y": 1.67,
+          "z": -25.41,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/619678c46c9d404d9bc55f44b0ee665c/d4e240195e6f4d26b94f40a4067531d1.webp",
+          "imageLocal": "season-images/8d85b34db1644fa9a5bbfc9e637f658c.webp"
+        },
+        {
+          "uuid": "a15cd5e19be744a298ef3805b6524f94",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -69.12,
+          "y": 6.48,
+          "z": 45.4,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/c7a4fcb933214f5f80415212d0d2f068.webp",
+          "imageLocal": "season-images/a15cd5e19be744a298ef3805b6524f94.webp"
+        },
+        {
+          "uuid": "45cf994ad98c49b8bb284983f5fe6514",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -89.55,
+          "y": 6.47,
+          "z": 71.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/cfdcc29b5be04e0fb443aaae6f5e6d47/54cbe848e3ea4af58779d9b1bf2be4a4.webp",
+          "imageLocal": "season-images/45cf994ad98c49b8bb284983f5fe6514.webp"
+        },
+        {
+          "uuid": "25a6c331bac44dfab21cd3abe4d50698",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -182.79,
+          "y": 4.14,
+          "z": 221.52,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b28a552fd4594c61a12ddfb5a34fc2e4/fba8763efefa4e2492da0f1dc21fcffe.webp",
+          "imageLocal": "season-images/25a6c331bac44dfab21cd3abe4d50698.webp"
+        },
+        {
+          "uuid": "bbbd7e5402f84a3d9e1c38300bf5a942",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 72.71,
+          "y": 1.68,
+          "z": -23.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/84a2ed8bbcbd43948367351220eee30f/63b49ab1e2f34e46b60f29a05b5bf746.webp",
+          "imageLocal": "season-images/bbbd7e5402f84a3d9e1c38300bf5a942.webp"
+        },
+        {
+          "uuid": "9bcea78cccf04df3ac86822a30db6262",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -163.41,
+          "y": 7.49,
+          "z": 229.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/18f232dc15e6441193c0c0d4c92c4931/b6a83e4ac1374b8a842b09fccfd32147.webp",
+          "imageLocal": "season-images/9bcea78cccf04df3ac86822a30db6262.webp"
+        }
+      ]
+    },
+    "653e6760052c01c1c805532f": {
+      "key": "ground-zero",
+      "name": "中心区",
+      "points": [
+        {
+          "uuid": "2975a5aeacec4f4484298ed233889eca",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -7.56,
+          "y": 31.16,
+          "z": 51.19,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/ba3ea1707b8c4ff98e14bfc9ce258d34.webp",
+          "imageLocal": "season-images/2975a5aeacec4f4484298ed233889eca.webp"
+        },
+        {
+          "uuid": "825c0b75b074448ea12ba45ffc63ad71",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 12.73,
+          "y": 25.61,
+          "z": 65.75,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/b25025a0e1f744efa1ac0ef709f18ecf.webp",
+          "imageLocal": "season-images/825c0b75b074448ea12ba45ffc63ad71.webp"
+        },
+        {
+          "uuid": "7f74c2d84c31411c9f6b4d08c1f2bdd5",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -44.55,
+          "y": 30.93,
+          "z": 67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/ee554c8156164fe381be2ea8c54138cf.webp",
+          "imageLocal": "season-images/7f74c2d84c31411c9f6b4d08c1f2bdd5.webp"
+        },
+        {
+          "uuid": "a503566d406f4c1d8a29d982c1c09c12",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -5.55,
+          "y": 31,
+          "z": 62.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/714196f538f4459dac1c80b9fdb8ac01.webp",
+          "imageLocal": "season-images/a503566d406f4c1d8a29d982c1c09c12.webp"
+        },
+        {
+          "uuid": "22bfaf260bff4021b6966b8050a01561",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -27.75,
+          "y": 31,
+          "z": 82.75,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/38d2d01bed444b2fab27695bda776767.webp",
+          "imageLocal": "season-images/22bfaf260bff4021b6966b8050a01561.webp"
+        },
+        {
+          "uuid": "6797fa8c490f4f559a6efc3796053b56",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -8.47,
+          "y": 31.07,
+          "z": 54.86,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/0c4bcf8f997c4be794aab0053f329022.webp",
+          "imageLocal": "season-images/6797fa8c490f4f559a6efc3796053b56.webp"
+        },
+        {
+          "uuid": "c03e77f5a7b644b896fe99f3b1d2d1ff",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -12.59,
+          "y": 31.13,
+          "z": 40.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/b0c401a1a63e45f8bd51578a36c9e923.webp",
+          "imageLocal": "season-images/c03e77f5a7b644b896fe99f3b1d2d1ff.webp"
+        },
+        {
+          "uuid": "bad320538a9541c9a75505d61e5761f4",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 81.72,
+          "y": 14.76,
+          "z": 136.97,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/b4713fd079a248fc97075c29f8c2db3c.webp",
+          "imageLocal": "season-images/bad320538a9541c9a75505d61e5761f4.webp"
+        },
+        {
+          "uuid": "290c2b5fefc345f09ef49991dd5c7872",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -36.25,
+          "y": 31.07,
+          "z": 64.53,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/7cb64a1d4cfb48e6b42647ec34932d95.webp",
+          "imageLocal": "season-images/290c2b5fefc345f09ef49991dd5c7872.webp"
+        },
+        {
+          "uuid": "2e07f8a8fd7c4682a332324a2f9a4906",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 49.27,
+          "y": 24.14,
+          "z": 253.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/13eca3b1924441e1a04e661b3d590a04.webp",
+          "imageLocal": "season-images/2e07f8a8fd7c4682a332324a2f9a4906.webp"
+        },
+        {
+          "uuid": "55d86231c2b647239d510f114de5d265",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 62,
+          "y": 32.33,
+          "z": 149.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/8f8dc523c89140d1bf7e6dde89ddbf31.webp",
+          "imageLocal": "season-images/55d86231c2b647239d510f114de5d265.webp"
+        },
+        {
+          "uuid": "aed22679d4314bfd82a1cd80c9845441",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 81.28,
+          "y": 24.01,
+          "z": 128.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/dbdd43d804f346f38991cd841d521543.webp",
+          "imageLocal": "season-images/aed22679d4314bfd82a1cd80c9845441.webp"
+        },
+        {
+          "uuid": "fe89480cd38e4120900314c180d162bc",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -3.51,
+          "y": 31.14,
+          "z": 69.44,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/bb7ab57159dc40179eb5f79aa486bea8.webp",
+          "imageLocal": "season-images/fe89480cd38e4120900314c180d162bc.webp"
+        },
+        {
+          "uuid": "8b0f4db8ee5543c2bada501d7a276258",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 36.42,
+          "y": 24.78,
+          "z": 138.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/f239880597c547249fa6b399da7f8b14.webp",
+          "imageLocal": "season-images/8b0f4db8ee5543c2bada501d7a276258.webp"
+        },
+        {
+          "uuid": "bad6015a70794ac591b368dab108209a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 102.42,
+          "y": 25.82,
+          "z": 154.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/fe3be714099748aa817a642861bf8c2b.webp",
+          "imageLocal": "season-images/bad6015a70794ac591b368dab108209a.webp"
+        },
+        {
+          "uuid": "07e6d6af6d8241149ca7d01c94c8db5c",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -11.37,
+          "y": 31.17,
+          "z": 77.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9aaade3468944e94bc3d8678fff00198/9a5a298b9c0040e7b6901c2cd58910f0.webp",
+          "imageLocal": "season-images/07e6d6af6d8241149ca7d01c94c8db5c.webp"
+        },
+        {
+          "uuid": "116148f5419a41b1881479d18fe6d1d5",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -22.67,
+          "y": 30.99,
+          "z": 80,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/a1b7f20a32ca45c285b664ef711832ed.webp",
+          "imageLocal": "season-images/116148f5419a41b1881479d18fe6d1d5.webp"
+        },
+        {
+          "uuid": "7e964b8ae05743a981092c2c2f989de6",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 21.61,
+          "y": 24.13,
+          "z": 339.95,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/11b5bfa6315d406d84dd185fc5977cc0.webp",
+          "imageLocal": "season-images/7e964b8ae05743a981092c2c2f989de6.webp"
+        },
+        {
+          "uuid": "eb4849f052bc47e4aa11a2b3c8ebb9a7",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 10.68,
+          "y": 24.65,
+          "z": -45.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/76acfa41d8034336b57761c673fbe81f.webp",
+          "imageLocal": "season-images/eb4849f052bc47e4aa11a2b3c8ebb9a7.webp"
+        },
+        {
+          "uuid": "d81168fc09c74963929d29d70666d4d4",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 102.9,
+          "y": 30.33,
+          "z": 117.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/a1e701bed31d47a2bfefef92a9848498.webp",
+          "imageLocal": "season-images/d81168fc09c74963929d29d70666d4d4.webp"
+        },
+        {
+          "uuid": "e58e68d449e6436b9af289fa70ab7f3c",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 21.39,
+          "y": 25.78,
+          "z": 68.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17c82485a9b5451dbfe0ed83d093373e/6dcfaa2248ff459c9e334ad7f552511c.webp",
+          "imageLocal": "season-images/e58e68d449e6436b9af289fa70ab7f3c.webp"
+        },
+        {
+          "uuid": "1055a4bb9ff14f1e9f9a15ac93bb8116",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 94.79,
+          "y": 24.1,
+          "z": 204.13,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/1d9b52f85ab34b8bbc31de79062dbb95.webp",
+          "imageLocal": "season-images/1055a4bb9ff14f1e9f9a15ac93bb8116.webp"
+        },
+        {
+          "uuid": "5dab2dc90a2d45e3b6644c2a4ce9b692",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 148.22,
+          "y": 23.98,
+          "z": -85.33,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/63ee6fd4e8d84155a200a8bed3e2f188.webp",
+          "imageLocal": "season-images/5dab2dc90a2d45e3b6644c2a4ce9b692.webp"
+        },
+        {
+          "uuid": "4afcc58c93484d7bbf12d006209f0aa7",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 196.76,
+          "y": 17.75,
+          "z": 43.54,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/af0790ba55294e9ebb75e159093e9d68.webp",
+          "imageLocal": "season-images/4afcc58c93484d7bbf12d006209f0aa7.webp"
+        },
+        {
+          "uuid": "e8b15ad2a80349d2bd69752e995a2b4f",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 79.41,
+          "y": 14.77,
+          "z": -38.63,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/669a58359b04456abecb7000ae0bbee3.webp",
+          "imageLocal": "season-images/e8b15ad2a80349d2bd69752e995a2b4f.webp"
+        },
+        {
+          "uuid": "eab07a7cf0f74009b0687fd07dc265e6",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 112.93,
+          "y": 24.04,
+          "z": -78.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/d557613fdf5f4ab88be967ed90b8b4e8.webp",
+          "imageLocal": "season-images/eab07a7cf0f74009b0687fd07dc265e6.webp"
+        },
+        {
+          "uuid": "5be0e7ed1db64284b9c0a845b1926f9f",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 149,
+          "y": 24.01,
+          "z": 238.48,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/67ff9157bc924443a4cdc7aa322aa964/591618fa7477414da18095eeadfa4627.webp",
+          "imageLocal": "season-images/5be0e7ed1db64284b9c0a845b1926f9f.webp"
+        },
+        {
+          "uuid": "b147d16f1791421ebfee96631d49feaa",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 121.05,
+          "y": 30.42,
+          "z": 152.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/f42de74256d543818d9f259723b3fc75.webp",
+          "imageLocal": "season-images/b147d16f1791421ebfee96631d49feaa.webp"
+        },
+        {
+          "uuid": "2ac576d635854c6083b3bf797fe5a8b2",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -18.9,
+          "y": 30.9,
+          "z": 45.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b28a552fd4594c61a12ddfb5a34fc2e4/1bc96137aa7f493087c813f83743c354.webp",
+          "imageLocal": "season-images/2ac576d635854c6083b3bf797fe5a8b2.webp"
+        },
+        {
+          "uuid": "c3687aeb4e6a41ffad63554b3783632b",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 54.77,
+          "y": 24.28,
+          "z": 152.35,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/4551a9c4471645de917c02f6c96b0ee6/d77f5460ebb249eabcbe9b112a73287a.webp",
+          "imageLocal": "season-images/c3687aeb4e6a41ffad63554b3783632b.webp"
+        }
+      ]
+    },
+    "65b8d6f5cdde2479cb2a3125": {
+      "key": "ground-zero",
+      "name": "中心区 21+",
+      "points": [
+        {
+          "uuid": "2975a5aeacec4f4484298ed233889eca",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -7.56,
+          "y": 31.16,
+          "z": 51.19,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/ba3ea1707b8c4ff98e14bfc9ce258d34.webp",
+          "imageLocal": "season-images/2975a5aeacec4f4484298ed233889eca.webp"
+        },
+        {
+          "uuid": "825c0b75b074448ea12ba45ffc63ad71",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 12.73,
+          "y": 25.61,
+          "z": 65.75,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/b25025a0e1f744efa1ac0ef709f18ecf.webp",
+          "imageLocal": "season-images/825c0b75b074448ea12ba45ffc63ad71.webp"
+        },
+        {
+          "uuid": "7f74c2d84c31411c9f6b4d08c1f2bdd5",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -44.55,
+          "y": 30.93,
+          "z": 67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/ee554c8156164fe381be2ea8c54138cf.webp",
+          "imageLocal": "season-images/7f74c2d84c31411c9f6b4d08c1f2bdd5.webp"
+        },
+        {
+          "uuid": "a503566d406f4c1d8a29d982c1c09c12",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -5.55,
+          "y": 31,
+          "z": 62.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12159afe9a184f55acdc286193947ec5/714196f538f4459dac1c80b9fdb8ac01.webp",
+          "imageLocal": "season-images/a503566d406f4c1d8a29d982c1c09c12.webp"
+        },
+        {
+          "uuid": "22bfaf260bff4021b6966b8050a01561",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -27.75,
+          "y": 31,
+          "z": 82.75,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/38d2d01bed444b2fab27695bda776767.webp",
+          "imageLocal": "season-images/22bfaf260bff4021b6966b8050a01561.webp"
+        },
+        {
+          "uuid": "6797fa8c490f4f559a6efc3796053b56",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -8.47,
+          "y": 31.07,
+          "z": 54.86,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/0c4bcf8f997c4be794aab0053f329022.webp",
+          "imageLocal": "season-images/6797fa8c490f4f559a6efc3796053b56.webp"
+        },
+        {
+          "uuid": "c03e77f5a7b644b896fe99f3b1d2d1ff",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -12.59,
+          "y": 31.13,
+          "z": 40.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/b0c401a1a63e45f8bd51578a36c9e923.webp",
+          "imageLocal": "season-images/c03e77f5a7b644b896fe99f3b1d2d1ff.webp"
+        },
+        {
+          "uuid": "bad320538a9541c9a75505d61e5761f4",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 81.72,
+          "y": 14.76,
+          "z": 136.97,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/b4713fd079a248fc97075c29f8c2db3c.webp",
+          "imageLocal": "season-images/bad320538a9541c9a75505d61e5761f4.webp"
+        },
+        {
+          "uuid": "290c2b5fefc345f09ef49991dd5c7872",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -36.25,
+          "y": 31.07,
+          "z": 64.53,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/7cb64a1d4cfb48e6b42647ec34932d95.webp",
+          "imageLocal": "season-images/290c2b5fefc345f09ef49991dd5c7872.webp"
+        },
+        {
+          "uuid": "2e07f8a8fd7c4682a332324a2f9a4906",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 49.27,
+          "y": 24.14,
+          "z": 253.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/13eca3b1924441e1a04e661b3d590a04.webp",
+          "imageLocal": "season-images/2e07f8a8fd7c4682a332324a2f9a4906.webp"
+        },
+        {
+          "uuid": "55d86231c2b647239d510f114de5d265",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 62,
+          "y": 32.33,
+          "z": 149.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/8f8dc523c89140d1bf7e6dde89ddbf31.webp",
+          "imageLocal": "season-images/55d86231c2b647239d510f114de5d265.webp"
+        },
+        {
+          "uuid": "aed22679d4314bfd82a1cd80c9845441",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 81.28,
+          "y": 24.01,
+          "z": 128.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/dbdd43d804f346f38991cd841d521543.webp",
+          "imageLocal": "season-images/aed22679d4314bfd82a1cd80c9845441.webp"
+        },
+        {
+          "uuid": "fe89480cd38e4120900314c180d162bc",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -3.51,
+          "y": 31.14,
+          "z": 69.44,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/bb7ab57159dc40179eb5f79aa486bea8.webp",
+          "imageLocal": "season-images/fe89480cd38e4120900314c180d162bc.webp"
+        },
+        {
+          "uuid": "8b0f4db8ee5543c2bada501d7a276258",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 36.42,
+          "y": 24.78,
+          "z": 138.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/f239880597c547249fa6b399da7f8b14.webp",
+          "imageLocal": "season-images/8b0f4db8ee5543c2bada501d7a276258.webp"
+        },
+        {
+          "uuid": "bad6015a70794ac591b368dab108209a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 102.42,
+          "y": 25.82,
+          "z": 154.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/fe3be714099748aa817a642861bf8c2b.webp",
+          "imageLocal": "season-images/bad6015a70794ac591b368dab108209a.webp"
+        },
+        {
+          "uuid": "07e6d6af6d8241149ca7d01c94c8db5c",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -11.37,
+          "y": 31.17,
+          "z": 77.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9aaade3468944e94bc3d8678fff00198/9a5a298b9c0040e7b6901c2cd58910f0.webp",
+          "imageLocal": "season-images/07e6d6af6d8241149ca7d01c94c8db5c.webp"
+        },
+        {
+          "uuid": "116148f5419a41b1881479d18fe6d1d5",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -22.67,
+          "y": 30.99,
+          "z": 80,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/a1b7f20a32ca45c285b664ef711832ed.webp",
+          "imageLocal": "season-images/116148f5419a41b1881479d18fe6d1d5.webp"
+        },
+        {
+          "uuid": "7e964b8ae05743a981092c2c2f989de6",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 21.61,
+          "y": 24.13,
+          "z": 339.95,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/11b5bfa6315d406d84dd185fc5977cc0.webp",
+          "imageLocal": "season-images/7e964b8ae05743a981092c2c2f989de6.webp"
+        },
+        {
+          "uuid": "eb4849f052bc47e4aa11a2b3c8ebb9a7",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 10.68,
+          "y": 24.65,
+          "z": -45.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/76acfa41d8034336b57761c673fbe81f.webp",
+          "imageLocal": "season-images/eb4849f052bc47e4aa11a2b3c8ebb9a7.webp"
+        },
+        {
+          "uuid": "d81168fc09c74963929d29d70666d4d4",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 102.9,
+          "y": 30.33,
+          "z": 117.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/a1e701bed31d47a2bfefef92a9848498.webp",
+          "imageLocal": "season-images/d81168fc09c74963929d29d70666d4d4.webp"
+        },
+        {
+          "uuid": "e58e68d449e6436b9af289fa70ab7f3c",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 21.39,
+          "y": 25.78,
+          "z": 68.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17c82485a9b5451dbfe0ed83d093373e/6dcfaa2248ff459c9e334ad7f552511c.webp",
+          "imageLocal": "season-images/e58e68d449e6436b9af289fa70ab7f3c.webp"
+        },
+        {
+          "uuid": "1055a4bb9ff14f1e9f9a15ac93bb8116",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 94.79,
+          "y": 24.1,
+          "z": 204.13,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/1d9b52f85ab34b8bbc31de79062dbb95.webp",
+          "imageLocal": "season-images/1055a4bb9ff14f1e9f9a15ac93bb8116.webp"
+        },
+        {
+          "uuid": "5dab2dc90a2d45e3b6644c2a4ce9b692",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 148.22,
+          "y": 23.98,
+          "z": -85.33,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/63ee6fd4e8d84155a200a8bed3e2f188.webp",
+          "imageLocal": "season-images/5dab2dc90a2d45e3b6644c2a4ce9b692.webp"
+        },
+        {
+          "uuid": "4afcc58c93484d7bbf12d006209f0aa7",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 196.76,
+          "y": 17.75,
+          "z": 43.54,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/af0790ba55294e9ebb75e159093e9d68.webp",
+          "imageLocal": "season-images/4afcc58c93484d7bbf12d006209f0aa7.webp"
+        },
+        {
+          "uuid": "e8b15ad2a80349d2bd69752e995a2b4f",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 79.41,
+          "y": 14.77,
+          "z": -38.63,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/669a58359b04456abecb7000ae0bbee3.webp",
+          "imageLocal": "season-images/e8b15ad2a80349d2bd69752e995a2b4f.webp"
+        },
+        {
+          "uuid": "eab07a7cf0f74009b0687fd07dc265e6",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 112.93,
+          "y": 24.04,
+          "z": -78.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3e8045de6ea6424b95f5b92a06d778a2/d557613fdf5f4ab88be967ed90b8b4e8.webp",
+          "imageLocal": "season-images/eab07a7cf0f74009b0687fd07dc265e6.webp"
+        },
+        {
+          "uuid": "5be0e7ed1db64284b9c0a845b1926f9f",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 149,
+          "y": 24.01,
+          "z": 238.48,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/67ff9157bc924443a4cdc7aa322aa964/591618fa7477414da18095eeadfa4627.webp",
+          "imageLocal": "season-images/5be0e7ed1db64284b9c0a845b1926f9f.webp"
+        },
+        {
+          "uuid": "b147d16f1791421ebfee96631d49feaa",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 121.05,
+          "y": 30.42,
+          "z": 152.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/f42de74256d543818d9f259723b3fc75.webp",
+          "imageLocal": "season-images/b147d16f1791421ebfee96631d49feaa.webp"
+        },
+        {
+          "uuid": "2ac576d635854c6083b3bf797fe5a8b2",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -18.9,
+          "y": 30.9,
+          "z": 45.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b28a552fd4594c61a12ddfb5a34fc2e4/1bc96137aa7f493087c813f83743c354.webp",
+          "imageLocal": "season-images/2ac576d635854c6083b3bf797fe5a8b2.webp"
+        },
+        {
+          "uuid": "c3687aeb4e6a41ffad63554b3783632b",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": 54.77,
+          "y": 24.28,
+          "z": 152.35,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/4551a9c4471645de917c02f6c96b0ee6/d77f5460ebb249eabcbe9b112a73287a.webp",
+          "imageLocal": "season-images/c3687aeb4e6a41ffad63554b3783632b.webp"
+        }
+      ]
+    },
+    "56f40101d2720b2a4d8b45d6": {
+      "key": "customs",
+      "name": "海关",
+      "points": [
+        {
+          "uuid": "df2feccd74114aeeb7c938d2a6c88d8c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 78.59,
+          "y": 6.13,
+          "z": -158.14,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/de9bb351ec3c4d338a55bac5eb3ff358/6ab37c4ce3e044739b7e1cca7c928362.webp",
+          "imageLocal": "season-images/df2feccd74114aeeb7c938d2a6c88d8c.webp"
+        },
+        {
+          "uuid": "6c42c9195cc444a3afd68311dea418eb",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 196.13,
+          "y": 3.25,
+          "z": -101.56,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/37e9d213c20749e4aced08b5812f65a3.webp",
+          "imageLocal": "season-images/6c42c9195cc444a3afd68311dea418eb.webp"
+        },
+        {
+          "uuid": "fd750f10b02a40c7aa40383b2bbe44a9",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 78.53,
+          "y": 5.41,
+          "z": -160.18,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/4e0c6329288543778e7de93d3cb9a092.webp",
+          "imageLocal": "season-images/fd750f10b02a40c7aa40383b2bbe44a9.webp"
+        },
+        {
+          "uuid": "fe07c9af3e96434e965de03aa76dd754",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 64.5,
+          "y": 2.73,
+          "z": -107.1,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/b26f218a13604777a095677866ddc7f2.webp",
+          "imageLocal": "season-images/fe07c9af3e96434e965de03aa76dd754.webp"
+        },
+        {
+          "uuid": "b7c75ff959ef4e689607ce93b3ee5ace",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 63.34,
+          "y": 9.14,
+          "z": -65.3,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/a920f6a2029747b2b8545863ebf52a9e.webp",
+          "imageLocal": "season-images/b7c75ff959ef4e689607ce93b3ee5ace.webp"
+        },
+        {
+          "uuid": "316540999395418ab676e50ee3a96906",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -202.28,
+          "y": 7.82,
+          "z": -105.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/0ce806caf61b4b42a530ed285ea780de.webp",
+          "imageLocal": "season-images/316540999395418ab676e50ee3a96906.webp"
+        },
+        {
+          "uuid": "4b3430d9fdf648b989e3c8bf41fa8623",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -204.19,
+          "y": 8.36,
+          "z": -109.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/80f6da1ee538483dbcb1ff77bf4121f9.webp",
+          "imageLocal": "season-images/4b3430d9fdf648b989e3c8bf41fa8623.webp"
+        },
+        {
+          "uuid": "0f54b17654c14e1494e53ef6d633048e",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 77.77,
+          "y": 6.1,
+          "z": -155.68,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5974744bc64e46bc978d4dc02bf560da/e9e664474f394aec9b1da2aded2754df.webp",
+          "imageLocal": "season-images/0f54b17654c14e1494e53ef6d633048e.webp"
+        },
+        {
+          "uuid": "727191fb41794980bf4c2d85e921b4fa",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 91.33,
+          "y": 8.74,
+          "z": -58.81,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/62fb4e74b87a4a1ba98c24534fe26daa/c6b09c8a33784e06ad751be99b1e2c11.webp",
+          "imageLocal": "season-images/727191fb41794980bf4c2d85e921b4fa.webp"
+        },
+        {
+          "uuid": "f4e08a4ac5cc46fc8394f47581769932",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 89.59,
+          "y": 8.63,
+          "z": -54.31,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/62fb4e74b87a4a1ba98c24534fe26daa/b33384ad223349b8a11c3802aff057e3.webp",
+          "imageLocal": "season-images/f4e08a4ac5cc46fc8394f47581769932.webp"
+        },
+        {
+          "uuid": "840c48eb4c7343fdb0898391f8e80b41",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 264.28,
+          "y": 13.9,
+          "z": -76.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/b734496c00024369850021c9036f6484.webp",
+          "imageLocal": "season-images/840c48eb4c7343fdb0898391f8e80b41.webp"
+        },
+        {
+          "uuid": "865bc974f86d4bb5983cd7e2462f0955",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 204.31,
+          "y": 3.13,
+          "z": -121.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2fadbbd113464dd5ab3f138300a0b838/a06ebd2dcfac4fe7a3f8252ff04b6f61.webp",
+          "imageLocal": "season-images/865bc974f86d4bb5983cd7e2462f0955.webp"
+        },
+        {
+          "uuid": "2957d17bedad49c0aa863da2b3d6de6c",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 173.58,
+          "y": 4.35,
+          "z": 182.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/911252f26a8845fc98dd32ad48be9e4f/8e9b19078adc4450b8c5c72e43c2c6ea.webp",
+          "imageLocal": "season-images/2957d17bedad49c0aa863da2b3d6de6c.webp"
+        },
+        {
+          "uuid": "7c62d979ccd34c3d8e98c0bace42206c",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 68.85,
+          "y": 9.15,
+          "z": -63.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f26c5d7de71c4e7e8cb89d72ba802f99/a3d9639c649f4ec1a54d1cac61b8517c.webp",
+          "imageLocal": "season-images/7c62d979ccd34c3d8e98c0bace42206c.webp"
+        },
+        {
+          "uuid": "3d287717f778445097a763f5e3cd9ad3",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 26.08,
+          "y": 5.83,
+          "z": -57.84,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17d873c8957b43dfbc864063a43ab7c9/4ececb1d5afa49d9aafe56f54534f584.webp",
+          "imageLocal": "season-images/3d287717f778445097a763f5e3cd9ad3.webp"
+        },
+        {
+          "uuid": "e58c2bcccaf14ac8855e4dcf66593094",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 317.07,
+          "y": 2.91,
+          "z": -185.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17d873c8957b43dfbc864063a43ab7c9/e05c0249286445388035f84616bd181f.webp",
+          "imageLocal": "season-images/e58c2bcccaf14ac8855e4dcf66593094.webp"
+        },
+        {
+          "uuid": "e6cc3ac146564910a2ad881b2bc17026",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 236.48,
+          "y": 3.7,
+          "z": 159.28,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36f5b43dbc124663bad940b04f14d79d/0e3c3dd5cfe14fcba8bd7b03605b9dfc.webp",
+          "imageLocal": "season-images/e6cc3ac146564910a2ad881b2bc17026.webp"
+        },
+        {
+          "uuid": "1bb23e4522034ed89b86f61373342fd1",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 579.77,
+          "y": 7.7,
+          "z": -50.27,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36f5b43dbc124663bad940b04f14d79d/c4ece787f0ef46a5a07b18c540ab54ea.webp",
+          "imageLocal": "season-images/1bb23e4522034ed89b86f61373342fd1.webp"
+        },
+        {
+          "uuid": "ed8d671b631f4fe5a25968184815b755",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 78.45,
+          "y": 5.91,
+          "z": -164.83,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d82c3ef8d1b240a5b357444e930ad092/8007aff885b54c18a8890c004e921fdf.webp",
+          "imageLocal": "season-images/ed8d671b631f4fe5a25968184815b755.webp"
+        },
+        {
+          "uuid": "9a34ff2f13604e0db231cdc2ef23349a",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 464.22,
+          "y": 4.11,
+          "z": -62.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/21043a1d5aa9469a864a5bc4758f7d8c/e86d6f46662a4953a190097f7ed5310f.webp",
+          "imageLocal": "season-images/9a34ff2f13604e0db231cdc2ef23349a.webp"
+        },
+        {
+          "uuid": "7222d6ac8f64429899eec0195930deb4",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 171.05,
+          "y": 7.25,
+          "z": 153.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/749711547f9e4d24848c262aae6252a5/dfb25f9e8f6d4b02a49eb038ecbcc063.webp",
+          "imageLocal": "season-images/7222d6ac8f64429899eec0195930deb4.webp"
+        },
+        {
+          "uuid": "87eab072dc8642f5b8601522447c034e",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 228.02,
+          "y": 3.7,
+          "z": 161.1,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/749711547f9e4d24848c262aae6252a5/0fbc58d0cc314401a58b8e21da553dfe.webp",
+          "imageLocal": "season-images/87eab072dc8642f5b8601522447c034e.webp"
+        },
+        {
+          "uuid": "f5d3f79736534b75b8e8048518d442d0",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 225.35,
+          "y": 3.62,
+          "z": 138.86,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/690405dfac594706ad7ac009b9eccd40/4f340342baa34611b08b3c7a1520109a.webp",
+          "imageLocal": "season-images/f5d3f79736534b75b8e8048518d442d0.webp"
+        },
+        {
+          "uuid": "c0dcaba781954b7c956430cd7e9923c0",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 68.76,
+          "y": 2.55,
+          "z": -169.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/75f3a200e769473ba3eb300bd83f6546.webp",
+          "imageLocal": "season-images/c0dcaba781954b7c956430cd7e9923c0.webp"
+        },
+        {
+          "uuid": "7bec29d66d114608a8425984d3695d4a",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -185.35,
+          "y": 3.01,
+          "z": -184.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/0721838654da475b81a461969de93f92.webp",
+          "imageLocal": "season-images/7bec29d66d114608a8425984d3695d4a.webp"
+        },
+        {
+          "uuid": "3ce884da7758432b83b208a82f91beef",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -204.17,
+          "y": 2.74,
+          "z": -33.14,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/62388e55ba294422b9f8e89dd3bdaebe.webp",
+          "imageLocal": "season-images/3ce884da7758432b83b208a82f91beef.webp"
+        },
+        {
+          "uuid": "2e017633283541cb86b15d94e0516110",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 316.81,
+          "y": 2.31,
+          "z": -180.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9aaade3468944e94bc3d8678fff00198/446d05c0e8344926b4d8157e041da37e.webp",
+          "imageLocal": "season-images/2e017633283541cb86b15d94e0516110.webp"
+        },
+        {
+          "uuid": "e84ad7b6bd92460bb7319e61e96c7678",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 105.85,
+          "y": 2.74,
+          "z": -87.68,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0897e96660db47f4b5ce6473a126ec26/994ddff5f2ba431faf4ab99b11adc9c2.webp",
+          "imageLocal": "season-images/e84ad7b6bd92460bb7319e61e96c7678.webp"
+        },
+        {
+          "uuid": "67e96751e58b429d8cbb4105c83c3781",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 224.77,
+          "y": 1.29,
+          "z": 139.63,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/382866ff74c245eab3759cfb28d77705.webp",
+          "imageLocal": "season-images/67e96751e58b429d8cbb4105c83c3781.webp"
+        }
+      ]
+    },
+    "55f2d3fd4bdc2d5f408b4567": {
+      "key": "factory",
+      "name": "工厂",
+      "points": [
+        {
+          "uuid": "b53e77818fb646fc9797c5f4303148b8",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 27.9,
+          "y": 5,
+          "z": -34.56,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/cacc738ccb39480ab40afad0e3c098ca/db6eeb105bda4499801a60e4a0c46147.webp",
+          "imageLocal": "season-images/b53e77818fb646fc9797c5f4303148b8.webp"
+        },
+        {
+          "uuid": "a415b35736f640ccac5ccfff98911da3",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 27.21,
+          "y": 2.27,
+          "z": 41.12,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/690405dfac594706ad7ac009b9eccd40/a828da16d5f44ef888993f6da080fbb4.webp",
+          "imageLocal": "season-images/a415b35736f640ccac5ccfff98911da3.webp"
+        },
+        {
+          "uuid": "e03216dab8c94c2099cdb113198df720",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 31.39,
+          "y": 1.5,
+          "z": 17.78,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/651a3f91cfff4326a38b2529d0f538b6.webp",
+          "imageLocal": "season-images/e03216dab8c94c2099cdb113198df720.webp"
+        },
+        {
+          "uuid": "f6b6bf77684743bb865a509b9bbbabad",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 73.16,
+          "y": 1.41,
+          "z": -34.26,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/2f99b10c4e014f229a7fa317fda2c7f9.webp",
+          "imageLocal": "season-images/f6b6bf77684743bb865a509b9bbbabad.webp"
+        },
+        {
+          "uuid": "7c89f77016f948bea4a571373fab593c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 13.91,
+          "y": 2.37,
+          "z": 42.31,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/8395cfb2748747b3bb961263a5a3901d.webp",
+          "imageLocal": "season-images/7c89f77016f948bea4a571373fab593c.webp"
+        },
+        {
+          "uuid": "db84a80573b8420fa1d4306173b54bea",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 19.11,
+          "y": -1.33,
+          "z": -21.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/ce98ebb6c7a44ee0bb508ef142320310.webp",
+          "imageLocal": "season-images/db84a80573b8420fa1d4306173b54bea.webp"
+        },
+        {
+          "uuid": "b127b292a599477ea816d39df45fb4a4",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 29.9,
+          "y": 1.43,
+          "z": -34.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/c8bf5519417e48ff9dbf202a7185ff7a.webp",
+          "imageLocal": "season-images/b127b292a599477ea816d39df45fb4a4.webp"
+        },
+        {
+          "uuid": "5b4908aa94834e8dba25508085299200",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -15.5,
+          "y": 1.46,
+          "z": -26.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/b1867f612cc548ecb90a1bd55a6d2960.webp",
+          "imageLocal": "season-images/5b4908aa94834e8dba25508085299200.webp"
+        },
+        {
+          "uuid": "210e1b284b154e8891955ff524a0eed5",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 26.07,
+          "y": 1.33,
+          "z": -34.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/75d2de1a1f19491286b60a0c9d040b4a.webp",
+          "imageLocal": "season-images/210e1b284b154e8891955ff524a0eed5.webp"
+        },
+        {
+          "uuid": "673e37cbcf1c47fa816a6b89af7f20ef",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 12.28,
+          "y": 8.9,
+          "z": 38.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/f6ab580b4b1747848cc271b98be14c21.webp",
+          "imageLocal": "season-images/673e37cbcf1c47fa816a6b89af7f20ef.webp"
+        },
+        {
+          "uuid": "8ee39aea0c1e425eb1d0bee2cf5b2257",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 33.51,
+          "y": 1.46,
+          "z": -34.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/6c6369eb9a574afebfd2c92def3cd476.webp",
+          "imageLocal": "season-images/8ee39aea0c1e425eb1d0bee2cf5b2257.webp"
+        },
+        {
+          "uuid": "5f7e90e362c343f5b5fc1a33d17c5ca4",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 28.55,
+          "y": 9.1,
+          "z": 38.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/6eab47eed9e345e1bbe66a29e54fd30c.webp",
+          "imageLocal": "season-images/5f7e90e362c343f5b5fc1a33d17c5ca4.webp"
+        },
+        {
+          "uuid": "0d0cdcf8a1a346ab9771fee097c11822",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 24.04,
+          "y": 9.04,
+          "z": 38.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/edea9a8b45014368893c9c218138b539.webp",
+          "imageLocal": "season-images/0d0cdcf8a1a346ab9771fee097c11822.webp"
+        },
+        {
+          "uuid": "737ab7ae0d264f22af96afc10ecab4fa",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 41.68,
+          "y": 1.36,
+          "z": -14.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/883f7916f8a7451eaa4ab72257e7a23b.webp",
+          "imageLocal": "season-images/737ab7ae0d264f22af96afc10ecab4fa.webp"
+        },
+        {
+          "uuid": "b48099e5bda4465e944210ede601c998",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -0.74,
+          "y": -1.38,
+          "z": 49,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c3b4c164a7394ada96e35d670fd10704/1f7bb8a2a17a4bdcb47909d44cbd5eb5.webp",
+          "imageLocal": "season-images/b48099e5bda4465e944210ede601c998.webp"
+        },
+        {
+          "uuid": "671c175c68124ef1ae27c52d3a0bb2ea",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 26.36,
+          "y": 4.86,
+          "z": -18.57,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c40908834fe2430aa922efd2c3370750/169fa547aadc42998df6391510206fe8.webp",
+          "imageLocal": "season-images/671c175c68124ef1ae27c52d3a0bb2ea.webp"
+        },
+        {
+          "uuid": "303dcfff98bd45c684d50717bdae986e",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 25.66,
+          "y": 9.52,
+          "z": 35.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/3977e96cb5044d538e91b33a47f88df5.webp",
+          "imageLocal": "season-images/303dcfff98bd45c684d50717bdae986e.webp"
+        },
+        {
+          "uuid": "09d1bb7a08a34cea9eaac5b79fb8e7a2",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 54.29,
+          "y": 1.62,
+          "z": 22.93,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17c82485a9b5451dbfe0ed83d093373e/90df61f401e8474c8b30248b50550f80.webp",
+          "imageLocal": "season-images/09d1bb7a08a34cea9eaac5b79fb8e7a2.webp"
+        },
+        {
+          "uuid": "5fa6774651cd4f43804776c0221ff75c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -21.81,
+          "y": 4.01,
+          "z": 29.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/3c3139fba8dd4ae298f8a74cb5ae1098.webp",
+          "imageLocal": "season-images/5fa6774651cd4f43804776c0221ff75c.webp"
+        },
+        {
+          "uuid": "fba85b2c0bbd4d2db460b2decb6639ce",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -19.12,
+          "y": -1.39,
+          "z": 46.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a70ce612dc446c78303b26bbc27714d/20a3a44bd6b34495b662f49a9757b911.webp",
+          "imageLocal": "season-images/fba85b2c0bbd4d2db460b2decb6639ce.webp"
+        },
+        {
+          "uuid": "a3c602aaa1d64553b44ac218bbcbb01d",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 46.41,
+          "y": 1.7,
+          "z": -45.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/21043a1d5aa9469a864a5bc4758f7d8c/25c4d6b52bf0416ca49968651f07abde.webp",
+          "imageLocal": "season-images/a3c602aaa1d64553b44ac218bbcbb01d.webp"
+        },
+        {
+          "uuid": "82d72f944650429ab7106ab8899fc454",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 21.06,
+          "y": 9.69,
+          "z": 37.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5af12dc3b92d49ddb76b4ac86f20aaee/16b853a477574e72ad725bf0399c1fca.webp",
+          "imageLocal": "season-images/82d72f944650429ab7106ab8899fc454.webp"
+        },
+        {
+          "uuid": "e4b07d05555b45e6a6cb2a171f2ea93c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 35.86,
+          "y": 1.42,
+          "z": -35.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f7f62b82d714463291e8479acaa641a9/98ff3115a2534389af7a207c4b6f41a5.webp",
+          "imageLocal": "season-images/e4b07d05555b45e6a6cb2a171f2ea93c.webp"
+        },
+        {
+          "uuid": "e0032b0e02dc4197b2529f435de30fde",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -21.01,
+          "y": -1.22,
+          "z": 48.01,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2e6811ba4fd149a89bbce324daf69537/ad585110233c4c68943010e7bea4905a.webp",
+          "imageLocal": "season-images/e0032b0e02dc4197b2529f435de30fde.webp"
+        },
+        {
+          "uuid": "d447c5c0def44130b0862174e3aa8395",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -130.76,
+          "y": -4.49,
+          "z": -151.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8e572c0604a1437b82ace2c5e022003f/d9c47f5a567e490fab60cc4faf076380.webp",
+          "imageLocal": "season-images/d447c5c0def44130b0862174e3aa8395.webp"
+        },
+        {
+          "uuid": "32114ef7567d40ea8b719521d8c64430",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 12.36,
+          "y": 9.31,
+          "z": 40.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f3d955beca9245c8b6dc4edbcdb24f2a/64467b48a0f04d0a9eccd3d8cdb922b6.webp",
+          "imageLocal": "season-images/32114ef7567d40ea8b719521d8c64430.webp"
+        },
+        {
+          "uuid": "24ad37d3171047f78314ed650162cb25",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 13.93,
+          "y": 2.38,
+          "z": 38.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/696058041cb0476ab433d04a79ca56bd.webp",
+          "imageLocal": "season-images/24ad37d3171047f78314ed650162cb25.webp"
+        },
+        {
+          "uuid": "f6f73950933a4f7fba2bacd3d4002b31",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 21.03,
+          "y": 9.58,
+          "z": 40.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/90c89472ec684f7aafc1c940943053d5.webp",
+          "imageLocal": "season-images/f6f73950933a4f7fba2bacd3d4002b31.webp"
+        },
+        {
+          "uuid": "a4c60fed711c4d6296e9ce97e7e2a4a5",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 29.16,
+          "y": 9.83,
+          "z": 40.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/7f81bbdb97704e6b83196eacf5ff859a.webp",
+          "imageLocal": "season-images/a4c60fed711c4d6296e9ce97e7e2a4a5.webp"
+        },
+        {
+          "uuid": "2fdac924d70e4c67b56d2c70329e1b64",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 54.64,
+          "y": 1.46,
+          "z": 25.06,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/4551a9c4471645de917c02f6c96b0ee6/dfebf0ed3c7a433bb16cf2a229d87dde.webp",
+          "imageLocal": "season-images/2fdac924d70e4c67b56d2c70329e1b64.webp"
+        }
+      ]
+    },
+    "59fc81d786f774390775787e": {
+      "key": "factory",
+      "name": "夜间工厂",
+      "points": [
+        {
+          "uuid": "b53e77818fb646fc9797c5f4303148b8",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 27.9,
+          "y": 5,
+          "z": -34.56,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/cacc738ccb39480ab40afad0e3c098ca/db6eeb105bda4499801a60e4a0c46147.webp",
+          "imageLocal": "season-images/b53e77818fb646fc9797c5f4303148b8.webp"
+        },
+        {
+          "uuid": "a415b35736f640ccac5ccfff98911da3",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 27.21,
+          "y": 2.27,
+          "z": 41.12,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/690405dfac594706ad7ac009b9eccd40/a828da16d5f44ef888993f6da080fbb4.webp",
+          "imageLocal": "season-images/a415b35736f640ccac5ccfff98911da3.webp"
+        },
+        {
+          "uuid": "e03216dab8c94c2099cdb113198df720",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 31.39,
+          "y": 1.5,
+          "z": 17.78,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/651a3f91cfff4326a38b2529d0f538b6.webp",
+          "imageLocal": "season-images/e03216dab8c94c2099cdb113198df720.webp"
+        },
+        {
+          "uuid": "f6b6bf77684743bb865a509b9bbbabad",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 73.16,
+          "y": 1.41,
+          "z": -34.26,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/2f99b10c4e014f229a7fa317fda2c7f9.webp",
+          "imageLocal": "season-images/f6b6bf77684743bb865a509b9bbbabad.webp"
+        },
+        {
+          "uuid": "7c89f77016f948bea4a571373fab593c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 13.91,
+          "y": 2.37,
+          "z": 42.31,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/8395cfb2748747b3bb961263a5a3901d.webp",
+          "imageLocal": "season-images/7c89f77016f948bea4a571373fab593c.webp"
+        },
+        {
+          "uuid": "db84a80573b8420fa1d4306173b54bea",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 19.11,
+          "y": -1.33,
+          "z": -21.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/ce98ebb6c7a44ee0bb508ef142320310.webp",
+          "imageLocal": "season-images/db84a80573b8420fa1d4306173b54bea.webp"
+        },
+        {
+          "uuid": "b127b292a599477ea816d39df45fb4a4",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 29.9,
+          "y": 1.43,
+          "z": -34.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/c8bf5519417e48ff9dbf202a7185ff7a.webp",
+          "imageLocal": "season-images/b127b292a599477ea816d39df45fb4a4.webp"
+        },
+        {
+          "uuid": "5b4908aa94834e8dba25508085299200",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -15.5,
+          "y": 1.46,
+          "z": -26.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0877a6c81631407994f04fda40483e18/b1867f612cc548ecb90a1bd55a6d2960.webp",
+          "imageLocal": "season-images/5b4908aa94834e8dba25508085299200.webp"
+        },
+        {
+          "uuid": "210e1b284b154e8891955ff524a0eed5",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 26.07,
+          "y": 1.33,
+          "z": -34.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/75d2de1a1f19491286b60a0c9d040b4a.webp",
+          "imageLocal": "season-images/210e1b284b154e8891955ff524a0eed5.webp"
+        },
+        {
+          "uuid": "673e37cbcf1c47fa816a6b89af7f20ef",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 12.28,
+          "y": 8.9,
+          "z": 38.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/f6ab580b4b1747848cc271b98be14c21.webp",
+          "imageLocal": "season-images/673e37cbcf1c47fa816a6b89af7f20ef.webp"
+        },
+        {
+          "uuid": "8ee39aea0c1e425eb1d0bee2cf5b2257",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 33.51,
+          "y": 1.46,
+          "z": -34.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/6c6369eb9a574afebfd2c92def3cd476.webp",
+          "imageLocal": "season-images/8ee39aea0c1e425eb1d0bee2cf5b2257.webp"
+        },
+        {
+          "uuid": "5f7e90e362c343f5b5fc1a33d17c5ca4",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 28.55,
+          "y": 9.1,
+          "z": 38.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/6eab47eed9e345e1bbe66a29e54fd30c.webp",
+          "imageLocal": "season-images/5f7e90e362c343f5b5fc1a33d17c5ca4.webp"
+        },
+        {
+          "uuid": "0d0cdcf8a1a346ab9771fee097c11822",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 24.04,
+          "y": 9.04,
+          "z": 38.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/edea9a8b45014368893c9c218138b539.webp",
+          "imageLocal": "season-images/0d0cdcf8a1a346ab9771fee097c11822.webp"
+        },
+        {
+          "uuid": "737ab7ae0d264f22af96afc10ecab4fa",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 41.68,
+          "y": 1.36,
+          "z": -14.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/98bff6295de44deba74f155c9bcbd193/883f7916f8a7451eaa4ab72257e7a23b.webp",
+          "imageLocal": "season-images/737ab7ae0d264f22af96afc10ecab4fa.webp"
+        },
+        {
+          "uuid": "b48099e5bda4465e944210ede601c998",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -0.74,
+          "y": -1.38,
+          "z": 49,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c3b4c164a7394ada96e35d670fd10704/1f7bb8a2a17a4bdcb47909d44cbd5eb5.webp",
+          "imageLocal": "season-images/b48099e5bda4465e944210ede601c998.webp"
+        },
+        {
+          "uuid": "671c175c68124ef1ae27c52d3a0bb2ea",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 26.36,
+          "y": 4.86,
+          "z": -18.57,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c40908834fe2430aa922efd2c3370750/169fa547aadc42998df6391510206fe8.webp",
+          "imageLocal": "season-images/671c175c68124ef1ae27c52d3a0bb2ea.webp"
+        },
+        {
+          "uuid": "303dcfff98bd45c684d50717bdae986e",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 25.66,
+          "y": 9.52,
+          "z": 35.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/3977e96cb5044d538e91b33a47f88df5.webp",
+          "imageLocal": "season-images/303dcfff98bd45c684d50717bdae986e.webp"
+        },
+        {
+          "uuid": "09d1bb7a08a34cea9eaac5b79fb8e7a2",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 54.29,
+          "y": 1.62,
+          "z": 22.93,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17c82485a9b5451dbfe0ed83d093373e/90df61f401e8474c8b30248b50550f80.webp",
+          "imageLocal": "season-images/09d1bb7a08a34cea9eaac5b79fb8e7a2.webp"
+        },
+        {
+          "uuid": "5fa6774651cd4f43804776c0221ff75c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -21.81,
+          "y": 4.01,
+          "z": 29.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/3c3139fba8dd4ae298f8a74cb5ae1098.webp",
+          "imageLocal": "season-images/5fa6774651cd4f43804776c0221ff75c.webp"
+        },
+        {
+          "uuid": "fba85b2c0bbd4d2db460b2decb6639ce",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -19.12,
+          "y": -1.39,
+          "z": 46.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a70ce612dc446c78303b26bbc27714d/20a3a44bd6b34495b662f49a9757b911.webp",
+          "imageLocal": "season-images/fba85b2c0bbd4d2db460b2decb6639ce.webp"
+        },
+        {
+          "uuid": "a3c602aaa1d64553b44ac218bbcbb01d",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 46.41,
+          "y": 1.7,
+          "z": -45.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/21043a1d5aa9469a864a5bc4758f7d8c/25c4d6b52bf0416ca49968651f07abde.webp",
+          "imageLocal": "season-images/a3c602aaa1d64553b44ac218bbcbb01d.webp"
+        },
+        {
+          "uuid": "82d72f944650429ab7106ab8899fc454",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 21.06,
+          "y": 9.69,
+          "z": 37.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5af12dc3b92d49ddb76b4ac86f20aaee/16b853a477574e72ad725bf0399c1fca.webp",
+          "imageLocal": "season-images/82d72f944650429ab7106ab8899fc454.webp"
+        },
+        {
+          "uuid": "e4b07d05555b45e6a6cb2a171f2ea93c",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 35.86,
+          "y": 1.42,
+          "z": -35.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f7f62b82d714463291e8479acaa641a9/98ff3115a2534389af7a207c4b6f41a5.webp",
+          "imageLocal": "season-images/e4b07d05555b45e6a6cb2a171f2ea93c.webp"
+        },
+        {
+          "uuid": "e0032b0e02dc4197b2529f435de30fde",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -21.01,
+          "y": -1.22,
+          "z": 48.01,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2e6811ba4fd149a89bbce324daf69537/ad585110233c4c68943010e7bea4905a.webp",
+          "imageLocal": "season-images/e0032b0e02dc4197b2529f435de30fde.webp"
+        },
+        {
+          "uuid": "d447c5c0def44130b0862174e3aa8395",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -130.76,
+          "y": -4.49,
+          "z": -151.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8e572c0604a1437b82ace2c5e022003f/d9c47f5a567e490fab60cc4faf076380.webp",
+          "imageLocal": "season-images/d447c5c0def44130b0862174e3aa8395.webp"
+        },
+        {
+          "uuid": "32114ef7567d40ea8b719521d8c64430",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 12.36,
+          "y": 9.31,
+          "z": 40.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f3d955beca9245c8b6dc4edbcdb24f2a/64467b48a0f04d0a9eccd3d8cdb922b6.webp",
+          "imageLocal": "season-images/32114ef7567d40ea8b719521d8c64430.webp"
+        },
+        {
+          "uuid": "24ad37d3171047f78314ed650162cb25",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 13.93,
+          "y": 2.38,
+          "z": 38.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/696058041cb0476ab433d04a79ca56bd.webp",
+          "imageLocal": "season-images/24ad37d3171047f78314ed650162cb25.webp"
+        },
+        {
+          "uuid": "f6f73950933a4f7fba2bacd3d4002b31",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 21.03,
+          "y": 9.58,
+          "z": 40.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/90c89472ec684f7aafc1c940943053d5.webp",
+          "imageLocal": "season-images/f6f73950933a4f7fba2bacd3d4002b31.webp"
+        },
+        {
+          "uuid": "a4c60fed711c4d6296e9ce97e7e2a4a5",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 29.16,
+          "y": 9.83,
+          "z": 40.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/7f81bbdb97704e6b83196eacf5ff859a.webp",
+          "imageLocal": "season-images/a4c60fed711c4d6296e9ce97e7e2a4a5.webp"
+        },
+        {
+          "uuid": "2fdac924d70e4c67b56d2c70329e1b64",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 54.64,
+          "y": 1.46,
+          "z": 25.06,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/4551a9c4471645de917c02f6c96b0ee6/dfebf0ed3c7a433bb16cf2a229d87dde.webp",
+          "imageLocal": "season-images/2fdac924d70e4c67b56d2c70329e1b64.webp"
+        }
+      ]
+    },
+    "5714dbc024597771384a510d": {
+      "key": "interchange",
+      "name": "立交桥",
+      "points": [
+        {
+          "uuid": "6f4ce6846b044b929773eb80ebfc4a98",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -65.25,
+          "y": 28.55,
+          "z": 40.3,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/060207604648426b9e4338747304ab56/b4e79b6beedd4c25a5b8f43475d46e57.webp",
+          "imageLocal": "season-images/6f4ce6846b044b929773eb80ebfc4a98.webp"
+        },
+        {
+          "uuid": "239cda4a86734cf78d1fccf902a73cf3",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 428.61,
+          "y": 28.46,
+          "z": 163.78,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/62fb4e74b87a4a1ba98c24534fe26daa/3bd96f13990c4ed89729596f2f4f42e6.webp",
+          "imageLocal": "season-images/239cda4a86734cf78d1fccf902a73cf3.webp"
+        },
+        {
+          "uuid": "145c872a50474b4bbb1f4233aea326c3",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 23.87,
+          "y": 28.59,
+          "z": -136.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e8a1aae48b314ec081a0a71a885d6bbf/06e46223527645c1bfb03e2855f56ec2.webp",
+          "imageLocal": "season-images/145c872a50474b4bbb1f4233aea326c3.webp"
+        },
+        {
+          "uuid": "18637a060fc84fe8ac816152a00f9ba4",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 3.97,
+          "y": 28.55,
+          "z": -292.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e8a1aae48b314ec081a0a71a885d6bbf/913e2315d5f34c2cafade31042ee0aa4.webp",
+          "imageLocal": "season-images/18637a060fc84fe8ac816152a00f9ba4.webp"
+        },
+        {
+          "uuid": "37e79d59b52542aca90434e9873ef766",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -78.98,
+          "y": 28.44,
+          "z": 45.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/de9bb351ec3c4d338a55bac5eb3ff358/610d98780a054fd59d20305b37a2fae9.webp",
+          "imageLocal": "season-images/37e79d59b52542aca90434e9873ef766.webp"
+        },
+        {
+          "uuid": "c114d25f7ebd4eff9b63dbceba759420",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 86.12,
+          "y": 28.53,
+          "z": 99.34,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/69f52ffbd53541b8b6c0b9209a234565.webp",
+          "imageLocal": "season-images/c114d25f7ebd4eff9b63dbceba759420.webp"
+        },
+        {
+          "uuid": "c8899866aba649348cf370ba6d81e82f",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 66.02,
+          "y": 28.59,
+          "z": -28.61,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/54c37d72d0494743ae08a4e9bb1e6192.webp",
+          "imageLocal": "season-images/c8899866aba649348cf370ba6d81e82f.webp"
+        },
+        {
+          "uuid": "3023dbe5cc7d46cd9adefa4c90d3fa61",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 0.75,
+          "y": 28.47,
+          "z": -302.28,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/1bfc76c5cef14703929f84a99d2c4d9f.webp",
+          "imageLocal": "season-images/3023dbe5cc7d46cd9adefa4c90d3fa61.webp"
+        },
+        {
+          "uuid": "5c24ede57a0a418c815136edad0f571a",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 139.08,
+          "y": 26.15,
+          "z": 268.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/b350adcce4e540069bd52e6a97d683ac.webp",
+          "imageLocal": "season-images/5c24ede57a0a418c815136edad0f571a.webp"
+        },
+        {
+          "uuid": "e66617b2fe6043de81eabc53a663e30c",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -27.37,
+          "y": 28.06,
+          "z": -199.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/8bdeec51994b4e768ad80f6b823cd463.webp",
+          "imageLocal": "season-images/e66617b2fe6043de81eabc53a663e30c.webp"
+        },
+        {
+          "uuid": "982f6602323046b99de46f0fe7736ec8",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -202.06,
+          "y": 22.9,
+          "z": -360.01,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/842fba4524f04c48bdc89351393c95b8.webp",
+          "imageLocal": "season-images/982f6602323046b99de46f0fe7736ec8.webp"
+        },
+        {
+          "uuid": "cde87f7674f04e3f8f25f18305f05051",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -65.09,
+          "y": 28.48,
+          "z": -162.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/cff27823f0434dd2ad59d227737e3ddf.webp",
+          "imageLocal": "season-images/cde87f7674f04e3f8f25f18305f05051.webp"
+        },
+        {
+          "uuid": "05b36beae4e6442590cfb3112bf663d1",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -21.57,
+          "y": 28.48,
+          "z": -167.14,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/06b922d0a3fa4200816e5bc6f03a44db.webp",
+          "imageLocal": "season-images/05b36beae4e6442590cfb3112bf663d1.webp"
+        },
+        {
+          "uuid": "98f16d50ff984d90b746f3b3f60f8931",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -63.85,
+          "y": 28.51,
+          "z": -104.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/b8fe0df3fd7147d0846ff6890b5d0ca4.webp",
+          "imageLocal": "season-images/98f16d50ff984d90b746f3b3f60f8931.webp"
+        },
+        {
+          "uuid": "a45888c6dc334eee9e3aa2a228efac3c",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 98.4,
+          "y": 28.09,
+          "z": -87.34,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/eb857dee7df84101bfa6a470656e196a.webp",
+          "imageLocal": "season-images/a45888c6dc334eee9e3aa2a228efac3c.webp"
+        },
+        {
+          "uuid": "c2f02d42e02f473ea93aea6a298d17a9",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -78.64,
+          "y": 28.53,
+          "z": -149.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f7f62b82d714463291e8479acaa641a9/d5feac4dc71b4526bf21c2886980b9f6.webp",
+          "imageLocal": "season-images/c2f02d42e02f473ea93aea6a298d17a9.webp"
+        },
+        {
+          "uuid": "64953076f3ea4b78bb0e1e80568027fe",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -47.27,
+          "y": 28.58,
+          "z": 127.45,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/02efd42e205c4fbbbcf63ded5e2f19be/6a39e416fdd747afb60d32806599a8ef.webp",
+          "imageLocal": "season-images/64953076f3ea4b78bb0e1e80568027fe.webp"
+        },
+        {
+          "uuid": "2949b9a01ffa40baba02d227675337d1",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -67.89,
+          "y": 28.51,
+          "z": -159.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/02efd42e205c4fbbbcf63ded5e2f19be/05ef85a1eea248cabd3d6985796f7109.webp",
+          "imageLocal": "season-images/2949b9a01ffa40baba02d227675337d1.webp"
+        },
+        {
+          "uuid": "b0d47f1b52784dd5bd12f1f00ac4f5f6",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -205.1,
+          "y": 18.95,
+          "z": -359.13,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/e10b413a56ab4a269e1560884e660d72.webp",
+          "imageLocal": "season-images/b0d47f1b52784dd5bd12f1f00ac4f5f6.webp"
+        },
+        {
+          "uuid": "b72107f34eff4fa5a4f4819aa4ceffec",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -60.37,
+          "y": 28.47,
+          "z": -49.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/863bcdb1dccd4b16b37e05d2f9f0edfe.webp",
+          "imageLocal": "season-images/b72107f34eff4fa5a4f4819aa4ceffec.webp"
+        },
+        {
+          "uuid": "e8d1833a9e244257809444a72fe2e6e4",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -84.33,
+          "y": 28.54,
+          "z": 111.81,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/95e491e4a75a434cacea83c286bb399e.webp",
+          "imageLocal": "season-images/e8d1833a9e244257809444a72fe2e6e4.webp"
+        },
+        {
+          "uuid": "b4cbf7bfc70646c48439b9ecbc904352",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -78.31,
+          "y": 28.49,
+          "z": -153.52,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/b15239a25d2341b8a2d14252e2ba5c71.webp",
+          "imageLocal": "season-images/b4cbf7bfc70646c48439b9ecbc904352.webp"
+        },
+        {
+          "uuid": "1c509f1e6cc641088c40820936d8e396",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 86.68,
+          "y": 28.45,
+          "z": 103.44,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/b465e7fa4129422995014f042118204b.webp",
+          "imageLocal": "season-images/1c509f1e6cc641088c40820936d8e396.webp"
+        },
+        {
+          "uuid": "0672f534e5254d5798c5c2b7c7a117fe",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -67.42,
+          "y": 28.52,
+          "z": 52.94,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f7f62b82d714463291e8479acaa641a9/fe9381d8e2e7404697c0416d433accae.webp",
+          "imageLocal": "season-images/0672f534e5254d5798c5c2b7c7a117fe.webp"
+        },
+        {
+          "uuid": "a0ec77a7fa214f17ac5146f142a95ed9",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -64.47,
+          "y": 28.58,
+          "z": 52.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/e75f8b4ec9dd4e7290d7c754917e115c.webp",
+          "imageLocal": "season-images/a0ec77a7fa214f17ac5146f142a95ed9.webp"
+        },
+        {
+          "uuid": "2d964a10ed43473595a6d662b3ceb890",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 90.19,
+          "y": 28.52,
+          "z": 114.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/4df6492e678e4617bf4d856ef2010af2.webp",
+          "imageLocal": "season-images/2d964a10ed43473595a6d662b3ceb890.webp"
+        },
+        {
+          "uuid": "cde5323103ff4fd19ba855110866aaec",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": -12.44,
+          "y": 37.98,
+          "z": -98.81,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/76589482891a433eb045a0f006806607/f4c9e599a6814d6bb8f06f4ae736236a.webp",
+          "imageLocal": "season-images/cde5323103ff4fd19ba855110866aaec.webp"
+        },
+        {
+          "uuid": "c2a47e3ccab94474a17ab55c958fa854",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 40.21,
+          "y": 28.46,
+          "z": -206.36,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/00dbc819d5a74017a4702de49afa1d01.webp",
+          "imageLocal": "season-images/c2a47e3ccab94474a17ab55c958fa854.webp"
+        },
+        {
+          "uuid": "180d18a072754d67895b7e55d34cc314",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 479.77,
+          "y": 28.9,
+          "z": 81.18,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2b3c0e2df56d4744907f99152ae0e8af/4ef72573e417458cb4e1d341ad77def2.webp",
+          "imageLocal": "season-images/180d18a072754d67895b7e55d34cc314.webp"
+        },
+        {
+          "uuid": "bed4040f0bc646cf947bb35f028beb60",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 13.42,
+          "y": 2.38,
+          "z": 39.31,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3d01b45c1546461ea4e9191c17c85859/f8f7a0dc5d2d4fbab1500522e49727d3.webp",
+          "imageLocal": "season-images/bed4040f0bc646cf947bb35f028beb60.webp"
+        },
+        {
+          "uuid": "6119d30e4a934fe5b6bc5fda1aa7522e",
+          "itemId": "6a31807f17005505b70d5827",
+          "type": "finances",
+          "x": 55.14,
+          "y": 1.79,
+          "z": -73.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b941628bbd9b41b0b3c2a085e141f1b0/a6b5c5b978cb45daa8bf0f29dc5b4038.webp",
+          "imageLocal": "season-images/6119d30e4a934fe5b6bc5fda1aa7522e.webp"
+        },
+        {
+          "uuid": "96cb27b0a4cf471db4ffa0ff64d86148",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -91.39,
+          "y": 28.42,
+          "z": 110.68,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1581cd65097248f3a52a780a8a040233/6ed8987e95434f259ecd192584a19d10.webp",
+          "imageLocal": "season-images/96cb27b0a4cf471db4ffa0ff64d86148.webp"
+        }
+      ]
+    },
+    "5b0fc42d86f7744a585f9105": {
+      "key": "the-lab",
+      "name": "实验室",
+      "points": [
+        {
+          "uuid": "d50d1a7ccc0c4e96ad555d4328fb5e01",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -87.3,
+          "y": 1.5,
+          "z": -431.19,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/01bd98fe675444f79f477cd2b94cffa3/7f48edfa24a946f98ca77616ced4e9c9.webp",
+          "imageLocal": "season-images/d50d1a7ccc0c4e96ad555d4328fb5e01.webp"
+        },
+        {
+          "uuid": "adc25d4d49414d86a418731d68aea845",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -230.01,
+          "y": 5.43,
+          "z": -345.17,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7ed4ae09567f404eb1afc074f50c6b33/dd00f663989044ee88ba8e662bcc7f8f.webp",
+          "imageLocal": "season-images/adc25d4d49414d86a418731d68aea845.webp"
+        },
+        {
+          "uuid": "0a06af66a2b84133ac5333a999486d58",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -173.17,
+          "y": 5.57,
+          "z": -341.45,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7ed4ae09567f404eb1afc074f50c6b33/910da36d3d614925a7078cca4e17062a.webp",
+          "imageLocal": "season-images/0a06af66a2b84133ac5333a999486d58.webp"
+        },
+        {
+          "uuid": "2d1d2c66d08b40119dd97198e13442a4",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -194.43,
+          "y": 5.58,
+          "z": -400.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/97322b89f5284d83809934caa0d694c0/ef890568297947f1a5bff06e84b65e1a.webp",
+          "imageLocal": "season-images/2d1d2c66d08b40119dd97198e13442a4.webp"
+        },
+        {
+          "uuid": "41eee80e20df49e78799b2bcee5e8b24",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -266.15,
+          "y": 5.6,
+          "z": -370.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/f7e370426ad54b3d9df7212667328da9.webp",
+          "imageLocal": "season-images/41eee80e20df49e78799b2bcee5e8b24.webp"
+        },
+        {
+          "uuid": "240b3dc6cb7744938a93a1eb74e83a3a",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -262.81,
+          "y": 0.96,
+          "z": -342.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/2577b348af4e405ea0c5c1ab7aa9424e.webp",
+          "imageLocal": "season-images/240b3dc6cb7744938a93a1eb74e83a3a.webp"
+        },
+        {
+          "uuid": "023389b8638c4ba0aa9ff46c93d1eda6",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -133.06,
+          "y": 5.55,
+          "z": -377.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1402413a79a74e5d8a9fb1e9cf6fafad/64cb89cec84d40bc93bbb538cdce6e12.webp",
+          "imageLocal": "season-images/023389b8638c4ba0aa9ff46c93d1eda6.webp"
+        },
+        {
+          "uuid": "f47aafb3a724400780381a08085fb20b",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -122.3,
+          "y": 5.53,
+          "z": -361.66,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1402413a79a74e5d8a9fb1e9cf6fafad/4e525d144c7b4e6b8e1c14d52123e3b8.webp",
+          "imageLocal": "season-images/f47aafb3a724400780381a08085fb20b.webp"
+        },
+        {
+          "uuid": "8558f647f3184b238bf32860d27cbb9e",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -268.27,
+          "y": 5.45,
+          "z": -326.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2fadbbd113464dd5ab3f138300a0b838/f7476a90027a434f86112cdfe9756ee2.webp",
+          "imageLocal": "season-images/8558f647f3184b238bf32860d27cbb9e.webp"
+        },
+        {
+          "uuid": "d48cb8cf94884d88b8fb42c54d7999d2",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -183.77,
+          "y": 1.53,
+          "z": -364.29,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/052fa491ca3b4ecf81f96d53e2f98fd1.webp",
+          "imageLocal": "season-images/d48cb8cf94884d88b8fb42c54d7999d2.webp"
+        },
+        {
+          "uuid": "f2503ddcdb06495d82004b1292b7a88c",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -138.96,
+          "y": 4.92,
+          "z": -388.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/bf822110faa54b6e8c7b68511c6f55c9.webp",
+          "imageLocal": "season-images/f2503ddcdb06495d82004b1292b7a88c.webp"
+        },
+        {
+          "uuid": "a56889c53d5c42878bb623bece776cb7",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -119.52,
+          "y": 1.5,
+          "z": -444.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1402413a79a74e5d8a9fb1e9cf6fafad/4e0fa09794574f37bad0d5a5a16a4525.webp",
+          "imageLocal": "season-images/a56889c53d5c42878bb623bece776cb7.webp"
+        },
+        {
+          "uuid": "3d6690a8520446ffbfe1918c3bfcde6c",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -244.28,
+          "y": 5.55,
+          "z": -381.6,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/888cf576d364466aab5ff1af90570a2c.webp",
+          "imageLocal": "season-images/3d6690a8520446ffbfe1918c3bfcde6c.webp"
+        },
+        {
+          "uuid": "abab9f27e1e24626bb71eb6c2dbbbb25",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -130.51,
+          "y": 1.5,
+          "z": -392.17,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/d1d6e7a70b7547999c0df6058960689c.webp",
+          "imageLocal": "season-images/abab9f27e1e24626bb71eb6c2dbbbb25.webp"
+        },
+        {
+          "uuid": "05257b6d374e42e0a90d52ba95c35cbe",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -142.5,
+          "y": 5.51,
+          "z": -408.57,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/97322b89f5284d83809934caa0d694c0/a014d9db94db436481dd280eabdef685.webp",
+          "imageLocal": "season-images/05257b6d374e42e0a90d52ba95c35cbe.webp"
+        },
+        {
+          "uuid": "1d98ae846ea8437a8fd0c99aa5b50b2d",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -133.62,
+          "y": 1.42,
+          "z": -411.27,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/c17e2af4e1264bfc858a732219be7227.webp",
+          "imageLocal": "season-images/1d98ae846ea8437a8fd0c99aa5b50b2d.webp"
+        },
+        {
+          "uuid": "dadfe576448643a8aeb8810c69c93eba",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -126.34,
+          "y": 0.84,
+          "z": -353.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/97322b89f5284d83809934caa0d694c0/be4ff61eba8d4ea58847a323842df139.webp",
+          "imageLocal": "season-images/dadfe576448643a8aeb8810c69c93eba.webp"
+        },
+        {
+          "uuid": "97a5c7bc0c7d43f0b0061732095cb22a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -135,
+          "y": 1.53,
+          "z": -397.27,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/80eb7208bb4941e3aec00cb694c33f05/1e82738bcbc5450b807653de70182d0d.webp",
+          "imageLocal": "season-images/97a5c7bc0c7d43f0b0061732095cb22a.webp"
+        },
+        {
+          "uuid": "57266e9bb65049b5bb1f8e167864e38e",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -250.98,
+          "y": 5.63,
+          "z": -368.32,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f6db7fa5438f4706b8866a28c97d13a5/bf76eeada08a4b8c8c9381ce47e6e57d.webp",
+          "imageLocal": "season-images/57266e9bb65049b5bb1f8e167864e38e.webp"
+        },
+        {
+          "uuid": "b1cc8280bac34372865c470b8c009c6c",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -215.32,
+          "y": 5.48,
+          "z": -381.97,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/53da4e9a82e44214b4c903dc2ea8455b/68208d08b7e2488daca7b18699829f9a.webp",
+          "imageLocal": "season-images/b1cc8280bac34372865c470b8c009c6c.webp"
+        },
+        {
+          "uuid": "00dd20f1394843dfadfc557702accc58",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -115.02,
+          "y": 5.5,
+          "z": -364.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/032c75a90ec347af873d8fb2492cf8fa/63ca568497b34033a4122e729eead8ba.webp",
+          "imageLocal": "season-images/00dd20f1394843dfadfc557702accc58.webp"
+        },
+        {
+          "uuid": "047ef5d4ab464c76b177da780a03f746",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -124.8,
+          "y": 5.65,
+          "z": -392.85,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f746de8a8a3f4e3e8d2acc1952456c55/53e1145c9f114521afa0c6dc9ed389b8.webp",
+          "imageLocal": "season-images/047ef5d4ab464c76b177da780a03f746.webp"
+        },
+        {
+          "uuid": "9e44a8134b6f4961884778ac89de5a8a",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -171.69,
+          "y": 5.72,
+          "z": -284.21,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d501b88b529a48a989432e5a0b98ffe8/86d161c7e7fe45409015b23b6384fd51.webp",
+          "imageLocal": "season-images/9e44a8134b6f4961884778ac89de5a8a.webp"
+        },
+        {
+          "uuid": "6f16e2093ce34117a4b1ddb435f84064",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -229.97,
+          "y": 5.47,
+          "z": -341.19,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17c82485a9b5451dbfe0ed83d093373e/bd66024584ed46779dbbe993450b978e.webp",
+          "imageLocal": "season-images/6f16e2093ce34117a4b1ddb435f84064.webp"
+        },
+        {
+          "uuid": "7a3446d2e96845b3b33b336c8e11222e",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -148.59,
+          "y": 5.52,
+          "z": -394.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f06e6f8998de47688abcf50cb03b6d42/ec648eabcec84fdf82dd3d1b69c5cb06.webp",
+          "imageLocal": "season-images/7a3446d2e96845b3b33b336c8e11222e.webp"
+        },
+        {
+          "uuid": "7591b2cf13aa4c52b3885c2e0550942a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -108.84,
+          "y": 1.5,
+          "z": -443.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b1823bd229c24a62b1aae8f58cdbbf46/65c413e46a564b74a1bd31985fa823ce.webp",
+          "imageLocal": "season-images/7591b2cf13aa4c52b3885c2e0550942a.webp"
+        },
+        {
+          "uuid": "c998c9a3d088446c8c72f3248fa0b169",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -187.38,
+          "y": 5.34,
+          "z": -407.42,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/66afeb128553413b80cd3b21419e3c31/4511f4319abb46809fa1a9e9f04c6f7b.webp",
+          "imageLocal": "season-images/c998c9a3d088446c8c72f3248fa0b169.webp"
+        },
+        {
+          "uuid": "e71b76cfa1e44c17a47e878c4d8f7790",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -232.97,
+          "y": 5.66,
+          "z": -311.54,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ff4a495d00814538a4640cdf237e94f8/0459e1209251451ebb6672e45eb545b2.webp",
+          "imageLocal": "season-images/e71b76cfa1e44c17a47e878c4d8f7790.webp"
+        },
+        {
+          "uuid": "a20a68695cfe412db7836c6fdc84d3df",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -137.44,
+          "y": 1.25,
+          "z": -401.79,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/032c75a90ec347af873d8fb2492cf8fa/d9e12594148b49d190df9332fcb7ae52.webp",
+          "imageLocal": "season-images/a20a68695cfe412db7836c6fdc84d3df.webp"
+        },
+        {
+          "uuid": "04aef720fb8e446dbf7fe33b965ce751",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -225.64,
+          "y": 5.47,
+          "z": -308.14,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1d919a4a0f4845e0ac16bb9a60e5d22f/e9c0a0a44c9645ca98875fc89b511e50.webp",
+          "imageLocal": "season-images/04aef720fb8e446dbf7fe33b965ce751.webp"
+        },
+        {
+          "uuid": "e64481023dbf488b8695b406cbd97fc6",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -139.55,
+          "y": 5.58,
+          "z": -283.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9b4fb2145cd342c49a13c210868c4ee7/739a2039a8c74ee1b0812e6818f002b2.webp",
+          "imageLocal": "season-images/e64481023dbf488b8695b406cbd97fc6.webp"
+        },
+        {
+          "uuid": "8ec91782ae484af0b4cf2bfa36d8fc03",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -139.35,
+          "y": 1.41,
+          "z": -389.82,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5f2c38af21974716826b9b6bcdab9956/6101434d68a44aa8863c1134bb55ad07.webp",
+          "imageLocal": "season-images/8ec91782ae484af0b4cf2bfa36d8fc03.webp"
+        },
+        {
+          "uuid": "da812493a47a4678bc332a8db7f527db",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -122.23,
+          "y": 5.63,
+          "z": -397.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d501b88b529a48a989432e5a0b98ffe8/aa49fd94e1814697a8d28bef47403c15.webp",
+          "imageLocal": "season-images/da812493a47a4678bc332a8db7f527db.webp"
+        },
+        {
+          "uuid": "f8fd9db8b0a743fd9ad4172b24fae1cc",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -163.54,
+          "y": 5.56,
+          "z": -348.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c9c5c7104ac346c3862692df6a8338bb/0c0f72894e0a40bd9baa162630c52ebe.webp",
+          "imageLocal": "season-images/f8fd9db8b0a743fd9ad4172b24fae1cc.webp"
+        },
+        {
+          "uuid": "7d07072d685b4dce9f597a1cfdb7c8d0",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -172.6,
+          "y": 1.52,
+          "z": -345.33,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ecc1009291644a9195a05aae9c1bf7b8/ec0c9b4c68d248c0b7faaebc21ad9c26.webp",
+          "imageLocal": "season-images/7d07072d685b4dce9f597a1cfdb7c8d0.webp"
+        },
+        {
+          "uuid": "06dd6f13e06a487fa0f42be472d4ae98",
+          "itemId": "6a3182b72fd891345e047eef",
+          "type": "employee",
+          "x": -19.41,
+          "y": 1.41,
+          "z": -444.41,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8e572c0604a1437b82ace2c5e022003f/d37c2c8500d74f228e134e5b448d0be3.webp",
+          "imageLocal": "season-images/06dd6f13e06a487fa0f42be472d4ae98.webp"
+        },
+        {
+          "uuid": "6fdb7f3094454df0932d9be6191c858f",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -134.67,
+          "y": 5.47,
+          "z": -408.45,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/2faea872a27849d3946528b21f8d8ae3.webp",
+          "imageLocal": "season-images/6fdb7f3094454df0932d9be6191c858f.webp"
+        }
+      ]
+    },
+    "5704e4dad2720bb55b8b4567": {
+      "key": "lighthouse",
+      "name": "灯塔",
+      "points": [
+        {
+          "uuid": "5e01909ab23d40b7a0072e845123068a",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -117.22,
+          "y": 22.26,
+          "z": -21.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/5ff18536f71148d3a4971e674fa94567.webp",
+          "imageLocal": "season-images/5e01909ab23d40b7a0072e845123068a.webp"
+        },
+        {
+          "uuid": "56fe4913683a4457aa88ee8ae7438ae5",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -73.61,
+          "y": 10.47,
+          "z": -295.32,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/ba07c2c5069248328a05aa1c61b0ef7b.webp",
+          "imageLocal": "season-images/56fe4913683a4457aa88ee8ae7438ae5.webp"
+        },
+        {
+          "uuid": "67ab41d989df4f6f94e608dbad69809f",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -65.56,
+          "y": 6.46,
+          "z": -733.4,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/37afae9907a04c14866ffd2b2f5b4625.webp",
+          "imageLocal": "season-images/67ab41d989df4f6f94e608dbad69809f.webp"
+        },
+        {
+          "uuid": "0928be2d520041eaad04e816a6f95e7a",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 35.58,
+          "y": 13.39,
+          "z": -849.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/104fe06ce2aa45ca8d6a3dcda7684230.webp",
+          "imageLocal": "season-images/0928be2d520041eaad04e816a6f95e7a.webp"
+        },
+        {
+          "uuid": "cc95c71588494b84ad4df2e8c614647e",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -178.66,
+          "y": 8.97,
+          "z": -648.41,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/432a35885a5640faa12fd33b2121ee40/bea6541ec3064409b8ef4978a699ba18.webp",
+          "imageLocal": "season-images/cc95c71588494b84ad4df2e8c614647e.webp"
+        },
+        {
+          "uuid": "7af058bec18a4c83aadbcb62c406ad47",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 141.22,
+          "y": 4.65,
+          "z": -131.17,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/7387648737654b4f92c1b71cae6f9c2d.webp",
+          "imageLocal": "season-images/7af058bec18a4c83aadbcb62c406ad47.webp"
+        },
+        {
+          "uuid": "2cd3808fe37b463e8c90e93619a302db",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -60.73,
+          "y": 21.09,
+          "z": -129.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/741ac96f9a274c9bba78904542ff5049.webp",
+          "imageLocal": "season-images/2cd3808fe37b463e8c90e93619a302db.webp"
+        },
+        {
+          "uuid": "6b6f0ceca95a41cf83a484f30b7eb221",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -185.37,
+          "y": 16.82,
+          "z": -211.1,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/f9acb5fc27334bc3aabd5e4e30bf7cd3.webp",
+          "imageLocal": "season-images/6b6f0ceca95a41cf83a484f30b7eb221.webp"
+        },
+        {
+          "uuid": "09aca45977464dd78904ef637f0afbce",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -99.02,
+          "y": 1.63,
+          "z": -492.53,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d3e2149a90894b8bbf802c1025724245/452a0d18ab524e6a984165ff71649f8d.webp",
+          "imageLocal": "season-images/09aca45977464dd78904ef637f0afbce.webp"
+        },
+        {
+          "uuid": "d3023f15052448718a38e275ee932976",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -171.49,
+          "y": 6.11,
+          "z": -497.52,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/138b454d7b894935b557dcfe25917419.webp",
+          "imageLocal": "season-images/d3023f15052448718a38e275ee932976.webp"
+        },
+        {
+          "uuid": "435bc261bf314cf5956652672dc57b60",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -85.67,
+          "y": 23.2,
+          "z": -73.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/407a2831cec04f3d88330706737d4e57/82ad98f66ec24802a0ab3465fad1a47f.webp",
+          "imageLocal": "season-images/435bc261bf314cf5956652672dc57b60.webp"
+        },
+        {
+          "uuid": "eeb4e917673f458aa418fbfdb8d238c4",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 136.99,
+          "y": 4.64,
+          "z": -187.09,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/7a8c41dee7bc4ff7a39b056f4efb5a43.webp",
+          "imageLocal": "season-images/eeb4e917673f458aa418fbfdb8d238c4.webp"
+        },
+        {
+          "uuid": "52efe22b06d643ba8dc618c3b64c3a20",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 52.16,
+          "y": 6.26,
+          "z": -552.93,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0fbe9542ed354368920ea35edef09acd/e64fa9e96049479781553b49aaa9fd54.webp",
+          "imageLocal": "season-images/52efe22b06d643ba8dc618c3b64c3a20.webp"
+        },
+        {
+          "uuid": "187f9a40d36d4a7e8d022183f6f0acb9",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 127.49,
+          "y": 7.48,
+          "z": 288.56,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/619678c46c9d404d9bc55f44b0ee665c/072d5c2a6df2495bb01a300320356de8.webp",
+          "imageLocal": "season-images/187f9a40d36d4a7e8d022183f6f0acb9.webp"
+        },
+        {
+          "uuid": "2656d1468fb0497385ac167eda5a24ee",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -71.62,
+          "y": 10.52,
+          "z": -278.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/619678c46c9d404d9bc55f44b0ee665c/4501620aefa145d99ed3e64a525a148e.webp",
+          "imageLocal": "season-images/2656d1468fb0497385ac167eda5a24ee.webp"
+        },
+        {
+          "uuid": "54ba000f65134204a728e688c8a3a115",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 50.07,
+          "y": 9.65,
+          "z": -638.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/4dc49f3daf0344b48ec14626d6e5f23e/7232c6a52747431e8c7b6a500c131c30.webp",
+          "imageLocal": "season-images/54ba000f65134204a728e688c8a3a115.webp"
+        },
+        {
+          "uuid": "a9e39f61efd247a0a1aa0a4c2c4a0afe",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -121.47,
+          "y": 41.13,
+          "z": 103.79,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/7d271c6006104a468293b79cc9106059.webp",
+          "imageLocal": "season-images/a9e39f61efd247a0a1aa0a4c2c4a0afe.webp"
+        },
+        {
+          "uuid": "f32869ff6bb74977bc509d49b107395f",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -188.59,
+          "y": 14.16,
+          "z": -199.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/93d685a0354543589042e78ffd238ce8.webp",
+          "imageLocal": "season-images/f32869ff6bb74977bc509d49b107395f.webp"
+        },
+        {
+          "uuid": "eff41995e21749eab2cefada1c533415",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -94.63,
+          "y": 14.69,
+          "z": -742.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/68bfe27fd91e4d61be4332fe998cf967.webp",
+          "imageLocal": "season-images/eff41995e21749eab2cefada1c533415.webp"
+        },
+        {
+          "uuid": "069e1f1aa32c4e9c98e7f3a43199b764",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -84.64,
+          "y": 25.09,
+          "z": -71.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3d0c93c880844d5c8570cf01d278a5e7/ab167e9d1701456a954791459403c011.webp",
+          "imageLocal": "season-images/069e1f1aa32c4e9c98e7f3a43199b764.webp"
+        },
+        {
+          "uuid": "e7bdf164af1246beb6b0100abe9f18ec",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -121.93,
+          "y": 41.39,
+          "z": 83.35,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/558477c887f6438186c27115bfd43228.webp",
+          "imageLocal": "season-images/e7bdf164af1246beb6b0100abe9f18ec.webp"
+        },
+        {
+          "uuid": "0d295a67ac934900a9929ccba979ddf0",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 132.73,
+          "y": 6.76,
+          "z": 290.08,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/0e2032c912cf412497ada70165f8ba2a.webp",
+          "imageLocal": "season-images/0d295a67ac934900a9929ccba979ddf0.webp"
+        },
+        {
+          "uuid": "b56f3e96eb9d42049a6152f6b2d0a723",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -67.43,
+          "y": 28.34,
+          "z": 110.51,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/354ac23ebe43471994cf0d87be04f422/e8138b6c5311458eb7a5081d661f8ace.webp",
+          "imageLocal": "season-images/b56f3e96eb9d42049a6152f6b2d0a723.webp"
+        },
+        {
+          "uuid": "fc0c2419af8d4c1db9d2fae261affd45",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -92.83,
+          "y": 1.55,
+          "z": -489.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d781a94ac73042a98d714dc1d44db2d0/f8486b397dac4ea19722f02b79422668.webp",
+          "imageLocal": "season-images/fc0c2419af8d4c1db9d2fae261affd45.webp"
+        },
+        {
+          "uuid": "928c49384890462a8806f2d507bd0984",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -80.82,
+          "y": 19.7,
+          "z": -83.79,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/97322b89f5284d83809934caa0d694c0/6037a4e5f68348d698110b5615894b7e.webp",
+          "imageLocal": "season-images/928c49384890462a8806f2d507bd0984.webp"
+        },
+        {
+          "uuid": "d672b01b77a1473291aa616611d3954a",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 134.74,
+          "y": 4.12,
+          "z": -186.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/239806556f804398945c030b1aac34b2/f8cf17c9ef0941cd9b048f4a4f81ed54.webp",
+          "imageLocal": "season-images/d672b01b77a1473291aa616611d3954a.webp"
+        },
+        {
+          "uuid": "2ea33f5706584f7ab1425c9d87f6b8d3",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 52.56,
+          "y": 9.64,
+          "z": -638.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1b5786ac219d4b48a448a148a956c654/071596f01dbb42fd85e55837192536d3.webp",
+          "imageLocal": "season-images/2ea33f5706584f7ab1425c9d87f6b8d3.webp"
+        },
+        {
+          "uuid": "3a5fd6e22d034abe94d0683165a5984c",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -175.22,
+          "y": 9.02,
+          "z": -652.04,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19c24000c04748c286327bb6a3f47952/6a560533e75441de8e51352772d003cd.webp",
+          "imageLocal": "season-images/3a5fd6e22d034abe94d0683165a5984c.webp"
+        },
+        {
+          "uuid": "57d2d27017f44dab8013b7c8b1a92ece",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -119.04,
+          "y": 40.61,
+          "z": 94.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/193645c853ed41c79245a19d5d4dd9c1.webp",
+          "imageLocal": "season-images/57d2d27017f44dab8013b7c8b1a92ece.webp"
+        },
+        {
+          "uuid": "a168338fef4e473e8b3541395a40dd77",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 48.32,
+          "y": 6.36,
+          "z": -552.77,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/3523c6165e0b40a19b0c8d64b86503fd.webp",
+          "imageLocal": "season-images/a168338fef4e473e8b3541395a40dd77.webp"
+        },
+        {
+          "uuid": "e1b3b27bd56645959bca31af06a5d93f",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 34.24,
+          "y": 13.38,
+          "z": -845.32,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/31768587fdfc40caa0f4247910f28667/929e1b47a10444e990641fd9ad6c7d96.webp",
+          "imageLocal": "season-images/e1b3b27bd56645959bca31af06a5d93f.webp"
+        },
+        {
+          "uuid": "270c889c25744b67bc7f2da264c337da",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -64.18,
+          "y": 28.3,
+          "z": 112.45,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0b1f4383f7d54ccfa39134cdf3f9aec8/372fb7873ec04b089644f8cbfe2acc40.webp",
+          "imageLocal": "season-images/270c889c25744b67bc7f2da264c337da.webp"
+        }
+      ]
+    },
+    "5704e5fad2720bc05b8b4567": {
+      "key": "reserve",
+      "name": "储备站",
+      "points": [
+        {
+          "uuid": "e45c6e3afd4e4324a6850fea37afd12a",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -121.97,
+          "y": 3.19,
+          "z": 94.32,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f06e6f8998de47688abcf50cb03b6d42/c93b6d2f656a42359175b763eede2f47.webp",
+          "imageLocal": "season-images/e45c6e3afd4e4324a6850fea37afd12a.webp"
+        },
+        {
+          "uuid": "ab77e08cd6164c6ab5bc2f5263b7a635",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -129.73,
+          "y": -2.35,
+          "z": -15.95,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f06e6f8998de47688abcf50cb03b6d42/f0a508ee39044486b1f5b2292ffc5f88.webp",
+          "imageLocal": "season-images/ab77e08cd6164c6ab5bc2f5263b7a635.webp"
+        },
+        {
+          "uuid": "638f33931ce2485ead2ba84927c5c4c4",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -115.87,
+          "y": -13.25,
+          "z": 32.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c3b4c164a7394ada96e35d670fd10704/2490dccc35f846fb873c89fbb1e9f38e.webp",
+          "imageLocal": "season-images/638f33931ce2485ead2ba84927c5c4c4.webp"
+        },
+        {
+          "uuid": "95c8bd2721c14b23877fc9e1f270a9d4",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -42.91,
+          "y": -13.3,
+          "z": 133.05,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/c3b4c164a7394ada96e35d670fd10704/ddedc14d2c9d4942a7115e5c493fd98a.webp",
+          "imageLocal": "season-images/95c8bd2721c14b23877fc9e1f270a9d4.webp"
+        },
+        {
+          "uuid": "126a31a8e0ff49a6977f331728377d55",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -128.12,
+          "y": -7.94,
+          "z": -21.78,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/93b8f3a31d324b72a393441f84e00331/d2257ee8759a49bcbb8c58079483f1e6.webp",
+          "imageLocal": "season-images/126a31a8e0ff49a6977f331728377d55.webp"
+        },
+        {
+          "uuid": "976b810a41244d698a4bda55ca62f55d",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -172.6,
+          "y": 1.23,
+          "z": -10.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/93b8f3a31d324b72a393441f84e00331/6d02eeaad1704169910c040ac7f7a175.webp",
+          "imageLocal": "season-images/976b810a41244d698a4bda55ca62f55d.webp"
+        },
+        {
+          "uuid": "8fe9b45971084a46b64b6073c037c112",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 14.05,
+          "y": 0.44,
+          "z": -27.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/93b8f3a31d324b72a393441f84e00331/f6b54907c421492582997675fca62adf.webp",
+          "imageLocal": "season-images/8fe9b45971084a46b64b6073c037c112.webp"
+        },
+        {
+          "uuid": "2473079eef7d4038b2712a0a61c583a2",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 28.78,
+          "y": -4.2,
+          "z": -93.9,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/93b8f3a31d324b72a393441f84e00331/b15388b1ad114a90ac7086bb0484f572.webp",
+          "imageLocal": "season-images/2473079eef7d4038b2712a0a61c583a2.webp"
+        },
+        {
+          "uuid": "5803315452124b2eb7b8f71447f1e095",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 60.7,
+          "y": -3.56,
+          "z": -114.57,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a49b1e2a1e91473ca0d38a7a0cd1fa2a/aa3d68429891473699da304958d5339b.webp",
+          "imageLocal": "season-images/5803315452124b2eb7b8f71447f1e095.webp"
+        },
+        {
+          "uuid": "869d32cc0b9e401a8fd8987ab285ed56",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -4.59,
+          "y": 23.66,
+          "z": 175.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ee76515479ad4712a65dbbe6c1ed6219/5e5a15d658e148a29c78d7801078d489.webp",
+          "imageLocal": "season-images/869d32cc0b9e401a8fd8987ab285ed56.webp"
+        },
+        {
+          "uuid": "13ff017d5eaf482eb2463145e698201d",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 80.63,
+          "y": 0.11,
+          "z": -13.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/67f9d9ed6db4444a951f1c6ca3994528.webp",
+          "imageLocal": "season-images/13ff017d5eaf482eb2463145e698201d.webp"
+        },
+        {
+          "uuid": "e4419b7d96394c3483bfaaf749906351",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 59.17,
+          "y": -5.44,
+          "z": 99.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/734341e9c1c843b294e95d5c900eb0d5.webp",
+          "imageLocal": "season-images/e4419b7d96394c3483bfaaf749906351.webp"
+        },
+        {
+          "uuid": "bd64c6970e314dedb084135f6a6aed5f",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 147.68,
+          "y": -5.56,
+          "z": -234.97,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/79c0ffc5972a4e1ebc87b6e0508ec038.webp",
+          "imageLocal": "season-images/bd64c6970e314dedb084135f6a6aed5f.webp"
+        },
+        {
+          "uuid": "122fb463ffdf40ed9c818717e2f9cada",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -42.8,
+          "y": 19.89,
+          "z": 185.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/51ffc15412fb46c1ba6f2cf1b2348028.webp",
+          "imageLocal": "season-images/122fb463ffdf40ed9c818717e2f9cada.webp"
+        },
+        {
+          "uuid": "478e27686e9b4f09bf9fdf0e89c87da8",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -160.29,
+          "y": 0.96,
+          "z": 68.87,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e8a1aae48b314ec081a0a71a885d6bbf/8a17cc83915c46afb585bf7d4162681a.webp",
+          "imageLocal": "season-images/478e27686e9b4f09bf9fdf0e89c87da8.webp"
+        },
+        {
+          "uuid": "619dd0eadd7c4c84bfb75ef930445d52",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -42.26,
+          "y": 19.99,
+          "z": 174.59,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a5c141f7f3554194b4c92cda2f715c87/cab01e7024be43da973c5b3ca02025d2.webp",
+          "imageLocal": "season-images/619dd0eadd7c4c84bfb75ef930445d52.webp"
+        },
+        {
+          "uuid": "13194716c76e475d86f406129edf52b8",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -9.48,
+          "y": 23.87,
+          "z": 196.35,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1d919a4a0f4845e0ac16bb9a60e5d22f/3e6567a5895a4b69bad39f2613ebfd5c.webp",
+          "imageLocal": "season-images/13194716c76e475d86f406129edf52b8.webp"
+        },
+        {
+          "uuid": "436284795b644f338b54a90bdb791f37",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -108.15,
+          "y": -13.22,
+          "z": 18.2,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/00891754d4094175ba7253c3e6e5927b.webp",
+          "imageLocal": "season-images/436284795b644f338b54a90bdb791f37.webp"
+        },
+        {
+          "uuid": "deeaa3938fb0446c8f4545eb248c0768",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -154.65,
+          "y": -2.15,
+          "z": 72.67,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/ff17bd3460ac4e08961269b8223fbd4c.webp",
+          "imageLocal": "season-images/deeaa3938fb0446c8f4545eb248c0768.webp"
+        },
+        {
+          "uuid": "b049d029eb064eea8baee1d4a7231439",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -165.24,
+          "y": 0.85,
+          "z": 34.88,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/cf0c5a58574a4296b21f867c7da53f13.webp",
+          "imageLocal": "season-images/b049d029eb064eea8baee1d4a7231439.webp"
+        },
+        {
+          "uuid": "71d1d4891f404f90847fa2aed1874016",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -85.69,
+          "y": -3.02,
+          "z": 83.18,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/b7473d4e8b8a43a8acb4046df77bd8ae.webp",
+          "imageLocal": "season-images/71d1d4891f404f90847fa2aed1874016.webp"
+        },
+        {
+          "uuid": "837b2daf34d9491d8c6eb0b326fc1db0",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 59.68,
+          "y": -5.43,
+          "z": 102.44,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/9accb69ebb54405c9b3ab2fd9b25d999.webp",
+          "imageLocal": "season-images/837b2daf34d9491d8c6eb0b326fc1db0.webp"
+        },
+        {
+          "uuid": "1a8c2744bb0e4a1a90589ea6403bf508",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -159.66,
+          "y": -1.76,
+          "z": -0.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/f8ec47e85c4a46c7baee3e1e76167f46.webp",
+          "imageLocal": "season-images/1a8c2744bb0e4a1a90589ea6403bf508.webp"
+        },
+        {
+          "uuid": "cd411e83ab8848a5a1af24a56ab7025d",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -54.48,
+          "y": 0.56,
+          "z": 36.79,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0e8b171840a7402496468db5ae0956b3/e1b4de3bbc234c87a05123d209272623.webp",
+          "imageLocal": "season-images/cd411e83ab8848a5a1af24a56ab7025d.webp"
+        },
+        {
+          "uuid": "464cdb6d467644fcbccb66a3761c1e5c",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": 15.17,
+          "y": 0.49,
+          "z": -28.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ecea0555405248bfb6b3adc208559962/2c0d7ef56acc46d7a434e711e715524e.webp",
+          "imageLocal": "season-images/464cdb6d467644fcbccb66a3761c1e5c.webp"
+        },
+        {
+          "uuid": "f482ae7b21a84afdafadcaea2ff342bc",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": 77.53,
+          "y": -0.14,
+          "z": -17.35,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/dc6c9e604e1940589a96f29257717376/1a03f0caec54497197330413013aba0a.webp",
+          "imageLocal": "season-images/f482ae7b21a84afdafadcaea2ff342bc.webp"
+        },
+        {
+          "uuid": "eef953b892604e44853ed1b6f26575a1",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -164.26,
+          "y": 4.04,
+          "z": 31.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/dc6c9e604e1940589a96f29257717376/f4fc8728e7a04e3d8545a92de45fca6f.webp",
+          "imageLocal": "season-images/eef953b892604e44853ed1b6f26575a1.webp"
+        },
+        {
+          "uuid": "29f0d625c01043519904de2500aa4d65",
+          "itemId": "6a317b9692cfdcddcb02a58e",
+          "type": "pmc",
+          "x": -15.31,
+          "y": 23.84,
+          "z": 177.27,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/6d7f72d5298f45bd933aa984a9692188/d889e0bceacc45f88a63c0f051f37cb9.webp",
+          "imageLocal": "season-images/29f0d625c01043519904de2500aa4d65.webp"
+        },
+        {
+          "uuid": "0e8d7e7719c4442ebccb05cc0175bf43",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -61.49,
+          "y": 0.05,
+          "z": 13.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/55ed11f61ec64c1e860ec15840027227.webp",
+          "imageLocal": "season-images/0e8d7e7719c4442ebccb05cc0175bf43.webp"
+        },
+        {
+          "uuid": "ad7c621e241846d080bda3381dc7efef",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -14.63,
+          "y": 23.23,
+          "z": 173.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/33243bfbb3354682ac2e74474f48a19c.webp",
+          "imageLocal": "season-images/ad7c621e241846d080bda3381dc7efef.webp"
+        },
+        {
+          "uuid": "6d49300b056f4ea4a5d081cbe70685ff",
+          "itemId": "6a3181f178450ec91c0ea1aa",
+          "type": "project",
+          "x": -122.49,
+          "y": -1.97,
+          "z": 95.21,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/925dac26c3b043d78efd4d847f0c6444/9324f058704d466b844e000e414e6fd5.webp",
+          "imageLocal": "season-images/6d49300b056f4ea4a5d081cbe70685ff.webp"
+        }
+      ]
+    },
+    "5704e554d2720bac5b8b456e": {
+      "key": "shoreline",
+      "name": "海岸线",
+      "points": [
+        {
+          "uuid": "f12b820ddf964fd6a08a1a0db3ae36bc",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -329.32,
+          "y": 0.51,
+          "z": -88.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/feb6c8e6727b4dbd95926b2d3656078d/fca4b0961a454404afd872899e9a19ef.webp",
+          "imageLocal": "season-images/f12b820ddf964fd6a08a1a0db3ae36bc.webp"
+        },
+        {
+          "uuid": "3417fa24db7b4889bb990436be8de53d",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -520.05,
+          "y": -14.67,
+          "z": -340.29,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d501b88b529a48a989432e5a0b98ffe8/12821a728b9c4bd1b2d3c64af09999ae.webp",
+          "imageLocal": "season-images/3417fa24db7b4889bb990436be8de53d.webp"
+        },
+        {
+          "uuid": "2fd42e3f92d742e3b48cd1a144e190a1",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -196.81,
+          "y": 0.51,
+          "z": -76.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/6d33b6d5e167482aa5cc18e8f23725ae/879344d0c75e4ec78f6db9aca2a645a9.webp",
+          "imageLocal": "season-images/2fd42e3f92d742e3b48cd1a144e190a1.webp"
+        },
+        {
+          "uuid": "6ebfbc082c7641318f72718ab37ba211",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -182.65,
+          "y": -54.62,
+          "z": 375.86,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/3b7e6bd11a5842c4b1aece4288369f50.webp",
+          "imageLocal": "season-images/6ebfbc082c7641318f72718ab37ba211.webp"
+        },
+        {
+          "uuid": "5ca231d4a80941238a88fc7d002e841e",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -627.64,
+          "y": -25.49,
+          "z": -232.22,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/faa94a6d075b43b498a5b5eb6c9dc7c0/a003adef93e2486fa6c0630b737196e4.webp",
+          "imageLocal": "season-images/5ca231d4a80941238a88fc7d002e841e.webp"
+        },
+        {
+          "uuid": "edbcd8d90aee4d3d85977ee15913b37f",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -319.52,
+          "y": -60.25,
+          "z": 483.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/04de2b3d882d4b6d9b6646c2ccae90d5/a19a1e9180004411a0dc4fa48b81520f.webp",
+          "imageLocal": "season-images/edbcd8d90aee4d3d85977ee15913b37f.webp"
+        },
+        {
+          "uuid": "bcdf086d85844f48b587a373901bb9aa",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -536.33,
+          "y": -16.97,
+          "z": -336.38,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f3d955beca9245c8b6dc4edbcdb24f2a/e8d2514d0d4b421692d306544817c184.webp",
+          "imageLocal": "season-images/bcdf086d85844f48b587a373901bb9aa.webp"
+        },
+        {
+          "uuid": "6791127bb51c41318deecd55bbec3bca",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -512.13,
+          "y": -20.91,
+          "z": 236.06,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/07ad2b52a2c645d8bd28adfa66f92396/5c43475431014770b4ef5eb31713dd6c.webp",
+          "imageLocal": "season-images/6791127bb51c41318deecd55bbec3bca.webp"
+        },
+        {
+          "uuid": "df51f0f6a2a343fd8b3501bd4dc074ec",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -241.17,
+          "y": -39.29,
+          "z": 202.37,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/208208a96c9d4081bb262ce4e9e82cc7.webp",
+          "imageLocal": "season-images/df51f0f6a2a343fd8b3501bd4dc074ec.webp"
+        },
+        {
+          "uuid": "ffc38a3e76fb47f9aa86516023da1714",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -273.79,
+          "y": 8.42,
+          "z": -405.25,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e48f1cdbce264bfbadaebfc472165598/4c26e18f20e04f399a769aaf13861040.webp",
+          "imageLocal": "season-images/ffc38a3e76fb47f9aa86516023da1714.webp"
+        },
+        {
+          "uuid": "8c62d37cf639428499d6dad74a93b70c",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -211.55,
+          "y": -16.35,
+          "z": 19.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/db8425a2bc6e46358072b834468bab31.webp",
+          "imageLocal": "season-images/8c62d37cf639428499d6dad74a93b70c.webp"
+        },
+        {
+          "uuid": "cf5aea141f9a42cbb55b1f1ed3bf2e9f",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -707.03,
+          "y": -26.58,
+          "z": 97.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/5f460cd482294b4e997100e7b7781e5e.webp",
+          "imageLocal": "season-images/cf5aea141f9a42cbb55b1f1ed3bf2e9f.webp"
+        },
+        {
+          "uuid": "cb7c4f0f0ac2435a96c796b56f4a1334",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -348.12,
+          "y": 3.25,
+          "z": -89.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/12a2658b928a4afbb35300919dbed7f5/e0f66f93473f4cdab95a54a85e2cb37b.webp",
+          "imageLocal": "season-images/cb7c4f0f0ac2435a96c796b56f4a1334.webp"
+        },
+        {
+          "uuid": "848a8307f2de41109e7c58d02c8f7fc1",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -273.94,
+          "y": 0.41,
+          "z": -140.2,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/e48ca9b7c4994160ad07e17851f7a6f3.webp",
+          "imageLocal": "season-images/848a8307f2de41109e7c58d02c8f7fc1.webp"
+        },
+        {
+          "uuid": "ec3f451772624cb2b9ebd0e4fdff4447",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -511.53,
+          "y": -12.85,
+          "z": 263.13,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/f47ad42f17aa40618266924f573da194.webp",
+          "imageLocal": "season-images/ec3f451772624cb2b9ebd0e4fdff4447.webp"
+        },
+        {
+          "uuid": "d62a06b21fa04506be34f58cd972647f",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -239.21,
+          "y": -0.1,
+          "z": -147.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/e9e1ee4d09cb40bb9642f56b3cca1fb3.webp",
+          "imageLocal": "season-images/d62a06b21fa04506be34f58cd972647f.webp"
+        },
+        {
+          "uuid": "a3d23b2712da468e911710194d7369f8",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -231.68,
+          "y": 3.43,
+          "z": -102.18,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/143ed697a50c454bbd1e55e3320b2d3f.webp",
+          "imageLocal": "season-images/a3d23b2712da468e911710194d7369f8.webp"
+        },
+        {
+          "uuid": "2d5f3c81280547268a9df95d21d17469",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -318.68,
+          "y": -60.76,
+          "z": 496.46,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/5dba8709e7634a01a61b3500bb090ec1.webp",
+          "imageLocal": "season-images/2d5f3c81280547268a9df95d21d17469.webp"
+        },
+        {
+          "uuid": "be07410c75c146a4992cc708e79d8c90",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -136.56,
+          "y": -20.43,
+          "z": -14.17,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/68b187c77caa437e843a5b08ae252598.webp",
+          "imageLocal": "season-images/be07410c75c146a4992cc708e79d8c90.webp"
+        },
+        {
+          "uuid": "2acea64e15704b97a4040c4c13f67784",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -311.58,
+          "y": 0.55,
+          "z": -77.8,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/3596f4bb01eb40148f06efad2f0109e0.webp",
+          "imageLocal": "season-images/2acea64e15704b97a4040c4c13f67784.webp"
+        },
+        {
+          "uuid": "f2835419b521474a9cd8ea96239f5bb5",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -613.17,
+          "y": -28.52,
+          "z": -179.64,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f3612dfdbbab42adb4dfb32b6d3beeb9/bf877ebf9b3e47c4b9906b25599f4350.webp",
+          "imageLocal": "season-images/f2835419b521474a9cd8ea96239f5bb5.webp"
+        },
+        {
+          "uuid": "ce59a6c54b904537b3d95d996db5acee",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -180.63,
+          "y": 2.84,
+          "z": -80.48,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2cf5942449ba40c0be81c480b8ab6af1/816f4cfb05e14cdfaf8c6e74d2837572.webp",
+          "imageLocal": "season-images/ce59a6c54b904537b3d95d996db5acee.webp"
+        },
+        {
+          "uuid": "8c0321b8e37b4b7c8c186c58e929a231",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 279.82,
+          "y": -54.15,
+          "z": 181.72,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e9c6f211495c46dd8cd350884b5f59aa/c7832439661544d1878e120adeab8593.webp",
+          "imageLocal": "season-images/8c0321b8e37b4b7c8c186c58e929a231.webp"
+        },
+        {
+          "uuid": "19e89bb4cc824cc7b2b7989222015e32",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 442.84,
+          "y": -52.62,
+          "z": 154.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/266bd63c1d574c289a50e3d943b93186/7e097796ea6f4feaa23a750d0c0fc759.webp",
+          "imageLocal": "season-images/19e89bb4cc824cc7b2b7989222015e32.webp"
+        },
+        {
+          "uuid": "cfd2e38edf904a4aa2ee715524fe78a1",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -270.73,
+          "y": 3.4,
+          "z": -102.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9a82c64ea43846f8af2a6e5d30c8ceca/c56b0ce416c14b21bfbe4c20c2d78f35.webp",
+          "imageLocal": "season-images/cfd2e38edf904a4aa2ee715524fe78a1.webp"
+        },
+        {
+          "uuid": "78bc05fbe41249299e8c4d95d984b455",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -179.71,
+          "y": -54.3,
+          "z": 374.42,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9aaade3468944e94bc3d8678fff00198/edbf2856fa864efa8c5bc2aaf0c6f0ba.webp",
+          "imageLocal": "season-images/78bc05fbe41249299e8c4d95d984b455.webp"
+        },
+        {
+          "uuid": "09bc2d142b564ffc810cfc59b504c568",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 94.45,
+          "y": -46.7,
+          "z": 116.37,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/dc07760b6a804848b022e9360f5fa15c/85543a98a5264f94aca6c2107cd4b4f8.webp",
+          "imageLocal": "season-images/09bc2d142b564ffc810cfc59b504c568.webp"
+        },
+        {
+          "uuid": "420f00bf5d334214922f2bd4db512b24",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 412.87,
+          "y": -53.37,
+          "z": 160.49,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/9946e16600ec41b2bc46421e91898cff.webp",
+          "imageLocal": "season-images/420f00bf5d334214922f2bd4db512b24.webp"
+        },
+        {
+          "uuid": "7ee3073841134798824898abd820c5fa",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 98.1,
+          "y": -47.17,
+          "z": 97.83,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/f4c7429192e54660b0988330c4747ab8.webp",
+          "imageLocal": "season-images/7ee3073841134798824898abd820c5fa.webp"
+        },
+        {
+          "uuid": "219f821628384702adc4f53d6d676739",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -218.42,
+          "y": -0.03,
+          "z": -86.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/adf3f445df944e4495c6e67053ffc7f7/5e8dc75a96854aababc4277ccb67e4bd.webp",
+          "imageLocal": "season-images/219f821628384702adc4f53d6d676739.webp"
+        }
+      ]
+    },
+    "5704e3c2d2720bac5b8b4567": {
+      "key": "woods",
+      "name": "森林",
+      "points": [
+        {
+          "uuid": "c6866fb9fa554f329331c396d988a0b9",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -0.91,
+          "y": -0.07,
+          "z": -80.72,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/feb6c8e6727b4dbd95926b2d3656078d/0a4794ee0dc24eeb94bf4a5608fb2df5.webp",
+          "imageLocal": "season-images/c6866fb9fa554f329331c396d988a0b9.webp"
+        },
+        {
+          "uuid": "37c6f51be4034fe2b353e70ba38400b2",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 240.98,
+          "y": -0.68,
+          "z": -80.58,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5c15a4dc8ad747299f0ad7cbfd90df26/9a28dd59a9df47bdbb384dedc7b4c4a1.webp",
+          "imageLocal": "season-images/37c6f51be4034fe2b353e70ba38400b2.webp"
+        },
+        {
+          "uuid": "3874e12c6394462c8a1277fbba7607eb",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 294.45,
+          "y": 24.27,
+          "z": -506.46,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/feb6c8e6727b4dbd95926b2d3656078d/eb1e4af2c4e941faa710b7ca222ed48f.webp",
+          "imageLocal": "season-images/3874e12c6394462c8a1277fbba7607eb.webp"
+        },
+        {
+          "uuid": "1738abac72e24795adfd66748c40a94a",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 271.97,
+          "y": 24.35,
+          "z": -510.51,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7edd743069c5439a8f95f0a1504725cf/d1b9a2bab7e546cbbc96c9dd17b83d23.webp",
+          "imageLocal": "season-images/1738abac72e24795adfd66748c40a94a.webp"
+        },
+        {
+          "uuid": "58a8c36107b04aaea980b335b4422256",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -190.05,
+          "y": -1.1,
+          "z": 207.73,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7edd743069c5439a8f95f0a1504725cf/025e50f863974d4f9ed96d25a0c17b91.webp",
+          "imageLocal": "season-images/58a8c36107b04aaea980b335b4422256.webp"
+        },
+        {
+          "uuid": "3447139b8dd5453dbf7c026303e70610",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 279.67,
+          "y": 24.23,
+          "z": -434.15,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/7a9adcfd354f40a5910fa273b651e275/19ac5b72f6804d4daa55125266a59533.webp",
+          "imageLocal": "season-images/3447139b8dd5453dbf7c026303e70610.webp"
+        },
+        {
+          "uuid": "d7471177b66a44039416c2a4865797db",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -210.02,
+          "y": -0.41,
+          "z": 218.65,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/fcf6c986659a410dbf5bc42518158672.webp",
+          "imageLocal": "season-images/d7471177b66a44039416c2a4865797db.webp"
+        },
+        {
+          "uuid": "83b29e5269704fa093c08ba98a2a7f38",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -274.32,
+          "y": 8.15,
+          "z": -405.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a6cdb00a2bd9465195619d8ed873c954/5ec348362edd4b39a45fdd5a61c8f3d9.webp",
+          "imageLocal": "season-images/83b29e5269704fa093c08ba98a2a7f38.webp"
+        },
+        {
+          "uuid": "8325e163d3c340eca3145c8f80e76677",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 271.07,
+          "y": 23.67,
+          "z": -439.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a6cdb00a2bd9465195619d8ed873c954/b127510f8f534ff993e61bc7b45082d9.webp",
+          "imageLocal": "season-images/8325e163d3c340eca3145c8f80e76677.webp"
+        },
+        {
+          "uuid": "941411353fb84b6aa6f854a1a8464133",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -26.38,
+          "y": -2.13,
+          "z": 46.96,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/f318a1ed67534b22a693d8457726edb0/3c70714af19c483899bb7b42aade356b.webp",
+          "imageLocal": "season-images/941411353fb84b6aa6f854a1a8464133.webp"
+        },
+        {
+          "uuid": "ce9cf180249e469cbd31d86bfdaa2d6c",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 58.28,
+          "y": -1.23,
+          "z": -50.24,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/04dd7f000d8c40c0a0883e3a2508176e.webp",
+          "imageLocal": "season-images/ce9cf180249e469cbd31d86bfdaa2d6c.webp"
+        },
+        {
+          "uuid": "af6b5f554c194df791fafc1edd73069f",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 140.91,
+          "y": 28.55,
+          "z": -725.59,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ae0f52291d714941bec22c38f2a19c5b/130d04475c5c4cddb3e2f6bfd945aae9.webp",
+          "imageLocal": "season-images/af6b5f554c194df791fafc1edd73069f.webp"
+        },
+        {
+          "uuid": "eddc232e109647fe85424288989c8b59",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 371.58,
+          "y": -9.44,
+          "z": 122.39,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/772a297472c543f6b1afcf0256e38cc7/516636c2bb6e4d61ba05bb11f932b4d0.webp",
+          "imageLocal": "season-images/eddc232e109647fe85424288989c8b59.webp"
+        },
+        {
+          "uuid": "14a844d120a34af9883de8c560aafe81",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -248.93,
+          "y": 13.12,
+          "z": -24.65,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/04de2b3d882d4b6d9b6646c2ccae90d5/bf4e2d6760b043aa91688af233a2f14a.webp",
+          "imageLocal": "season-images/14a844d120a34af9883de8c560aafe81.webp"
+        },
+        {
+          "uuid": "46339860b3ed4020a8b605131b0577b8",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 238.82,
+          "y": 0.02,
+          "z": -71.5,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/04de2b3d882d4b6d9b6646c2ccae90d5/e3bc7cb67bd54702a0b036ac3de8bd83.webp",
+          "imageLocal": "season-images/46339860b3ed4020a8b605131b0577b8.webp"
+        },
+        {
+          "uuid": "a227e736d4f84068b2b1a43ee908a456",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -201.86,
+          "y": -0.51,
+          "z": 231.95,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/07ad2b52a2c645d8bd28adfa66f92396/eb6856e28696442e812736cfa3831cca.webp",
+          "imageLocal": "season-images/a227e736d4f84068b2b1a43ee908a456.webp"
+        },
+        {
+          "uuid": "0a6bb722db4b424ea6078a1bdbfb6ff2",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -153.9,
+          "y": 52.58,
+          "z": -274.93,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9d93357e66e14e1da778c06df0718f72/94b0879022564482b016a4c9bac270bf.webp",
+          "imageLocal": "season-images/0a6bb722db4b424ea6078a1bdbfb6ff2.webp"
+        },
+        {
+          "uuid": "ce75dcfc370e41738273009e4b7c3990",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 282.59,
+          "y": 24.29,
+          "z": -516.77,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/3c9d125cca734d989fcef843a7e9d5cd/96adbee5f56745d6be8fa5b5bf994598.webp",
+          "imageLocal": "season-images/ce75dcfc370e41738273009e4b7c3990.webp"
+        },
+        {
+          "uuid": "a8514723b4a84b188b547d8a48281f9f",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -545.52,
+          "y": 19.54,
+          "z": -200.51,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/36ea8afe605a4ea68be30186f1eee2b4/038868ad479249dfa5add19da366e417.webp",
+          "imageLocal": "season-images/a8514723b4a84b188b547d8a48281f9f.webp"
+        },
+        {
+          "uuid": "78854e4ba6aa4129b2f665da0f25a9bc",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -512.64,
+          "y": 19.87,
+          "z": -394.2,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2c182b58734e4b53979726ba09851fd8/58ec5acda0664b27a54e9c546c691d77.webp",
+          "imageLocal": "season-images/78854e4ba6aa4129b2f665da0f25a9bc.webp"
+        },
+        {
+          "uuid": "87496ce43a0b4a6282d23a59c72d95db",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -46.37,
+          "y": 21.31,
+          "z": -251.42,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/9c071e3ff1d84ced8459e2f5d49cad2d.webp",
+          "imageLocal": "season-images/87496ce43a0b4a6282d23a59c72d95db.webp"
+        },
+        {
+          "uuid": "0367681f344042a295df33b77be90751",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -512.41,
+          "y": 17.32,
+          "z": -177.69,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/bbee25c7b385475b81bdae3ff02b4ff1/9faf25be53404535be7fe1d7ff5452df.webp",
+          "imageLocal": "season-images/0367681f344042a295df33b77be90751.webp"
+        },
+        {
+          "uuid": "5cfe226e141044999c4993ce3dff857d",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": 227.29,
+          "y": 25.92,
+          "z": -711.82,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/19d8ec9df99747ec89e6831e07ab0d5d/3fb6412418f94b1dadff809a92edc75d.webp",
+          "imageLocal": "season-images/5cfe226e141044999c4993ce3dff857d.webp"
+        },
+        {
+          "uuid": "a20d668378704d079e928468e972eb7d",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -55.38,
+          "y": 10.09,
+          "z": -501.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/1d919a4a0f4845e0ac16bb9a60e5d22f/66c98dc76ee6419e9c9687ce22d29f56.webp",
+          "imageLocal": "season-images/a20d668378704d079e928468e972eb7d.webp"
+        },
+        {
+          "uuid": "7fb630c7276b4e40a88a84295e2485b6",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": 309.31,
+          "y": 24.29,
+          "z": -462.76,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/ac7685f53dc34572811c7f6279f83b53/fa392de122d045298146451698120e08.webp",
+          "imageLocal": "season-images/7fb630c7276b4e40a88a84295e2485b6.webp"
+        },
+        {
+          "uuid": "3232ea697ce34c5f9e45fccec00f4a49",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -458.81,
+          "y": 16.31,
+          "z": -365.52,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b86e7ce1bbeb43ddbf44a8dce05f2c48/7dd461961544462aacc5da5d0cfdf402.webp",
+          "imageLocal": "season-images/3232ea697ce34c5f9e45fccec00f4a49.webp"
+        },
+        {
+          "uuid": "bb0da56995b947d5a67d067fdf50f035",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -129.02,
+          "y": 11.31,
+          "z": -689.5,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b28a552fd4594c61a12ddfb5a34fc2e4/76b4d3a16a964c4fbb08e9fd3a483ae8.webp",
+          "imageLocal": "season-images/bb0da56995b947d5a67d067fdf50f035.webp"
+        },
+        {
+          "uuid": "d375808fb853420fa3868b0b879adb10",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -475.29,
+          "y": 14.77,
+          "z": -177.29,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/749711547f9e4d24848c262aae6252a5/e40af2dcd002466daa3f2f8ffc3f74dd.webp",
+          "imageLocal": "season-images/d375808fb853420fa3868b0b879adb10.webp"
+        },
+        {
+          "uuid": "7e1032f54e4d42e9a1d23c31d3b4c547",
+          "itemId": "6a31830dde69ceafd805afa0",
+          "type": "technical",
+          "x": -674.74,
+          "y": 11.23,
+          "z": 132.6,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/2684970bd3a647869fed807476adbad7/fa5d29b316d74abcb58e0445ff8aba2c.webp",
+          "imageLocal": "season-images/7e1032f54e4d42e9a1d23c31d3b4c547.webp"
+        },
+        {
+          "uuid": "f424643c637e46579387f56342268dff",
+          "itemId": "6a31828557705071410ca00e",
+          "type": "test",
+          "x": -456.09,
+          "y": 16.35,
+          "z": -365.33,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b937e6c577e548f49b91442ae7724db7/9d4960d000854c2fbe6deab56bfb612b.webp",
+          "imageLocal": "season-images/f424643c637e46579387f56342268dff.webp"
+        }
+      ]
+    },
+    "6733700029c367a3d40b02af": {
+      "key": "the-labyrinth",
+      "name": "迷宫",
+      "points": [
+        {
+          "uuid": "4e375c44857c42d8858f7c9c64efb90a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -6.52,
+          "y": 1.55,
+          "z": 26.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a9f995164eb948bfa8fc510f3956df35/71b165e205c04a07bc972533da54a95e.webp",
+          "imageLocal": "season-images/4e375c44857c42d8858f7c9c64efb90a.webp"
+        },
+        {
+          "uuid": "c5d180e52af74927980ad0e9d64ddba2",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -7.04,
+          "y": 1.3,
+          "z": 23.45,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d474759eb9f84db99a000f2044f6727f/dc040a9975da49d4842e1d9d252114ba.webp",
+          "imageLocal": "season-images/c5d180e52af74927980ad0e9d64ddba2.webp"
+        },
+        {
+          "uuid": "1b487cccbb544f678b755bbd2a8e4a4a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 11.76,
+          "y": 1.49,
+          "z": 18.98,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d474759eb9f84db99a000f2044f6727f/f1024cbf148849418cbccada48cc3ee6.webp",
+          "imageLocal": "season-images/1b487cccbb544f678b755bbd2a8e4a4a.webp"
+        },
+        {
+          "uuid": "64b9e2cf3cb2433cbda1c258c4cfc198",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -25.25,
+          "y": 1.49,
+          "z": 41.43,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/af859c3cba804e0a8426e950f085c4dd.webp",
+          "imageLocal": "season-images/64b9e2cf3cb2433cbda1c258c4cfc198.webp"
+        },
+        {
+          "uuid": "33489f2f950b47ddb3242e514f4ac960",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -15.72,
+          "y": 1.5,
+          "z": 51.03,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/236225cc664d4b98b5ce725fce6d7371.webp",
+          "imageLocal": "season-images/33489f2f950b47ddb3242e514f4ac960.webp"
+        },
+        {
+          "uuid": "6148193817344931ad9c6884c38272a7",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -1.07,
+          "y": 1.3,
+          "z": 36.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/d311eaaa56074c1091b58ea8f92315aa.webp",
+          "imageLocal": "season-images/6148193817344931ad9c6884c38272a7.webp"
+        },
+        {
+          "uuid": "88804103eeb34e0292274ec0f72bbc8b",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 19.01,
+          "y": 1.42,
+          "z": 4.87,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/1a5a2ca5b3a14f739a81e3e2a40b707f.webp",
+          "imageLocal": "season-images/88804103eeb34e0292274ec0f72bbc8b.webp"
+        },
+        {
+          "uuid": "b087f367fc7e434e82a5e6e97f85751d",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 7.99,
+          "y": 1.3,
+          "z": 4.7,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0bf01a82e4444e689274ca7ca4c5484a/03144538a095420299b8a142aad09021.webp",
+          "imageLocal": "season-images/b087f367fc7e434e82a5e6e97f85751d.webp"
+        },
+        {
+          "uuid": "5a27306648cf42b19285fefb0af3100b",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -172.16,
+          "y": 1.53,
+          "z": -345.74,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/b1823bd229c24a62b1aae8f58cdbbf46/cd3b6eeff581408daea23343dc69fe98.webp",
+          "imageLocal": "season-images/5a27306648cf42b19285fefb0af3100b.webp"
+        },
+        {
+          "uuid": "3d058a5afd83419499e51ecb5fdba952",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -17,
+          "y": 1.51,
+          "z": 8.55,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/5f2c38af21974716826b9b6bcdab9956/f1b36384b1794095b697bb022e0feb5e.webp",
+          "imageLocal": "season-images/3d058a5afd83419499e51ecb5fdba952.webp"
+        },
+        {
+          "uuid": "6226f124ccb0466c903f328875636c9a",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 8.29,
+          "y": 1.17,
+          "z": -11.41,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/a9f995164eb948bfa8fc510f3956df35/f94c248d59314b5ea2b32e3da2f3fa76.webp",
+          "imageLocal": "season-images/6226f124ccb0466c903f328875636c9a.webp"
+        },
+        {
+          "uuid": "bd4a7a60c93a40b7b7bf116e276e2b92",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 15.22,
+          "y": 1.48,
+          "z": 16.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/9cfa5f71046d44d6b2d2295e37cad408/2e1cf6b143d243959a6722852fc60048.webp",
+          "imageLocal": "season-images/bd4a7a60c93a40b7b7bf116e276e2b92.webp"
+        },
+        {
+          "uuid": "5dad4b393a6d46c3add6cc611dde9b45",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -0.06,
+          "y": 1.56,
+          "z": 53.89,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/c435d33872ac4f95a929df51579570d3.webp",
+          "imageLocal": "season-images/5dad4b393a6d46c3add6cc611dde9b45.webp"
+        },
+        {
+          "uuid": "462de73706144102a578fc6a54772681",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -27,
+          "y": 1.38,
+          "z": 35.47,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/3b54728840ac4718a453031759a09b48.webp",
+          "imageLocal": "season-images/462de73706144102a578fc6a54772681.webp"
+        },
+        {
+          "uuid": "af69ceacc65544ec916a3f37acc27898",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 11.57,
+          "y": 1.22,
+          "z": 33.87,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/df4c3ecff0824967a0dd06d982b25cbb/c074030b3c8a41cc962a3970434b888e.webp",
+          "imageLocal": "season-images/af69ceacc65544ec916a3f37acc27898.webp"
+        },
+        {
+          "uuid": "628d38ff1c7348019eacb3a802a1bd36",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -6.78,
+          "y": 1.55,
+          "z": 34.59,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0fbe9542ed354368920ea35edef09acd/d0959170427646a999a41b946fb90385.webp",
+          "imageLocal": "season-images/628d38ff1c7348019eacb3a802a1bd36.webp"
+        },
+        {
+          "uuid": "9cced56726ad46a2a7d276390c160399",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 0.32,
+          "y": 0.84,
+          "z": -0.94,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0fbe9542ed354368920ea35edef09acd/457730bd68a34c708ce6e8c66d847db8.webp",
+          "imageLocal": "season-images/9cced56726ad46a2a7d276390c160399.webp"
+        },
+        {
+          "uuid": "b96cdfa7b0e44c1a944bcc6117b4fccf",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": -10.81,
+          "y": 1.5,
+          "z": 26.4,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0528d35b5ef141658dce3f5783b6ac45/5a51127a14154d398dd69886991e1c7a.webp",
+          "imageLocal": "season-images/b96cdfa7b0e44c1a944bcc6117b4fccf.webp"
+        },
+        {
+          "uuid": "65e88867ca1042aebcb6f069a508b045",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -5.47,
+          "y": 1.32,
+          "z": 11.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/d474759eb9f84db99a000f2044f6727f/63ec5a48e69b48919928786c84d363b8.webp",
+          "imageLocal": "season-images/65e88867ca1042aebcb6f069a508b045.webp"
+        },
+        {
+          "uuid": "5f4633cbb6444ba69eb6181341c5556a",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": 15.07,
+          "y": 0.9,
+          "z": 10.2,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17d873c8957b43dfbc864063a43ab7c9/6d091a33fab54954ad1db8a35226fd56.webp",
+          "imageLocal": "season-images/5f4633cbb6444ba69eb6181341c5556a.webp"
+        },
+        {
+          "uuid": "03e5acdd84804ad2afddc84c2ce44dc5",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 9.9,
+          "y": 0.92,
+          "z": 30.23,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/17d873c8957b43dfbc864063a43ab7c9/d9a4ac28b0524596b2b506c38881b480.webp",
+          "imageLocal": "season-images/03e5acdd84804ad2afddc84c2ce44dc5.webp"
+        },
+        {
+          "uuid": "f98d1a2c0e0c449f90bce21f080ee713",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -16.6,
+          "y": 1.29,
+          "z": 34.72,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/7164665a77bd4c688bed8a44f311cc3f.webp",
+          "imageLocal": "season-images/f98d1a2c0e0c449f90bce21f080ee713.webp"
+        },
+        {
+          "uuid": "74fb97c5c7a94157ac99705d841343a3",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -87.48,
+          "y": 1.43,
+          "z": -431.91,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/76589482891a433eb045a0f006806607/369e4d47952f4ad9a9e19e6690ada286.webp",
+          "imageLocal": "season-images/74fb97c5c7a94157ac99705d841343a3.webp"
+        },
+        {
+          "uuid": "2b54217367f44c5988072e740d8b7efa",
+          "itemId": "6a31824878450ec91c0ea1ae",
+          "type": "blueprints",
+          "x": 17.02,
+          "y": 0.87,
+          "z": 3.1,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8b24038f03c1497fb180be6cb74f796d/28ae16b4b6de44ea9ea38b6ec6fa98ae.webp",
+          "imageLocal": "season-images/2b54217367f44c5988072e740d8b7efa.webp"
+        },
+        {
+          "uuid": "a6f9a924c00e41dc90b4faac2c7760a2",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -26.49,
+          "y": 1.36,
+          "z": 9.62,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/8bfa4016388240adb0213a0655a2b8ec/7bddb39bbd064ee081bcaaf5facbf46f.webp",
+          "imageLocal": "season-images/a6f9a924c00e41dc90b4faac2c7760a2.webp"
+        },
+        {
+          "uuid": "3c202e1255754a93a47180ba6eddc2c7",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -122.38,
+          "y": 5.51,
+          "z": -361.14,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/0c6ad504712e471a8182fce9ace003d7/4e21be24eb7a4b2388952a546e788291.webp",
+          "imageLocal": "season-images/3c202e1255754a93a47180ba6eddc2c7.webp"
+        },
+        {
+          "uuid": "7070575aa8454def9577814d01e56093",
+          "itemId": "6a3182dc6cd8de21cf0a3a7d",
+          "type": "medical",
+          "x": -7.41,
+          "y": 31.13,
+          "z": 51.11,
+          "image": "https://cdn.kaedeori.com/uploads/tarkov/season-document-images/e32796c716e14a7a8c2e29ca59017c58/df10338df6fb4ce5b3e7b0d533fadbff.webp",
+          "imageLocal": "season-images/7070575aa8454def9577814d01e56093.webp"
+        }
+      ]
+    }
+  },
+  "images": {
+    "fetchedAt": "2026-09-14T12:30:43.305Z",
+    "count": 419,
+    "bytes": 89248434,
+    "note": "位置参考截图原图（站台公开 CDN，webp）。点击地图上的赛季文件标记即可在弹窗查看该刷新点实景。"
+  }
+}

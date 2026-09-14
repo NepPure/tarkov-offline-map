@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+!samples/**/*.log
+.DS_Store
+settings.json
+test-artifacts/
+# build/ 只保留应用图标，其余为开发期抓取的上游素材/快照（体积大，可随时用 tools/ 重新生成）
+build/*
+!build/icon.png

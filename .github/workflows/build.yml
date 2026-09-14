@@ -1,0 +1,110 @@
+name: Build & Release (Windows)
+
+# 触发方式
+#   1) push 到 main            -> 跑测试 + 构建，产物作为 Actions artifact 上传（不发布 Release）
+#   2) push tag v*             -> 跑测试 + 构建 + 自动创建/更新 GitHub Release 并上传 exe
+#   3) 手动 workflow_dispatch  -> 可选填版本号（会写入 package.json），构建并发布 Release
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（留空则用 package.json 里的版本）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    name: Windows portable exe
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Offline pipeline simulation
+        run: npm run simulate
+
+      # 手动发布时可临时覆盖版本号（不改动已提交的文件，只作用于本次构建）
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.version }}" ]; then
+            npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+          fi
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"       >> "$GITHUB_OUTPUT"
+          echo "构建版本: $VERSION"
+
+      - name: Build portable exe (electron-builder)
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Collect artifacts & checksums
+        shell: bash
+        run: |
+          set -e
+          mkdir -p release
+          VERSION="${{ steps.ver.outputs.version }}"
+          SRC=$(ls dist/*.exe | head -n 1)
+          echo "产物: $SRC"
+          cp "$SRC" "release/塔可夫离线地图-${VERSION}.exe"
+          # 同时给一个纯 ASCII 文件名，方便脚本/下载器使用
+          cp "$SRC" "release/tarkov-offline-map-${VERSION}-win-x64-portable.exe"
+          cd release
+          sha256sum *.exe > SHA256SUMS.txt
+          ls -lh
+          cat SHA256SUMS.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.ver.outputs.tag }}
+          name: 塔可夫离线地图 ${{ steps.ver.outputs.version }}
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            Windows 免安装单文件（portable，x64），双击即用。
+
+            - 文件名：`塔可夫离线地图-${{ steps.ver.outputs.version }}.exe`（另有同内容的 ASCII 文件名版本）
+            - 校验：`SHA256SUMS.txt`
+            - 内含刷新后的离线地图数据与赛季文件刷点/位置参考截图，运行时不联网
+            - 未做代码签名，SmartScreen 提示"未知发布者"时选择"仍要运行"
+            - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏之上
+
+            更新日志见本次 Release 的自动生成内容。

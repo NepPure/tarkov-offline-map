@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' 'unsafe-inline'; img-src 'self' app: data:; connect-src 'self' app:" />
+  <title>塔可夫离线地图</title>
+  <link rel="stylesheet" href="map.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>塔可夫离线地图</h1>
+      <span class="tag">纯本地</span>
+    </div>
+    <div class="controls">
+      <label>地图
+        <select id="map-select"></select>
+      </label>
+      <div id="floor-buttons" class="floor-buttons"></div>
+      <button id="btn-follow" class="toggle active" title="捕获位置后自动居中">定位自动居中</button>
+      <button id="btn-rotate" class="toggle" title="车头朝上（随朝向旋转）">车头朝上</button>
+      <button id="btn-mini" class="toggle" title="显示/隐藏圆形小地图">小地图雷达</button>
+      <button id="btn-legend" class="toggle active" title="标记点图例，可配置图钉显示">标记点</button>
+      <button id="btn-measure" class="toggle" title="尺子：在地图上点两点测距（Esc 取消）">尺子</button>
+      <button id="btn-pin" class="toggle" title="图钉化地图：缩小主窗口并置顶">图钉化</button>
+      <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
+      <button id="btn-settings" title="高级设置">设置</button>
+    </div>
+  </header>
+
+  <main id="map-root">
+    <div id="empty-hint">
+      <p>等待游戏日志...</p>
+      <p class="sub">启动游戏后会自动识别你所在的图；游戏内按 <b>Print Screen</b> 截图即可在图上定位</p>
+    </div>
+    <div id="info-card" class="info-card hidden"></div>
+    <div id="shot-viewer" class="shot-viewer hidden">
+      <img id="shot-viewer-img" alt="位置参考截图" />
+      <div class="shot-viewer-bar">
+        <span id="shot-viewer-caption"></span>
+        <span class="shot-viewer-hint">滚轮缩放 · 拖动平移 · 点击空白/Esc 关闭</span>
+        <button id="shot-viewer-close">×</button>
+      </div>
+    </div>
+    <div id="measure-tip" class="measure-tip hidden">尺子：点击地图选择两点（Esc 取消）</div>
+  </main>
+
+  <aside id="legend-panel" class="legend-panel">
+    <div class="legend-head">
+      <span>标记点图例</span>
+      <div class="legend-actions">
+        <button id="legend-all" title="全部显示">全部</button>
+        <button id="legend-none" title="全部隐藏">无</button>
+        <button id="legend-close">×</button>
+      </div>
+    </div>
+    <div id="legend-body" class="legend-body"></div>
+  </aside>
+
+  <aside class="statusbar">
+    <span id="st-map">地图: -</span>
+    <span id="st-source">识别: -</span>
+    <span id="st-floor">楼层: -</span>
+    <span id="st-pos">位置: -</span>
+    <span id="st-heading">朝向: -</span>
+    <span id="st-log">日志: -</span>
+    <span id="st-shot">截图: -</span>
+    <span id="st-boss">Boss: -</span>
+    <span id="st-exfil">最近撤离: -</span>
+  </aside>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" class="settings-form">
+      <h2>高级设置</h2>
+      <div class="settings-grid">
+        <section class="settings-card">
+          <h3>目录</h3>
+          <label>游戏日志目录 <input id="set-logs" type="text" /></label>
+          <label>截图目录 <input id="set-shots" type="text" /></label>
+        </section>
+        <section class="settings-card">
+          <h3>定位与显示</h3>
+          <label class="row"><input type="checkbox" id="set-auto-zoom" /> 定位自动缩放：捕获位置后自动缩放到合适大小</label>
+          <label class="row"><input type="checkbox" id="set-auto-center" /> 定位自动居中：捕获位置后自动将地图居中</label>
+          <label class="row"><input type="checkbox" id="set-all-markers" /> 表层显示全部标记：不按楼层高度过滤标记</label>
+          <label class="row"><input type="checkbox" id="set-auto-floor" /> 自动切换地图图层：根据玩家高度自动切换楼层</label>
+          <label class="row">地图透明度 <input type="range" id="set-map-opacity" min="0.2" max="1" step="0.05" style="flex:1" /></label>
+          <label class="row">标记大小 <input type="range" id="set-marker-scale" min="0.5" max="2" step="0.1" style="flex:1" /></label>
+        </section>
+        <section class="settings-card">
+          <h3>提示与行为</h3>
+          <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：进图/定位时播放提示音</label>
+          <label class="row"><input type="checkbox" id="set-auto-delete" /> 自动删除截图文件：读取坐标后删除对应文件</label>
+          <label class="row"><input type="checkbox" id="set-mini" /> 启用小地图雷达：开启独立圆形小地图窗口</label>
+          <label class="row">小地图透明度 <input type="range" id="set-mini-opacity" min="0.2" max="1" step="0.05" style="flex:1" /></label>
+          <label class="row">小地图显示半径(米) <input type="range" id="set-mini-radius" min="20" max="200" step="5" style="flex:1" /></label>
+          <label class="row"><input type="checkbox" id="set-mini-follow" /> 小地图缩放跟随互动地图</label>
+        </section>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel" formnovalidate>取消</button>
+        <button value="ok" id="settings-ok">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="map.js"></script>
+</body>
+</html>

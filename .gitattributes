@@ -1,0 +1,15 @@
+# 统一换行，避免 Windows 上出现大量 CRLF 警告
+* text=auto eol=lf
+
+# 二进制/素材不做换行转换，也不参与 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.exe binary
+*.svg text eol=lf
+
+# 生成物不参与语言统计
+data/maps-dump.json linguist-generated=true
+data/season-documents.json linguist-generated=true

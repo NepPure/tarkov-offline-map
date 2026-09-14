@@ -1,0 +1,158 @@
+{
+  "fetchedAt": "2026-09-08T06:28:02.163Z",
+  "files": {
+    "container_cash-register": {
+      "from": "map-icons"
+    },
+    "container_safe": {
+      "from": "map-icons"
+    },
+    "container_buried-barrel-cache": {
+      "from": "map-icons"
+    },
+    "container_dead-scav": {
+      "from": "map-icons"
+    },
+    "container_drawer": {
+      "from": "map-icons"
+    },
+    "container_duffle-bag": {
+      "from": "map-icons"
+    },
+    "container_grenade-box": {
+      "from": "map-icons"
+    },
+    "container_ground-cache": {
+      "from": "map-icons"
+    },
+    "container_jacket": {
+      "from": "map-icons"
+    },
+    "container_medbag-smu06": {
+      "from": "map-icons"
+    },
+    "container_medcase": {
+      "from": "map-icons"
+    },
+    "container_crate": {
+      "from": "map-icons"
+    },
+    "container_pc-block": {
+      "from": "map-icons"
+    },
+    "container_plastic-suitcase": {
+      "from": "map-icons"
+    },
+    "container_toolbox": {
+      "from": "map-icons"
+    },
+    "container_weapon-box": {
+      "from": "map-icons"
+    },
+    "container_wooden-ammo-box": {
+      "from": "map-icons"
+    },
+    "container_wooden-crate": {
+      "from": "map-icons"
+    },
+    "loose_loot_high": {
+      "from": "assets"
+    },
+    "loose_loot_favorite": {
+      "from": "assets"
+    },
+    "extract_pmc": {
+      "from": "map-icons"
+    },
+    "extract_scav": {
+      "from": "map-icons"
+    },
+    "extract_shared": {
+      "from": "map-icons"
+    },
+    "extract_transit": {
+      "from": "map-icons"
+    },
+    "hazard": {
+      "from": "map-icons"
+    },
+    "key": {
+      "from": "map-icons"
+    },
+    "lock": {
+      "from": "map-icons"
+    },
+    "quest_item": {
+      "from": "map-icons"
+    },
+    "quest_objective": {
+      "from": "map-icons"
+    },
+    "spawn_sniper_scav": {
+      "from": "map-icons"
+    },
+    "spawn_boss": {
+      "from": "map-icons"
+    },
+    "spawn_bloodhound": {
+      "from": "map-icons"
+    },
+    "spawn_bot_pmc": {
+      "from": "assets"
+    },
+    "spawn_cultist-priest": {
+      "from": "map-icons"
+    },
+    "spawn_pmc": {
+      "from": "map-icons"
+    },
+    "spawn_rogue": {
+      "from": "map-icons"
+    },
+    "spawn_scav": {
+      "from": "map-icons"
+    },
+    "stationarygun": {
+      "from": "map-icons"
+    },
+    "switch": {
+      "from": "map-icons"
+    },
+    "btr_stop": {
+      "from": "map-icons"
+    },
+    "boss_glukhar": {
+      "from": "assets"
+    },
+    "boss_kaban": {
+      "from": "assets"
+    },
+    "boss_killa": {
+      "from": "assets"
+    },
+    "boss_knight": {
+      "from": "assets"
+    },
+    "boss_kollontay": {
+      "from": "assets"
+    },
+    "boss_reshala": {
+      "from": "assets"
+    },
+    "boss_sanitar": {
+      "from": "assets"
+    },
+    "boss_shadow_of_tagilla": {
+      "from": "assets"
+    },
+    "boss_shturman": {
+      "from": "assets"
+    },
+    "boss_tagilla": {
+      "from": "assets"
+    },
+    "boss_zryachiy": {
+      "from": "assets"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "name": "tarkov-offline-map",
+  "productName": "塔可夫离线地图",
+  "version": "1.2.0",
+  "description": "塔可夫离线地图 - 日志自动识别地图 + 截图定位 + 悬浮小地图，纯本地运行，不依赖任何服务器",
+  "main": "main.js",
+  "private": true,
+  "author": "NepPure",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NepPure/tarkov-offline-map.git"
+  },
+  "homepage": "https://github.com/NepPure/tarkov-offline-map",
+  "bugs": {
+    "url": "https://github.com/NepPure/tarkov-offline-map/issues"
+  },
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test",
+    "visual-test": "electron . --visual-test",
+    "test": "node --test \"test/*.test.js\"",
+    "simulate": "node tools/simulate.js",
+    "fetch:data": "node tools/fetch-all.js",
+    "fetch:icons": "node tools/fetch-icons.js",
+    "fetch:season": "node tools/fetch-season.js",
+    "fetch:season:images": "node tools/fetch-season-images.js",
+    "check:upstream": "node tools/check-upstream.js",
+    "make:icon": "node tools/make-icon.js",
+    "dist": "electron-builder --win portable --publish never",
+    "dist:ci": "electron-builder --win portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.neppure.tarkov-offline-map",
+    "productName": "塔可夫离线地图",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "data/**/*",
+      "package.json"
+    ],
+    "asarUnpack": ["data/**"],
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "塔可夫离线地图-${version}.exe",
+      "requestExecutionLevel": "user"
+    }
+  }
+}

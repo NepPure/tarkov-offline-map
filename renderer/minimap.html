@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' 'unsafe-inline'; img-src 'self' app: data:; connect-src 'self' app:" />
+  <title>小地图</title>
+  <style>
+    html, body {
+      width: 100%; height: 100%; margin: 0;
+      background: transparent;
+      overflow: hidden;
+      border-radius: 50%;
+      clip-path: circle(50% at 50% 50%);
+      user-select: none;
+    }
+    #mini-root { position: absolute; inset: 0; }
+    /* 与主窗口 map.css 一致的 mapstage 布局（迷你窗单独维护） */
+    .mapstage { position: absolute; inset: 0; cursor: grab; }
+    .mapstage.dragging { cursor: grabbing; }
+    .mapstage-svg { width: 100%; height: 100%; display: block; }
+    .mapstage-overlay { position: absolute; inset: 0; pointer-events: none; }
+    .mapstage-overlay svg { width: 100%; height: 100%; }
+    .map-marker { pointer-events: auto; cursor: pointer; }
+    .player-pulse { animation: pulse 1.6s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+    @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
+    .mini-hud {
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      display: none; gap: 6px; z-index: 5;
+    }
+    .mini-hud button {
+      background: rgba(10,14,20,.85); color: #d7e0ea; border: 1px solid #2a3444;
+      border-radius: 999px; font-size: 11px; padding: 3px 9px; cursor: pointer;
+    }
+    .mini-hud button.active { border-color: #22d3ee; color: #22d3ee; }
+    .mini-hud button:hover { border-color: #22d3ee; }
+    body:hover .mini-hud { display: flex; }
+  </style>
+</head>
+<body>
+  <div class="mini-hud">
+    <button id="m-rotate" class="active">车头朝上</button>
+    <button id="m-zoom-in">+</button>
+    <button id="m-zoom-out">−</button>
+    <button id="m-reset">定位</button>
+  </div>
+  <div id="mini-root"></div>
+  <script type="module" src="minimap.js"></script>
+</body>
+</html>
