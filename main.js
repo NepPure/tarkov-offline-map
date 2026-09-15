@@ -248,6 +248,7 @@ function applyPosition(pos) {
 let mainWin = null;
 let miniWin = null;
 let miniWatchdog = null;
+let miniHidden = false; // 小地图当前是否处于"隐藏"意图（hide() 与 blur 事件有竞态，靠它兜住）
 let pinnedState = null; // 图钉化时的原窗口状态
 const MINI_SIZE = 300;  // 小地图窗口边长（CSS px）
 
@@ -283,10 +284,13 @@ function broadcastMiniStatus() {
   try { broadcast({ miniStatus: miniStatus() }); } catch {}
 }
 
-/** 重新置顶（不抢焦点） */
+/** 重新置顶（不抢焦点）。注意：绝不作用于隐藏状态的窗口——
+ *  Windows 上对隐藏窗口调用 setAlwaysOnTop/moveTop 会把它重新显示出来，
+ *  会导致"点了关闭小地图又自己冒出来"。 */
 function miniReassert() {
   if (!miniAlive()) return;
   try {
+    if (miniHidden || !miniWin.isVisible()) return;
     miniWin.setAlwaysOnTop(true, 'screen-saver');
     miniWin.moveTop();
   } catch (e) { miniLog('reassert failed: ' + e.message); }
@@ -297,10 +301,11 @@ function startMiniWatchdog() {
   if (miniWatchdog) clearInterval(miniWatchdog);
   miniWatchdog = setInterval(() => {
     if (!settings || !settings.miniVisible) return;
+    if (process.argv.includes('--visual-test')) console.log('[mini] watchdog tick', JSON.stringify(miniStatus()));
     try {
       if (!miniAlive()) { miniLog('watchdog: window missing -> recreate'); createMiniWindow('watchdog'); return; }
       if (miniWin.webContents.isCrashed()) { miniLog('watchdog: crashed -> reload'); miniWin.webContents.reload(); return; }
-      if (!miniWin.isVisible()) { miniLog('watchdog: hidden -> show'); miniWin.show(); return; }
+      if (!miniWin.isVisible()) { miniLog('watchdog: hidden -> show'); miniHidden = false; miniWin.show(); return; }
       miniReassert();
       miniWin.webContents.invalidate();
     } catch (e) { miniLog('watchdog error: ' + e.message); }
@@ -352,6 +357,7 @@ function createMainWindow() {
 
 function createMiniWindow(reason = 'startup') {
   if (miniWin && !miniWin.isDestroyed()) {
+    miniHidden = false;
     if (!miniWin.isVisible()) miniWin.show();
     miniWin.setAlwaysOnTop(true, 'screen-saver');
     miniWin.moveTop();
@@ -373,13 +379,11 @@ function createMiniWindow(reason = 'startup') {
   miniWin.setIgnoreMouseEvents(false);
   miniLog(`created (${reason}) bounds=${JSON.stringify(miniWin.getBounds())}`);
   miniWin.loadURL('app://renderer/minimap.html');
-  // Windows 上 alwaysOnTop 会随前台窗口切换丢层级，这里显式抬高到 screen-saver 级
-  miniWin.setAlwaysOnTop(true, 'screen-saver');
   try { miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
 
-  miniWin.on('closed', () => { miniLog('closed'); miniWin = null; broadcastMiniStatus(); });
-  miniWin.on('hide', () => { miniLog('hide'); broadcastMiniStatus(); });
-  miniWin.on('show', () => { miniLog('show'); miniReassert(); });
+  miniWin.on('closed', () => { miniLog('closed'); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
+  miniWin.on('hide', () => { miniHidden = true; miniLog('hide'); broadcastMiniStatus(); });
+  miniWin.on('show', () => { miniHidden = false; miniLog('show'); miniReassert(); });
   miniWin.on('minimize', () => { miniLog('minimize -> restore'); try { miniWin.restore(); } catch {} });
   miniWin.on('focus', () => {
     // 透明无边框窗口在 Windows 上被点击/激活后可能不重绘（表现为"窗口突然没了"）
@@ -390,7 +394,11 @@ function createMiniWindow(reason = 'startup') {
   miniWin.on('blur', () => { miniLog('blur'); miniReassert(); });
   miniWin.on('unresponsive', () => miniLog('unresponsive'));
   miniWin.on('responsive', () => miniLog('responsive'));
-  miniWin.webContents.on('did-finish-load', () => { miniLog('did-finish-load'); try { miniWin.webContents.invalidate(); } catch {} });
+  miniWin.webContents.on('did-finish-load', () => {
+    miniLog('did-finish-load');
+    try { miniWin.webContents.invalidate(); } catch {}
+    miniReassert();
+  });
   miniWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
     miniLog(`did-fail-load ${code} ${desc} ${url} -> reload`);
     setTimeout(() => { if (miniAlive()) miniWin.webContents.reload(); }, 800);
@@ -450,7 +458,7 @@ function setupIpc() {
     } else {
       settings.miniVisible = !settings.miniVisible;
       if (settings.miniVisible) createMiniWindow('toggle-on');
-      else if (miniAlive()) { miniLog('toggle: user hide'); miniWin.hide(); }
+      else if (miniAlive()) { miniHidden = true; miniLog('toggle: user hide'); miniWin.hide(); }
     }
     saveSettings();
     broadcastMiniStatus();
@@ -670,7 +678,11 @@ async function runVisualTest() {
       // 恢复全部图钉，避免配置持久化影响下一次演示
       await mainWin.webContents.executeJavaScript(`document.getElementById('legend-all').click(); true`);
     } catch (e) { console.error('[visual] legend-none capture failed', e); }
-    createMiniWindow();
+    // 看门狗只在配置为"开启"时工作，这里显式打开（与用户实际用法一致）
+    settings.miniVisible = true;
+    saveSettings();
+    createMiniWindow('visual-test');
+    broadcastMiniStatus();
   }, 9500);
 
   setTimeout(async () => {
@@ -790,26 +802,82 @@ async function runVisualTest() {
     } catch (e) { console.error('[visual] lighthouse capture failed', e); }
   }, 10000);
 
+  // 小地图"消失"自愈验证：把用户遇到的三类触发方式真跑一遍
   setTimeout(async () => {
+    const health = {};
     try {
-      if (miniWin) {
-        const miniInfo = await miniWin.webContents.executeJavaScript(`({
-          readyState: document.readyState,
-          mapstage: !!document.querySelector('.mapstage'),
-          markers: document.querySelectorAll('.map-marker').length,
-          player: !!document.querySelector('.mapstage-overlay svg g g'),
-          worldTransform: document.querySelector('.world')?.getAttribute('transform'),
-          rects: window.__rects || [],
-        })`);
-        console.log('[visual] MINI:', JSON.stringify(miniInfo));
-        const img = await miniWin.webContents.capturePage();
-        fs.writeFileSync(path.join(outDir, 'mini.png'), img.toPNG());
-        console.log('[visual] mini.png saved');
+      // 0) 初始状态
+      health.initial = miniStatus();
+
+      // 1) 被系统隐藏/最小化（Win+D、被游戏盖住后 hide）-> 看门狗应自动 show
+      if (miniAlive()) miniWin.hide();
+      const hideSamples = [];
+      for (let i = 0; i < 7; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        hideSamples.push(miniAlive() ? miniWin.isVisible() : 'gone');
       }
-    } catch (e) { console.error('[visual] mini capture failed', e); }
+      health.hideSamples = hideSamples;
+      health.afterHide = miniStatus();
+
+      // 2) 渲染进程崩溃（透明窗口 OOM/GPU 掉线）-> 应自动 reload 并恢复
+      if (miniAlive()) miniWin.webContents.forcefullyCrashRenderer();
+      await new Promise((r) => setTimeout(r, 2500));
+      const reloaded = miniAlive() ? await miniWin.webContents.executeJavaScript('document.readyState').catch(() => 'load-failed') : 'no-window';
+      health.afterCrash = { ...miniStatus(), readyState: reloaded };
+
+      // 3) 窗口被直接销毁 + 配置仍为开启 -> 主界面点一次按钮应"恢复"而不是"关闭"
+      if (miniAlive()) miniWin.destroy();
+      await new Promise((r) => setTimeout(r, 600));
+      health.afterDestroy = miniStatus();
+      const clicked = await mainWin.webContents.executeJavaScript(`(() => {
+        document.getElementById('btn-mini').click();
+        return true;
+      })()`);
+      await new Promise((r) => setTimeout(r, 1200));
+      health.afterOneClick = { clicked, ...miniStatus() };
+
+      // 4) 顶栏按钮点击后不应残留键盘焦点（防止随后空格/回车再次切换）
+      health.buttonHasFocus = await mainWin.webContents.executeJavaScript(
+        `document.activeElement && document.activeElement.id === 'btn-mini'`
+      );
+      health.buttonActive = await mainWin.webContents.executeJavaScript(
+        `document.getElementById('btn-mini').classList.contains('active')`
+      );
+      console.log('[visual] MINI-HEALTH:', JSON.stringify(health));
+
+      // 5) mini.log 记录
+      try {
+        const log = fs.readFileSync(path.join(app.getPath('userData'), 'mini.log'), 'utf8').trim().split('\n');
+        console.log('[visual] mini.log tail:', JSON.stringify(log.slice(-8)));
+      } catch (e) { console.log('[visual] mini.log 缺失:', e.message); }
+
+      // 6) 用户主动关闭雷达：必须保持关闭（看门狗/reassert 都不许把它弄回来）
+      await mainWin.webContents.executeJavaScript(`document.getElementById('btn-mini').click(); true`);
+      const offSamples = [];
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 600));
+        offSamples.push(miniAlive() ? miniWin.isVisible() : 'gone');
+      }
+      health.afterUserOff = { samples: offSamples, status: miniStatus() };
+      // 再点一次按钮应重新打开
+      await mainWin.webContents.executeJavaScript(`document.getElementById('btn-mini').click(); true`);
+      await new Promise((r) => setTimeout(r, 1200));
+      health.afterUserOn = miniStatus();
+      console.log('[visual] MINI-HEALTH-2:', JSON.stringify({ afterUserOff: health.afterUserOff, afterUserOn: health.afterUserOn }));
+
+      // 7) 恢复现场：确保小地图最终处于可见状态并截图
+      if (!miniAlive()) createMiniWindow('visual-test-restore');
+      await new Promise((r) => setTimeout(r, 1500));
+      console.log('[visual] MINI final:', JSON.stringify(miniStatus()));
+      if (miniAlive()) {
+        const img2 = await miniWin.webContents.capturePage();
+        fs.writeFileSync(path.join(outDir, 'mini-recovered.png'), img2.toPNG());
+        console.log('[visual] mini-recovered.png saved');
+      }
+    } catch (e) { console.error('[visual] mini health test failed', e); }
     console.log('[visual] renderer errors:', errors.length ? JSON.stringify(errors, null, 2) : 'NONE');
     app.exit(0);
-  }, 19000);
+  }, 20000);
 }
 app.whenReady().then(() => {
   settings = loadSettings();
