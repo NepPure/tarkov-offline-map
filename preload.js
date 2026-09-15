@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   selectMap: (sel) => ipcRenderer.invoke('map:select', sel),
   setFloor: (floor) => ipcRenderer.invoke('floor:set', floor),
   toggleMini: () => ipcRenderer.invoke('mini:toggle'),
+  ensureMini: () => ipcRenderer.invoke('mini:ensure'),
   setMiniOpacity: (o) => ipcRenderer.invoke('mini:opacity', o),
   resizeMini: (scale) => ipcRenderer.send('mini:resize', scale),
   pickScreenshot: () => ipcRenderer.invoke('util:pick-screenshot'),

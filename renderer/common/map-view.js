@@ -162,7 +162,14 @@ export class MapView {
       this.el.addEventListener('click', (e) => {
         const rect = this.el.getBoundingClientRect();
         const p = this.#screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-        if (p) { this.view.cx = p.px; this.view.cy = p.py; this.#emitView(); }
+        if (p) {
+          this.view.cx = p.px;
+          this.view.cy = p.py;
+          // 立刻重绘（否则要等下一次状态推送才动，看起来像"点了没反应"）
+          this.#renderTransform();
+          this.#renderOverlay();
+          this.#emitView();
+        }
       });
     }
   }
@@ -746,10 +753,22 @@ export class MapView {
   // 标记（先取候选，再按"图钉开关"与"楼层高度"过滤）
   #visibleMarkers() {
     if (!this.markerCache) this.markerCache = this.#buildMarkers();
+    // 小地图只渲染可视圆盘内的标记：整图标记上千个，全量建 DOM 会让小巧的
+    // 透明窗口掉帧/变空白（Windows 上透明表面停止重绘就"看着像消失了"）
+    let cullR = 0, ccx = 0, ccy = 0;
+    if (this.mini && this.proj) {
+      const r = this.el.getBoundingClientRect();
+      cullR = (Math.hypot(r.width, r.height) / 2) / Math.max(this.view.scale, 1e-6) * 1.8;
+      ccx = this.view.cx; ccy = this.view.cy;
+    }
     const picks = [];
     for (const m of this.markerCache) {
       if (this.markerToggles && this.markerToggles[m.group] === false) continue;
       if (!this.showAllHeights && !this.#heightInCurrentFloor(m.y)) continue;
+      if (cullR > 0) {
+        const p = this.proj.project(m.x, m.z);
+        if (Math.hypot(p.x - ccx, p.y - ccy) > cullR) continue;
+      }
       picks.push(m);
     }
     return picks;

@@ -112,6 +112,19 @@ npm run visual-test  # 可视化自检：自动注入工厂位置并截屏到 te
 
 配置文件：`%APPDATA%\tarkov-offline-map\settings.json`（开发与打包版共用）
 运行状态转储：`%APPDATA%\tarkov-offline-map\state.json`（排查识别/定位问题用）
+小地图窗口日志：`%APPDATA%\tarkov-offline-map\mini.log`（窗口被系统吞掉/崩溃/自动重建都会记录）
+
+### 小地图雷达"消失"问题（已加固）
+
+悬浮雷达是**无边框 + 透明 + 置顶**窗口，Windows 上这类窗口有几个已知坑，程序里都做了处理：
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 点一下雷达就"没了" | 透明表面在被点击/激活后可能停止重绘：窗口还在，但一片空白 | 聚焦/显示时主动 `invalidate()` 强制重绘，另加 2.5s 看门狗兜底 |
+| 按过 Tab 后雷达消失 | 顶栏按钮点击后仍持有键盘焦点，随后的空格/回车会把开关又切一次 | 顶栏按钮点完即 `blur()` |
+| 被游戏窗口盖住 / Win+D 最小化 | 置顶层级丢失或被系统最小化 | 看门狗 + blur/focus 事件重新抬高到 `screen-saver` 级；被最小化立即 `restore()` |
+| 窗口真的被销毁 / 渲染进程崩溃 | 透明窗口 OOM、GPU 掉线 | `render-process-gone` / `did-fail-load` 自动 reload；窗口没了自动重建；按钮变黄提示 |
+| 按钮显示开着但其实没窗口 | 状态不同步 | 主进程广播 `miniStatus`，按钮反映真实状态；再点一次是"恢复"而不是"关闭" |
 
 ## 打包 Windows 一键运行 exe
 

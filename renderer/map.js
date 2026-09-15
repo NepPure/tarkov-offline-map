@@ -40,19 +40,27 @@ async function init() {
   sel.addEventListener('change', () => { if (sel.value) api.selectMap({ id: sel.value }); });
 
   // 按钮
-  $('#btn-follow').addEventListener('click', (e) => {
+  // 说明：所有顶栏按钮点完都主动 blur()，避免焦点留在按钮上时按空格/回车（Tab 导航后很容易发生）
+  // 把开关又切一次——这正是"按一下 Tab 再点小地图，小地图就没了"的来源之一。
+  const onToggle = (sel, fn) => {
+    $(sel).addEventListener('click', (e) => {
+      fn(e);
+      e.currentTarget.blur();
+    });
+  };
+  onToggle('#btn-follow', (e) => {
     const on = e.currentTarget.classList.toggle('active');
     view.setViewMode({ follow: on });
   });
-  $('#btn-rotate').addEventListener('click', (e) => {
+  onToggle('#btn-rotate', (e) => {
     const on = e.currentTarget.classList.toggle('active');
     view.setViewMode({ rotate: on });
   });
-  $('#btn-mini').addEventListener('click', async () => {
+  onToggle('#btn-mini', async () => {
     const visible = await api.toggleMini();
     $('#btn-mini').classList.toggle('active', visible);
   });
-  $('#btn-legend').addEventListener('click', (e) => {
+  onToggle('#btn-legend', (e) => {
     $('#legend-panel').classList.toggle('collapsed');
     e.currentTarget.classList.toggle('active', !$('#legend-panel').classList.contains('collapsed'));
   });
@@ -74,13 +82,13 @@ async function init() {
   $('#btn-settings').addEventListener('click', openSettings);
 
   // 尺子测距
-  $('#btn-measure').addEventListener('click', (e) => {
+  onToggle('#btn-measure', (e) => {
     const on = e.currentTarget.classList.toggle('active');
     view.setMeasureMode(on);
     $('#measure-tip').classList.toggle('hidden', !on);
   });
   // 图钉化主窗口
-  $('#btn-pin').addEventListener('click', async (e) => {
+  onToggle('#btn-pin', async (e) => {
     const pinned = await api.togglePin();
     e.currentTarget.classList.toggle('active', pinned);
   });
@@ -285,6 +293,23 @@ async function applyMainState(s) {
   if (sw) {
     shotEl.textContent = `截图: ${sw.state === 'watching' ? '监听中' : sw.state}`;
     shotEl.className = sw.state === 'watching' ? 'ok' : 'err';
+  }
+
+  // 5) 小地图雷达真实状态（进程侧的健康检查结果），避免"按钮显示开着但其实窗口已经没了"
+  if (s.miniStatus) {
+    const ms = s.miniStatus;
+    const running = ms.enabled && ms.alive && ms.visible && !ms.crashed;
+    const btn = $('#btn-mini');
+    btn.classList.toggle('active', !!ms.enabled);
+    btn.title = ms.enabled
+      ? (running ? '小地图雷达运行中（点击关闭）' : '小地图雷达异常，点击恢复')
+      : '显示/隐藏圆形小地图';
+    if (ms.enabled && !running) {
+      btn.classList.add('warn');
+      console.warn('[mini] 状态异常，主进程看门狗会自动重建：', JSON.stringify(ms));
+    } else {
+      btn.classList.remove('warn');
+    }
   }
 }
 

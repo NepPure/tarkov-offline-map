@@ -13,7 +13,13 @@
       clip-path: circle(50% at 50% 50%);
       user-select: none;
     }
-    #mini-root { position: absolute; inset: 0; }
+    #mini-root {
+      position: absolute; inset: 0;
+      /* 不透明圆形底盘：即使底图/玩家还没绘制，雷达也始终可见（透明窗口一旦不重绘就会"看着消失"） */
+      background: radial-gradient(circle at 50% 50%, rgba(11,14,19,0.90) 0%, rgba(11,14,19,0.95) 72%, rgba(6,8,12,0.98) 100%);
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 2px rgba(34,211,238,0.35), inset 0 0 24px rgba(0,0,0,0.55);
+    }
     /* 与主窗口 map.css 一致的 mapstage 布局（迷你窗单独维护） */
     .mapstage { position: absolute; inset: 0; cursor: grab; }
     .mapstage.dragging { cursor: grabbing; }

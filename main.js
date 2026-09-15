@@ -247,7 +247,65 @@ function applyPosition(pos) {
 // ---------------------------------------------------------------------------
 let mainWin = null;
 let miniWin = null;
+let miniWatchdog = null;
 let pinnedState = null; // 图钉化时的原窗口状态
+const MINI_SIZE = 300;  // 小地图窗口边长（CSS px）
+
+// ---------------------------------------------------------------------------
+// 小地图窗口健康检查：透明无边框窗口在 Windows 上可能被系统吞掉层级/停止重绘/崩溃，
+// 一旦发生就"看起来窗口消失了"。这里做日志 + 自愈（置顶、强制重绘、必要时重建）。
+// ---------------------------------------------------------------------------
+function miniLog(msg) {
+  const line = `${new Date().toISOString()} ${msg}\n`;
+  console.log('[mini]', msg);
+  try {
+    const file = path.join(app.getPath('userData'), 'mini.log');
+    try { if (fs.statSync(file).size > 256 * 1024) fs.writeFileSync(file, ''); } catch {}
+    fs.appendFileSync(file, line);
+  } catch {}
+}
+
+function miniAlive() {
+  return !!miniWin && !miniWin.isDestroyed();
+}
+
+function miniStatus() {
+  const alive = miniAlive();
+  return {
+    enabled: !!(settings && settings.miniVisible),
+    alive,
+    visible: alive ? miniWin.isVisible() : false,
+    crashed: alive ? miniWin.webContents.isCrashed() : false,
+  };
+}
+
+function broadcastMiniStatus() {
+  try { broadcast({ miniStatus: miniStatus() }); } catch {}
+}
+
+/** 重新置顶（不抢焦点） */
+function miniReassert() {
+  if (!miniAlive()) return;
+  try {
+    miniWin.setAlwaysOnTop(true, 'screen-saver');
+    miniWin.moveTop();
+  } catch (e) { miniLog('reassert failed: ' + e.message); }
+}
+
+/** 看门狗：小地图"消失"时自动恢复；同时周期性强制重绘防透明表面变空白 */
+function startMiniWatchdog() {
+  if (miniWatchdog) clearInterval(miniWatchdog);
+  miniWatchdog = setInterval(() => {
+    if (!settings || !settings.miniVisible) return;
+    try {
+      if (!miniAlive()) { miniLog('watchdog: window missing -> recreate'); createMiniWindow('watchdog'); return; }
+      if (miniWin.webContents.isCrashed()) { miniLog('watchdog: crashed -> reload'); miniWin.webContents.reload(); return; }
+      if (!miniWin.isVisible()) { miniLog('watchdog: hidden -> show'); miniWin.show(); return; }
+      miniReassert();
+      miniWin.webContents.invalidate();
+    } catch (e) { miniLog('watchdog error: ' + e.message); }
+  }, 2500);
+}
 
 function createMainWindow() {
   const wa = screen.getPrimaryDisplay().workAreaSize;
@@ -292,20 +350,57 @@ function createMainWindow() {
   }
 }
 
-function createMiniWindow() {
-  if (miniWin && !miniWin.isDestroyed()) { miniWin.show(); return; }
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  const size = 300;
+function createMiniWindow(reason = 'startup') {
+  if (miniWin && !miniWin.isDestroyed()) {
+    if (!miniWin.isVisible()) miniWin.show();
+    miniWin.setAlwaysOnTop(true, 'screen-saver');
+    miniWin.moveTop();
+    try { miniWin.webContents.invalidate(); } catch {}
+    miniLog(`reuse (${reason}) visible=${miniWin.isVisible()}`);
+    broadcastMiniStatus();
+    return miniWin;
+  }
+  const { width } = screen.getPrimaryDisplay().workAreaSize;
+  const size = MINI_SIZE;
   miniWin = new BrowserWindow({
     width: size, height: size,
-    x: width - size - 24, y: 24,
+    x: Math.max(0, width - size - 24), y: 24,
     frame: false, transparent: true, resizable: false,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
+    backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   miniWin.setIgnoreMouseEvents(false);
+  miniLog(`created (${reason}) bounds=${JSON.stringify(miniWin.getBounds())}`);
   miniWin.loadURL('app://renderer/minimap.html');
-  miniWin.on('closed', () => { miniWin = null; });
+  // Windows 上 alwaysOnTop 会随前台窗口切换丢层级，这里显式抬高到 screen-saver 级
+  miniWin.setAlwaysOnTop(true, 'screen-saver');
+  try { miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
+
+  miniWin.on('closed', () => { miniLog('closed'); miniWin = null; broadcastMiniStatus(); });
+  miniWin.on('hide', () => { miniLog('hide'); broadcastMiniStatus(); });
+  miniWin.on('show', () => { miniLog('show'); miniReassert(); });
+  miniWin.on('minimize', () => { miniLog('minimize -> restore'); try { miniWin.restore(); } catch {} });
+  miniWin.on('focus', () => {
+    // 透明无边框窗口在 Windows 上被点击/激活后可能不重绘（表现为"窗口突然没了"）
+    miniLog('focus -> invalidate + reassert');
+    try { miniWin.webContents.invalidate(); } catch {}
+    miniReassert();
+  });
+  miniWin.on('blur', () => { miniLog('blur'); miniReassert(); });
+  miniWin.on('unresponsive', () => miniLog('unresponsive'));
+  miniWin.on('responsive', () => miniLog('responsive'));
+  miniWin.webContents.on('did-finish-load', () => { miniLog('did-finish-load'); try { miniWin.webContents.invalidate(); } catch {} });
+  miniWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    miniLog(`did-fail-load ${code} ${desc} ${url} -> reload`);
+    setTimeout(() => { if (miniAlive()) miniWin.webContents.reload(); }, 800);
+  });
+  miniWin.webContents.on('render-process-gone', (_e, details) => {
+    miniLog('render-process-gone ' + JSON.stringify(details));
+    setTimeout(() => { if (miniAlive()) { miniLog('reload after crash'); miniWin.webContents.reload(); } }, 500);
+  });
+  broadcastMiniStatus();
+  return miniWin;
 }
 
 // ---------------------------------------------------------------------------
@@ -346,12 +441,34 @@ function setupIpc() {
     return !!pinnedState;
   });
   ipcMain.handle('mini:toggle', () => {
-    settings.miniVisible = !settings.miniVisible;
+    // 状态自愈：如果配置是"开着"但窗口其实已经不见（被系统吞掉/崩溃/隐藏），
+    // 点一次就直接恢复，而不是先关再开
+    const alive = miniAlive() && miniWin.isVisible();
+    if (settings.miniVisible && !alive) {
+      miniLog('toggle: enabled but missing -> restore');
+      createMiniWindow('toggle-restore');
+    } else {
+      settings.miniVisible = !settings.miniVisible;
+      if (settings.miniVisible) createMiniWindow('toggle-on');
+      else if (miniAlive()) { miniLog('toggle: user hide'); miniWin.hide(); }
+    }
     saveSettings();
-    if (settings.miniVisible) createMiniWindow(); else if (miniWin) miniWin.hide();
+    broadcastMiniStatus();
     return settings.miniVisible;
   });
-  ipcMain.handle('mini:opacity', (_e, opacity) => { if (miniWin) miniWin.setOpacity(opacity); });
+  ipcMain.handle('mini:ensure', () => {
+    settings.miniVisible = true;
+    saveSettings();
+    createMiniWindow('ensure');
+    return miniStatus();
+  });
+  ipcMain.handle('mini:opacity', (_e, opacity) => {
+    if (!miniAlive()) return;
+    const o = Number(opacity);
+    if (!Number.isFinite(o)) return;
+    // 永不全透明：setOpacity(0) 会让窗口"看着消失"但仍吃掉鼠标点击
+    miniWin.setOpacity(Math.max(0.2, Math.min(1, o)));
+  });
   ipcMain.handle('util:pick-screenshot', async () => {
     const r = await dialog.showOpenDialog(mainWin, {
       properties: ['openFile'], filters: [{ name: 'Screenshots', extensions: ['png'] }],
@@ -704,7 +821,8 @@ app.whenReady().then(() => {
   setupIpc();
   createMainWindow();
   startWatchers();
-  if (settings.miniVisible) createMiniWindow();
+  if (settings.miniVisible) createMiniWindow('startup');
+  startMiniWatchdog();
 
   // html 冒烟自检： npm run smoke（3 秒后自动退出）
   if (process.argv.includes('--smoke-test')) {
@@ -726,6 +844,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (miniWatchdog) { clearInterval(miniWatchdog); miniWatchdog = null; }
   if (logWatcher) logWatcher.stop();
   if (shotWatcher) shotWatcher.stop();
 });
