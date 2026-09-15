@@ -143,4 +143,36 @@ function cdp(wsUrl, calls) {
     };
   })()`);
   console.log('[cdp] season reference screenshot:', JSON.stringify(shot));
+
+  // 4) 小地图雷达（打包版）：状态自愈 + 视口裁剪 + 不透明底盘
+  const miniTarget = (await targets()).find((t) => t.url.endsWith('/minimap.html'));
+  if (!miniTarget) {
+    console.log('[cdp] minimap target 缺失（雷达可能被关闭）');
+  } else {
+    const miniEval = (expr) => cdp(miniTarget.webSocketDebuggerUrl, [['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }]]);
+    const miniState = await miniEval(`(() => {
+      const root = document.getElementById('mini-root');
+      return {
+        backdrop: getComputedStyle(root).backgroundImage.includes('radial-gradient'),
+        clip: getComputedStyle(document.body).clipPath,
+        domMarkers: document.querySelectorAll('.map-marker').length,
+        allMarkers: (window.__view && window.__view.markerCache || []).length,
+        player: !!document.querySelector('.mapstage-overlay svg g g'),
+      };
+    })()`);
+    console.log('[cdp] minimap:', JSON.stringify(miniState));
+
+    // 关闭 -> 必须保持关闭；再打开 -> 必须恢复（打包版走同一套 IPC）
+    const clickBtn = `document.getElementById('btn-mini').click(); true`;
+    await evalJs(clickBtn);
+    await sleep(3500);
+    const afterOff = await evalJs(`({ title: document.getElementById('btn-mini').title, active: document.getElementById('btn-mini').classList.contains('active') })`);
+    const offTargets = (await targets()).filter((t) => t.url.endsWith('/minimap.html')).length;
+    console.log('[cdp] 关闭雷达后: 按钮=' + JSON.stringify(afterOff) + ' minimap targets=' + offTargets);
+    await evalJs(clickBtn);
+    await sleep(2000);
+    const onTargets = (await targets()).filter((t) => t.url.endsWith('/minimap.html')).length;
+    const afterOn = await evalJs(`({ title: document.getElementById('btn-mini').title, active: document.getElementById('btn-mini').classList.contains('active'), focused: document.activeElement && document.activeElement.id })`);
+    console.log('[cdp] 重新打开后: 按钮=' + JSON.stringify(afterOn) + ' minimap targets=' + onTargets);
+  }
 })().catch((e) => { console.error('[fatal]', e.message); process.exit(1); });
