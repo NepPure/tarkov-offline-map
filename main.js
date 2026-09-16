@@ -19,6 +19,7 @@ const mapsData = require('./src/maps-data');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
+const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry');
 
 // 固定 userData 目录（保证开发环境与打包后共用同一份配置）
 app.setPath('userData', path.join(app.getPath('appData'), 'tarkov-offline-map'));
@@ -86,6 +87,7 @@ function loadSettings() {
     screenshotsPath: DEFAULT_SCREENSHOTS_DIR,
     miniVisible: false,
     miniScale: 1.0,
+    miniPos: null,               // 小地图悬浮窗位置 {x,y}（拖动后自动记忆）
     miniRadius: 55,
     miniOpacity: 0.9,
     miniFollowMainZoom: false, // 小地图缩放依据: false=小地图自身, true=跟随互动地图缩放
@@ -272,11 +274,18 @@ function miniAlive() {
 
 function miniStatus() {
   const alive = miniAlive();
+  let scaleFactor = null;
+  if (alive) {
+    try { scaleFactor = screen.getDisplayMatching(miniWin.getBounds()).scaleFactor; } catch {}
+  }
   return {
     enabled: !!(settings && settings.miniVisible),
     alive,
     visible: alive ? miniWin.isVisible() : false,
     crashed: alive ? miniWin.webContents.isCrashed() : false,
+    focusable: alive && typeof miniWin.isFocusable === 'function' ? miniWin.isFocusable() : null,
+    scaleFactor,
+    bounds: alive ? miniWin.getBounds() : null,
   };
 }
 
@@ -327,6 +336,7 @@ function createMainWindow() {
   // 关闭主窗口 = 退出程序（同时销毁悬浮小地图，避免残留进程）
   mainWin.on('closed', () => {
     mainWin = null;
+    stopMiniDrag('main-closed');
     if (miniWin && !miniWin.isDestroyed()) miniWin.destroy();
     miniWin = null;
     if (process.platform !== 'darwin') app.quit();
@@ -355,6 +365,65 @@ function createMainWindow() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 小地图拖动：渲染层按下 -> 主进程按光标位置移动窗口
+// （渲染层 mousemove 只在指针位于窗口内可靠；主进程轮询光标则移出窗口也不丢）
+// ---------------------------------------------------------------------------
+let miniDrag = null; // { timer, offset:{x,y}, started }
+
+function miniWorkArea(point) {
+  try {
+    const d = point ? screen.getDisplayNearestPoint(point) : screen.getPrimaryDisplay();
+    return d.workArea;
+  } catch {
+    return screen.getPrimaryDisplay().workArea;
+  }
+}
+
+function stopMiniDrag(reason = 'release') {
+  if (!miniDrag) return;
+  clearInterval(miniDrag.timer);
+  miniDrag = null;
+  if (miniAlive()) {
+    try {
+      const b = miniWin.getBounds();
+      settings.miniPos = { x: b.x, y: b.y };
+      saveSettings();
+      miniWin.webContents.invalidate();
+      broadcastMiniStatus();
+      miniLog(`drag end (${reason}) pos=${b.x},${b.y}`);
+    } catch (e) { miniLog('drag end failed: ' + e.message); }
+  } else {
+    miniLog(`drag end (${reason}) 无窗口`);
+  }
+}
+
+function startMiniDrag() {
+  if (!miniAlive() || miniWin.isDestroyed()) return false;
+  if (miniDrag) stopMiniDrag('restart');
+  const b = miniWin.getBounds();
+  const cursor = screen.getCursorScreenPoint();
+  const offset = { x: cursor.x - b.x, y: cursor.y - b.y };
+  const started = Date.now();
+  miniLog(`drag start cursor=${cursor.x},${cursor.y} offset=${offset.x},${offset.y} bounds=${b.x},${b.y}`);
+  miniDrag = {
+    offset,
+    started,
+    timer: setInterval(() => {
+      if (!miniAlive()) return stopMiniDrag('window-gone');
+      if (Date.now() - started > 15000) return stopMiniDrag('timeout');
+      if (!miniWin.isVisible()) return stopMiniDrag('hidden');
+      try {
+        const c = screen.getCursorScreenPoint();
+        const next = dragTarget(c, offset, MINI_SIZE, miniWorkArea(c));
+        const cur = miniWin.getBounds();
+        if (next.x !== cur.x || next.y !== cur.y) miniWin.setPosition(next.x, next.y, false);
+      } catch (e) { stopMiniDrag('error: ' + e.message); }
+    }, 12),
+  };
+  return true;
+}
+
 function createMiniWindow(reason = 'startup') {
   if (miniWin && !miniWin.isDestroyed()) {
     miniHidden = false;
@@ -366,33 +435,46 @@ function createMiniWindow(reason = 'startup') {
     broadcastMiniStatus();
     return miniWin;
   }
-  const { width } = screen.getPrimaryDisplay().workAreaSize;
   const size = MINI_SIZE;
+  const saved = settings.miniPos && Number.isFinite(settings.miniPos.x) && Number.isFinite(settings.miniPos.y)
+    ? settings.miniPos : null;
+  const pos = saved ? clampToWorkArea(saved.x, saved.y, size, miniWorkArea(saved)) : defaultPos(size, miniWorkArea(null));
   miniWin = new BrowserWindow({
     width: size, height: size,
-    x: Math.max(0, width - size - 24), y: 24,
-    frame: false, transparent: true, resizable: false,
+    x: pos.x, y: pos.y,
+    frame: false, transparent: true, resizable: false, movable: true,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false,
+    // 不可获得键盘焦点：Tab/空格/回车绝不会落到小地图的四个按钮上
+    // （原来在小地图上按 Tab 会在按钮间循环，空格一按就把开关切了）
+    focusable: false,
     backgroundColor: '#00000000',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   miniWin.setIgnoreMouseEvents(false);
+  try { miniWin.setFocusable(false); } catch {}
   miniLog(`created (${reason}) bounds=${JSON.stringify(miniWin.getBounds())}`);
   miniWin.loadURL('app://renderer/minimap.html');
   try { miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
 
-  miniWin.on('closed', () => { miniLog('closed'); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
-  miniWin.on('hide', () => { miniHidden = true; miniLog('hide'); broadcastMiniStatus(); });
+  miniWin.on('closed', () => { miniLog('closed'); stopMiniDrag('closed'); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
+  miniWin.on('hide', () => { miniHidden = true; stopMiniDrag('hide'); miniLog('hide'); broadcastMiniStatus(); });
   miniWin.on('show', () => { miniHidden = false; miniLog('show'); miniReassert(); });
   miniWin.on('minimize', () => { miniLog('minimize -> restore'); try { miniWin.restore(); } catch {} });
+  miniWin.on('moved', () => {
+    // 非拖动路径（系统/其他代码）移动后也记住位置
+    if (!miniDrag && miniAlive()) {
+      const b = miniWin.getBounds();
+      settings.miniPos = { x: b.x, y: b.y };
+    }
+  });
   miniWin.on('focus', () => {
     // 透明无边框窗口在 Windows 上被点击/激活后可能不重绘（表现为"窗口突然没了"）
     miniLog('focus -> invalidate + reassert');
     try { miniWin.webContents.invalidate(); } catch {}
     miniReassert();
   });
-  miniWin.on('blur', () => { miniLog('blur'); miniReassert(); });
-  miniWin.on('unresponsive', () => miniLog('unresponsive'));
+  miniWin.on('blur', () => { miniLog('blur'); stopMiniDrag('blur'); miniReassert(); });
+  miniWin.on('unresponsive', () => { miniLog('unresponsive'); stopMiniDrag('unresponsive'); });
   miniWin.on('responsive', () => miniLog('responsive'));
   miniWin.webContents.on('did-finish-load', () => {
     miniLog('did-finish-load');
@@ -401,10 +483,12 @@ function createMiniWindow(reason = 'startup') {
   });
   miniWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
     miniLog(`did-fail-load ${code} ${desc} ${url} -> reload`);
+    stopMiniDrag('did-fail-load');
     setTimeout(() => { if (miniAlive()) miniWin.webContents.reload(); }, 800);
   });
   miniWin.webContents.on('render-process-gone', (_e, details) => {
     miniLog('render-process-gone ' + JSON.stringify(details));
+    stopMiniDrag('render-gone');
     setTimeout(() => { if (miniAlive()) { miniLog('reload after crash'); miniWin.webContents.reload(); } }, 500);
   });
   broadcastMiniStatus();
@@ -476,6 +560,16 @@ function setupIpc() {
     if (!Number.isFinite(o)) return;
     // 永不全透明：setOpacity(0) 会让窗口"看着消失"但仍吃掉鼠标点击
     miniWin.setOpacity(Math.max(0.2, Math.min(1, o)));
+  });
+  // 拖动小地图（移动窗口本身，不是平移地图）
+  ipcMain.handle('mini:drag-start', () => startMiniDrag());
+  ipcMain.handle('mini:drag-end', () => { stopMiniDrag('release'); return settings.miniPos || null; });
+  ipcMain.handle('mini:status', () => miniStatus());
+  // 渲染层活动（指针进入/按下）时刷新窗口：透明窗口被点击后偶发停止重绘
+  ipcMain.handle('mini:ping', () => {
+    miniReassert();
+    if (miniAlive()) { try { miniWin.webContents.invalidate(); } catch {} }
+    return miniStatus();
   });
   ipcMain.handle('util:pick-screenshot', async () => {
     const r = await dialog.showOpenDialog(mainWin, {
@@ -699,6 +793,8 @@ async function runVisualTest() {
       })`);
       console.log('[visual] lighthouse ready', JSON.stringify(ready));
       const season = await mainWin.webContents.executeJavaScript(`(() => {
+        // getLegend() 会在缓存为空时重建，避免刚好撞上 setSeasonDocuments 清缓存导致统计为 0
+        const legend = window.__view.getLegend();
         const groups = {};
         for (const m of (window.__view.markerCache || [])) groups[m.group] = (groups[m.group] || 0) + 1;
         return {
@@ -707,6 +803,8 @@ async function runVisualTest() {
           seasonRows: Array.from(document.querySelectorAll('.legend-item'))
             .filter((r) => r.querySelector('input').dataset.group.startsWith('season:'))
             .map((r) => r.innerText.replace(/\\s+/g, ' ')),
+          legendSeasonCount: ((legend.find((g) => g.id === 'group-season') || {}).children || [])
+            .reduce((a, c) => a + c.count, 0),
           seasonCount: (groups['season:pmc'] || 0) + (groups['season:technical'] || 0),
           btrStops: groups.btrStop,
         };
@@ -865,6 +963,61 @@ async function runVisualTest() {
       health.afterUserOn = miniStatus();
       console.log('[visual] MINI-HEALTH-2:', JSON.stringify({ afterUserOff: health.afterUserOff, afterUserOn: health.afterUserOn }));
 
+      // 6.5) 拖动与焦点：真实 PointerEvent 走一遍"按下圆盘 -> 主进程拖动会话 -> 松手记忆位置"
+      if (miniAlive()) {
+        health.focusable = typeof miniWin.isFocusable === 'function' ? miniWin.isFocusable() : null;
+        const before = miniWin.getBounds();
+        // 按在顶部工具条按钮上不许触发拖动（否则按钮点不到）
+        health.hudPointerDown = await miniWin.webContents.executeJavaScript(`(() => {
+          const b = document.getElementById('m-rotate');
+          b.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
+          return document.body.classList.contains('dragging');
+        })()`);
+        health.mapPointerDown = await miniWin.webContents.executeJavaScript(`(() => {
+          const el = document.querySelector('.mapstage');
+          const r = el.getBoundingClientRect();
+          el.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: r.width / 2, clientY: r.height / 2, bubbles: true, cancelable: true }));
+          return document.body.classList.contains('dragging');
+        })()`);
+        await new Promise((r) => setTimeout(r, 300));
+        health.duringDrag = { dragging: !!miniDrag, bounds: miniWin.getBounds() };
+        health.pointerUp = await miniWin.webContents.executeJavaScript(`(() => {
+          window.dispatchEvent(new PointerEvent('pointerup', { button: 0, bubbles: true }));
+          return document.body.classList.contains('dragging');
+        })()`);
+        await new Promise((r) => setTimeout(r, 300));
+        health.afterDrag = {
+          dragging: !!miniDrag,
+          movedBy: { x: miniWin.getBounds().x - before.x, y: miniWin.getBounds().y - before.y },
+          savedMiniPos: settings.miniPos,
+        };
+        // 窗口不可聚焦 + 小地图按钮不可 Tab 聚焦
+        health.hudTabIndex = await miniWin.webContents.executeJavaScript(
+          `Array.from(document.querySelectorAll('.mini-hud button')).map((b) => b.tabIndex)`
+        );
+        health.bodyClip = await miniWin.webContents.executeJavaScript(
+          `({ body: getComputedStyle(document.body).clipPath, root: getComputedStyle(document.getElementById('mini-root')).clipPath })`
+        );
+        health.iconSizes = await miniWin.webContents.executeJavaScript(
+          `Array.from(document.querySelectorAll('.map-marker image')).map((i) => Number(i.getAttribute('width'))).slice(0, 12)`
+        );
+        health.badgeShapes = await miniWin.webContents.executeJavaScript(`(() => {
+          const out = {};
+          for (const g of document.querySelectorAll('.map-marker')) {
+            const f = g.firstElementChild;
+            if (!f || f.tagName === 'title') continue;
+            const key = f.tagName === 'polygon' ? 'polygon' : f.tagName;
+            out[key] = (out[key] || 0) + 1;
+          }
+          return out;
+        })()`);
+        console.log('[visual] MINI-DRAG:', JSON.stringify({
+          focusable: health.focusable, hud: health.hudPointerDown, map: health.mapPointerDown,
+          duringDrag: health.duringDrag, pointerUp: health.pointerUp, afterDrag: health.afterDrag,
+          tabIndex: health.hudTabIndex, clip: health.bodyClip, iconSizes: health.iconSizes, badges: health.badgeShapes,
+        }));
+      }
+
       // 7) 恢复现场：确保小地图最终处于可见状态并截图
       if (!miniAlive()) createMiniWindow('visual-test-restore');
       await new Promise((r) => setTimeout(r, 1500));
@@ -913,6 +1066,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   if (miniWatchdog) { clearInterval(miniWatchdog); miniWatchdog = null; }
+  stopMiniDrag('quit');
   if (logWatcher) logWatcher.stop();
   if (shotWatcher) shotWatcher.stop();
 });

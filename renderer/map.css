@@ -220,5 +220,6 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .settings-form label.row { display: flex; align-items: center; gap: 7px; color: var(--text); }
 .settings-form input[type=text] { width: 100%; margin-top: 4px; }
 .settings-form input[type=checkbox] { accent-color: var(--accent); }
+.settings-form .hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 

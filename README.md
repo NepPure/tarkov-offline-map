@@ -64,6 +64,7 @@ tarkov-offline-map/
 ├─ src/
 │  ├─ constants.js           bundle→raidCode→地图 映射表、正则
 │  ├─ maps-data.js           data/maps-dump.json 加载与查询
+│  ├─ mini-geometry.js       小地图悬浮窗拖动/钳位几何（纯函数，带单测）
 │  ├─ projection.js          投影/四元数/朝向（复刻原站公式）
 │  ├─ parsers.js             截图文件名 & 日志行解析
 │  ├─ log-watcher.js         日志目录监听（新会话切换 + 追加读 + 启动回补）
@@ -87,6 +88,10 @@ tarkov-offline-map/
 │  ├─ diff-dump.js           两份地图快照逐点 diff（更新后核对差异）
 │  ├─ probe-socket.js        按 gameMode 探测站台数据（pvp/pve/赛季）
 │  ├─ diagnose.js            诊断真实游戏日志（会话/文件/事件）
+│  ├─ verify-exe.ps1         打包版验收（启动/截屏/零残留）
+│  ├─ verify-exe-cdp.js      打包版深检（标记/赛季文件/截图查看器/小地图）
+│  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
+│  ├─ input.ps1              系统级鼠标输入助手（SetCursorPos / mouse_event）
 │  └─ simulate.js            用 samples 跑完整管线验证
 ├─ samples/                  真实样本（日志 + 截图）
 └─ test/                     node:test 单测（解析器 + 数据完整性）
@@ -110,6 +115,31 @@ npm run visual-test  # 可视化自检：自动注入工厂位置并截屏到 te
 - 状态栏显示 **最近撤离点 + 距离**（迷路时最实用）
 - 关闭主窗口 = 完全退出（小地图雷达一并关闭）
 
+### 圆形小地图雷达怎么用
+
+| 操作 | 效果 |
+|---|---|
+| 按住圆盘任意位置拖动 | 移动悬浮窗位置（松手记住，重启后还在原处；拖出屏幕会自动钳回） |
+| 鼠标悬停 | 顶部出现工具条：车头朝上 / 缩放 ± / 定位（回到玩家并按半径缩放） |
+| 滚轮 | 缩放（以光标为中心） |
+| 点击地图空白/标记 | 不再改变视野：雷达始终跟随玩家，不会"点一下地图就飞走" |
+| Tab / 空格 / 回车 | 与雷达完全无关（窗口 `focusable:false`，四个按钮也不可 Tab 聚焦） |
+
+图标为**分组形状 + 分组色描边**的底盘（撤离点=盾形、Boss=六边形、钥匙锁/开关/物资=方形、
+转移点/固定武器=菱形、危险=Boss 同款三角形、站点=BTR 六边形、赛季文件=类型色圆环），
+底盘比图标大一圈所以形状看得见；大小跟随"设置 → 标记大小"，默认已比早期版本放大约 2.4 倍。
+赛季文件刷点同样标在小地图上（找文件不用切回主窗口）。
+
+为避免小圆盘里"糊成一团"，雷达会**按视口裁剪**并做两级降噪：
+
+- 标记数超过 90 个时，依次丢掉"最不关键"的层级（地名文字 → 散落物资/出生点 → 各类物资箱），
+  只保留撤离点/Boss/转移点/钥匙锁/开关/危险/固定武器/赛季文件/BTR 站点等关键点
+- 再超过 260 个（还没定位、视野被拉到很宽时）按重要度硬截断
+- 主窗口不受影响：地图上依旧是全量标记，图钉开关也对两个窗口同时生效
+
+还没定位过（没按过 PrintScreen）时，雷达以**地图中心 + 显示半径**作为初始视野，
+而不是缩到整张图（否则上千个标记会糊在一起）。
+
 配置文件：`%APPDATA%\tarkov-offline-map\settings.json`（开发与打包版共用）
 运行状态转储：`%APPDATA%\tarkov-offline-map\state.json`（排查识别/定位问题用）
 小地图窗口日志：`%APPDATA%\tarkov-offline-map\mini.log`（窗口被系统吞掉/崩溃/自动重建都会记录）
@@ -120,8 +150,10 @@ npm run visual-test  # 可视化自检：自动注入工厂位置并截屏到 te
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 点一下雷达就"没了" | 透明表面在被点击/激活后可能停止重绘：窗口还在，但一片空白 | 聚焦/显示时主动 `invalidate()` 强制重绘，另加 2.5s 看门狗兜底 |
-| 按过 Tab 后雷达消失 | 顶栏按钮点击后仍持有键盘焦点，随后的空格/回车会把开关又切一次 | 顶栏按钮点完即 `blur()` |
+| 点一下雷达就"没了" | 透明表面在被点击/激活后可能停止重绘：窗口还在，但一片空白 | 显示/悬停/拖动松手时主动 `invalidate()` 强制重绘，另加 2.5s 看门狗兜底 |
+| 按过 Tab 后雷达消失 | 雷达窗口能拿到键盘焦点，Tab 在它的四个按钮间循环，空格/回车又把开关切一次 | 雷达窗口 `focusable:false`（系统层面就不给键盘焦点）+ 按钮 `tabindex="-1"` + `keydown` 拦截 Tab/空格；主窗口顶栏按钮点完即 `blur()` |
+| 顶部按钮"点不到" | 圆形 `clip-path` 挂在 `body` 上，把顶部工具条裁掉了一半（被裁区域不接收点击） | 裁剪下移到地图本体 `#mini-root`，工具条不再被裁 |
+| 拖不动 / 只能待在右上角 | 无边框窗口没有标题栏，也没有实现拖动 | 按住圆盘任意位置即可拖动；由主进程按真实光标位置 `setPosition` 实现（指针移出窗口也不丢），位置写入配置 |
 | 被游戏窗口盖住 / Win+D 最小化 | 置顶层级丢失或被系统最小化 | 看门狗 + blur/focus 事件重新抬高到 `screen-saver` 级；被最小化立即 `restore()` |
 | 窗口真的被销毁 / 渲染进程崩溃 | 透明窗口 OOM、GPU 掉线 | `render-process-gone` / `did-fail-load` 自动 reload；窗口没了自动重建；按钮变黄提示 |
 | 按钮显示开着但其实没窗口 | 状态不同步 | 主进程广播 `miniStatus`，按钮反映真实状态；再点一次是"恢复"而不是"关闭" |
@@ -163,14 +195,18 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm test                 # 单元测试（解析器/投影/映射 + 赛季数据完整性），15 个用例
+npm test                 # 单元测试（解析器/投影/映射 + 赛季数据完整性 + 小地图拖动几何），21 个用例
 npm run simulate         # 用 samples 里的日志+截图跑完整管线
 node tools/diagnose.js   # 诊断真实游戏日志：会话选择/文件匹配/事件解析
-npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距/图钉/赛季文件，截屏到 test-artifacts/
+npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距/图钉/赛季文件/小地图拖动与焦点，截屏到 test-artifacts/
 powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截屏 -> 读状态 -> 关主窗口确认零残留
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
+node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
 node tools/scan-privacy.js                 # 开源前扫描样例里的账号ID/邮箱/token
 ```
+
+`tools/verify-mini-input.js` 用 `SetCursorPos` + `mouse_event`（真实输入，不是合成事件）验收小地图，
+检测到游戏在前台时会自动跳过，避免把点击送进游戏。
 
 ## 数据更新（游戏大版本更新后）
 

@@ -45,6 +45,11 @@ const MARKER_LABELS = {
   hazards: '危险', loot: '物资', weapons: '固定武器', labels: '地名',
 };
 
+/** 小地图同时渲染的标记上限（超出时优先保留撤离点/Boss/赛季文件等关键标记） */
+const MINI_MARKER_CAP = 260;
+/** 小地图"舒适区"：超过这个数量就按重要度丢弃次要标记（否则小圆盘里全是重叠的图标） */
+const MINI_SOFT_CAP = 90;
+
 export class MapView {
   constructor(container, { mini = false } = {}) {
     this.container = container;
@@ -113,43 +118,47 @@ export class MapView {
 
   #bindEvents() {
     let dragging = false, sx = 0, sy = 0, scx = 0, scy = 0, moved = 0;
-    this.el.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      dragging = true; moved = 0;
-      this.pressX = e.clientX; this.pressY = e.clientY;
-      sx = e.clientX; sy = e.clientY; scx = this.view.cx; scy = this.view.cy;
-      this.el.classList.add('dragging');
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      moved += Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy);
-      // 空间平移 = 屏幕位移 / 缩放（含车头朝上旋转的逆变换）
-      const dx = e.clientX - sx, dy = e.clientY - sy;
-      const cos = Math.cos(this.view.rot), sin = Math.sin(this.view.rot);
-      this.view.cx = scx - (dx * cos + dy * sin) / this.view.scale;
-      this.view.cy = scy - (-dx * sin + dy * cos) / this.view.scale;
-      this.follow = false;
-      this.#requestRender();
-    });
-    window.addEventListener('mouseup', (e) => {
-      if (!dragging) return;
-      dragging = false;
-      this.el.classList.remove('dragging');
-      // 单击（非拖拽、且非标记点）：尺子取点
-      const onMarker = e.target instanceof Element && e.target.closest('.map-marker');
-      if (moved < 5 && !onMarker) this.#mapClick(e.clientX, e.clientY);
-    });
+    // 小地图是"跟随雷达"：按在地图上=拖动悬浮窗（见 minimap.js），
+    // 因此不绑定平移/双击缩放/点击改视野——否则点一下地图就飞走，玩家位置一更新又跳回来。
+    if (!this.mini) {
+      this.el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        dragging = true; moved = 0;
+        this.pressX = e.clientX; this.pressY = e.clientY;
+        sx = e.clientX; sy = e.clientY; scx = this.view.cx; scy = this.view.cy;
+        this.el.classList.add('dragging');
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        moved += Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy);
+        // 空间平移 = 屏幕位移 / 缩放（含车头朝上旋转的逆变换）
+        const dx = e.clientX - sx, dy = e.clientY - sy;
+        const cos = Math.cos(this.view.rot), sin = Math.sin(this.view.rot);
+        this.view.cx = scx - (dx * cos + dy * sin) / this.view.scale;
+        this.view.cy = scy - (-dx * sin + dy * cos) / this.view.scale;
+        this.follow = false;
+        this.#requestRender();
+      });
+      window.addEventListener('mouseup', (e) => {
+        if (!dragging) return;
+        dragging = false;
+        this.el.classList.remove('dragging');
+        // 单击（非拖拽、且非标记点）：尺子取点
+        const onMarker = e.target instanceof Element && e.target.closest('.map-marker');
+        if (moved < 5 && !onMarker) this.#mapClick(e.clientX, e.clientY);
+      });
+      // 双击放大（以光标为中心）
+      this.el.addEventListener('dblclick', (e) => {
+        const rect = this.el.getBoundingClientRect();
+        this.#zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1.6);
+      });
+    }
     this.el.addEventListener('wheel', (e) => {
       e.preventDefault();
       const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
       const rect = this.el.getBoundingClientRect();
       this.#zoomAt(e.clientX - rect.left, e.clientY - rect.top, factor);
     }, { passive: false });
-    // 双击放大（以光标为中心）
-    this.el.addEventListener('dblclick', (e) => {
-      const rect = this.el.getBoundingClientRect();
-      this.#zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1.6);
-    });
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.measurePoints = [];
@@ -157,21 +166,6 @@ export class MapView {
         this.#renderOverlay();
       }
     });
-    // 小地图点击可设视野中心
-    if (this.mini) {
-      this.el.addEventListener('click', (e) => {
-        const rect = this.el.getBoundingClientRect();
-        const p = this.#screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-        if (p) {
-          this.view.cx = p.px;
-          this.view.cy = p.py;
-          // 立刻重绘（否则要等下一次状态推送才动，看起来像"点了没反应"）
-          this.#renderTransform();
-          this.#renderOverlay();
-          this.#emitView();
-        }
-      });
-    }
   }
 
   /** rAF 节流渲染（拖拽/滚轮高频路径） */
@@ -497,6 +491,17 @@ export class MapView {
   }
 
   /**
+   * 小地图里给哪些标记显示名称：只标注关键目标（撤离点/Boss/赛季文件/BTR），
+   * 且数量少时才标，否则圆盘会糊成一团。
+   */
+  #miniLabelSet(markers) {
+    const key = markers.filter((m) =>
+      m.group.startsWith('season:') || m.group.startsWith('extract') || m.group === 'boss' || m.group === 'btrStop');
+    if (key.length === 0 || key.length > 6) return null;
+    return new Set(key);
+  }
+
+  /**
    * 赛季文件刷点数据（data/season-documents.json）
    * @param {object} data 全量数据 { season, types, maps }
    * @param {string} mapId 当前地图 id（tarkov map id）
@@ -562,7 +567,7 @@ export class MapView {
     if (this.playerEl && this.player && this.proj) {
       const p = this.proj.project(this.player.x, this.player.z);
       const s = this.#worldToScreen(p.x, p.y);
-      const size = this.mini ? 14 : 18;
+      const size = this.mini ? 20 : 18;
       const rot = this.heading ? this.heading.screenAngleDeg : 0;
       this.playerEl.innerHTML = `
         <g transform="translate(${s.x} ${s.y})">
@@ -579,7 +584,7 @@ export class MapView {
         return `${s2.x},${s2.y}`;
       });
       this.trailEl.setAttribute('points', pts.join(' '));
-      this.trailEl.setAttribute('stroke-width', String(this.mini ? 2 : Math.max(2, 2.5 / this.view.scale * 2)));
+      this.trailEl.setAttribute('stroke-width', String(this.mini ? 3 : Math.max(2, 2.5 / this.view.scale * 2)));
     }
     // 标记（图标 + 中文名标签，复刻原站样式）
     const markers = this.#visibleMarkers();
@@ -588,7 +593,12 @@ export class MapView {
     // 标记大小（复刻原站逻辑：屏幕尺寸恒定≈24px/文字12px，乘以用户"标记大小"设置，
     // 并随缩放轻微增长；下限保证整图视图仍可辨识）
     const ref = this.refScale || this.view.scale;
-    const sf = this.mini ? 1 : Math.max(0.55, Math.min(1.8, Math.pow(this.view.scale / (ref || 1), 0.2))) * this.markerScale;
+    const uiScale = Math.max(0.5, Math.min(2, this.markerScale || 1));
+    // 小地图：图标明显放大（原来固定 12px，在游戏里"跟蚂蚁一样"完全看不清），并跟随"标记大小"设置
+    const sf = this.mini
+      ? uiScale
+      : Math.max(0.55, Math.min(1.8, Math.pow(this.view.scale / (ref || 1), 0.2))) * uiScale;
+    const miniLabeled = this.mini ? this.#miniLabelSet(markers) : null;
     for (const m of markers) {
       const px = this.proj.project(m.x, m.z);
       const s = this.#worldToScreen(px.x, px.y);
@@ -613,33 +623,43 @@ export class MapView {
       // 图标 + 标签（复刻原站：图标 24px 级 / 文字 12px 级，随"标记大小"设置与缩放微调）
       const icon = this.#iconFor(m);
       const baseSize = m.group === 'boss' ? 30 : (m.group.startsWith('loot:') ? 22 : 26);
-      const iconSize = this.mini ? 12 : Math.max(10, baseSize * sf);
-      const label = this.#labelVisible(m) ? (m.shortLabel || m.label) : null;
-      const fs = this.mini ? 0 : Math.max(8, 12 * sf);
+      const iconSize = Math.max(this.mini ? 18 : 10, baseSize * (this.mini ? 1.12 : 1) * sf);
+      // 底盘半径：小地图与赛季文件都画"形状 + 分组色"底盘，比图标大一圈（否则边框被图标盖住看不见）
+      const badgeR = icon && (this.mini || m.group.startsWith('season:')) ? iconSize / 2 + 4 : 0;
+      const drawn = badgeR ? iconSize * 0.85 : iconSize; // 图标略小于底盘，露出可见的边框
+      const label = this.mini
+        ? (miniLabeled && miniLabeled.has(m) ? shortText(m.shortLabel || m.label, 8) : null)
+        : (this.#labelVisible(m) ? (m.shortLabel || m.label) : null);
+      const fs = this.mini ? 10 : Math.max(8, 12 * sf);
       if (icon) {
-        // 赛季文件刷点：图标下加深色圆底 + 类型色描边，和普通图标区分开
-        if (m.group.startsWith('season:')) {
-          const halo = document.createElementNS(ns(), 'circle');
-          halo.setAttribute('r', String(iconSize / 2 + 3));
-          halo.setAttribute('fill', m.color);
-          halo.setAttribute('fill-opacity', '0.28');
-          halo.setAttribute('stroke', m.color);
-          halo.setAttribute('stroke-width', '1.6');
-          el.appendChild(halo);
+        if (badgeR && m.group.startsWith('season:')) {
+          // 赛季文件图标是游戏内物品图（自带深色底），用类型色圆盘做粗环：远看也能分辨文件类型
+          el.appendChild(shapeEl('circle', badgeR, {
+            fill: m.color, 'fill-opacity': '0.95',
+            stroke: 'rgba(6,8,12,0.85)', 'stroke-width': '1.4',
+          }));
+        } else if (badgeR) {
+          // 小地图底盘：按分组用不同形状 + 分组色描边（原来全是一模一样的灰圆圈，分不清）
+          // Boss 头像是深色美术，用浅色底盘才看得清；其他图标是浅色/彩色字形，用深色底盘
+          el.appendChild(shapeEl(markerShape(m.group), badgeR, {
+            fill: m.group === 'boss' ? 'rgba(237,242,247,0.92)' : 'rgba(8,11,16,0.88)',
+            stroke: m.color,
+            'stroke-width': '2',
+          }));
         }
         const img = document.createElementNS(ns(), 'image');
         img.setAttribute('href', 'app://data/icons/' + icon);
-        img.setAttribute('x', String(-iconSize / 2));
-        img.setAttribute('y', String(-iconSize / 2));
-        img.setAttribute('width', String(iconSize));
-        img.setAttribute('height', String(iconSize));
+        img.setAttribute('x', String(-drawn / 2));
+        img.setAttribute('y', String(-drawn / 2));
+        img.setAttribute('width', String(drawn));
+        img.setAttribute('height', String(drawn));
         img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
         el.appendChild(img);
-        if (label) el.appendChild(labelPill(label, iconSize, fs));
+        if (label) el.appendChild(labelPill(label, Math.max(drawn, badgeR * 2), fs));
         // 最近撤离点高亮圈
         if (this.nearestExfil && m === this.nearestExfil) {
           const ring = document.createElementNS(ns(), 'circle');
-          ring.setAttribute('r', String(iconSize / 2 + 5));
+          ring.setAttribute('r', String((badgeR || drawn / 2) + 5));
           ring.setAttribute('fill', 'none');
           ring.setAttribute('stroke', '#fef08a');
           ring.setAttribute('stroke-width', '2');
@@ -659,12 +679,12 @@ export class MapView {
         text.textContent = m.label;
         el.appendChild(text);
       } else {
-        const rad = this.mini ? 3.5 : Math.max(2.5, 6 / this.view.scale);
+        const rad = this.mini ? 5 : Math.max(2.5, 6 / this.view.scale);
         const dot = document.createElementNS(ns(), 'circle');
         dot.setAttribute('r', String(rad));
         dot.setAttribute('fill', m.color);
         dot.setAttribute('stroke', '#0b0e13');
-        dot.setAttribute('stroke-width', '1.2');
+        dot.setAttribute('stroke-width', this.mini ? '2' : '1.2');
         el.appendChild(dot);
       }
       el.appendChild(titleNode(m.label));
@@ -758,7 +778,8 @@ export class MapView {
     let cullR = 0, ccx = 0, ccy = 0;
     if (this.mini && this.proj) {
       const r = this.el.getBoundingClientRect();
-      cullR = (Math.hypot(r.width, r.height) / 2) / Math.max(this.view.scale, 1e-6) * 1.8;
+      // 圆盘半径（不是对角线）再留 8% 余量：圆外标记本来就被裁掉，画了也是浪费
+      cullR = (r.width / 2) / Math.max(this.view.scale, 1e-6) * 1.08;
       ccx = this.view.cx; ccy = this.view.cy;
     }
     const picks = [];
@@ -770,6 +791,31 @@ export class MapView {
         if (Math.hypot(p.x - ccx, p.y - ccy) > cullR) continue;
       }
       picks.push(m);
+    }
+    // 小地图：标记密到"糊成一团"时按重要度丢弃次要标记，只留看得清的关键点
+    if (this.mini && picks.length > MINI_SOFT_CAP) {
+      const dropStages = [
+        (m) => m.group === 'label',                                  // 地名文字
+        (m) => m.group === 'loose' || m.group === 'spawn',           // 散落物资 / 出生点
+        (m) => m.group.startsWith('loot:'),                          // 各类物资箱
+      ];
+      for (const drop of dropStages) {
+        if (picks.length <= MINI_SOFT_CAP) break;
+        const kept = picks.filter((m) => !drop(m));
+        picks.length = 0;
+        picks.push(...kept);
+      }
+    }
+    // 兜底上限：极端情况下（还没定位、视野又很宽）优先保留关键标记，避免 DOM 爆掉
+    if (this.mini && picks.length > MINI_MARKER_CAP) {
+      const rank = (m) => {
+        if (m.group.startsWith('season:') || m.group.startsWith('extract') || m.group === 'boss') return 0;
+        if (['btrStop', 'transit', 'lock', 'switch', 'hazard', 'weapon'].includes(m.group)) return 1;
+        if (m.group === 'label') return 3;
+        return 2;
+      };
+      picks.sort((a, b) => rank(a) - rank(b));
+      picks.length = MINI_MARKER_CAP;
     }
     return picks;
   }
@@ -962,6 +1008,68 @@ export class MapView {
 // ---------------------------------------------------------------------------
 function ns() { return 'http://www.w3.org/2000/svg'; }
 
+/**
+ * 标记底盘形状（小地图用）：形状 + 分组色一起区分标记类型，
+ * 解决"全是一模一样的圆圈、远看没有任何辨识度"的问题。
+ */
+export function markerShape(group) {
+  if (group.startsWith('season:')) return 'circle';
+  if (group.startsWith('extract')) return 'shield';
+  if (group.startsWith('loot:')) return 'square';
+  if (group === 'boss') return 'hexagon';
+  if (group === 'hazard') return 'triangle';
+  if (group === 'transit' || group === 'weapon') return 'diamond';
+  if (group === 'lock' || group === 'switch') return 'square';
+  if (group === 'btrStop') return 'hexagon';
+  return 'circle';
+}
+
+/**
+ * `meters` 米的世界距离在 scale=1 时对应多少屏幕像素（用于"半径 N 米铺满视口"的换算）。
+ * 必须用屏幕距离（hypot）而不是单看 x/y 分量：像工厂这种 coordinateRotation=90° 的地图，
+ * +x 的世界偏移只体现在屏幕 y 上，只看 x 分量会得到 0（缩放直接失控）。
+ */
+export function metersToScreen(proj, x, z, meters = 1) {
+  const p0 = proj.project(x, z);
+  const p1 = proj.project(x + meters, z);
+  const p2 = proj.project(x, z + meters);
+  const d1 = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+  const d2 = Math.hypot(p2.x - p0.x, p2.y - p0.y);
+  return Math.max(d1, d2);
+}
+
+/** 生成底盘图形（circle | square | diamond | triangle | hexagon | shield），半径 r 为屏幕像素 */export function shapeEl(shape, r, attrs = {}) {
+  const n = ns();
+  const poly = (points) => {
+    const el = document.createElementNS(n, 'polygon');
+    el.setAttribute('points', points.map(([x, y]) => `${(x * r).toFixed(2)},${(y * r).toFixed(2)}`).join(' '));
+    return el;
+  };
+  let el;
+  if (shape === 'square') {
+    const s = r * 0.92;
+    el = document.createElementNS(n, 'rect');
+    el.setAttribute('x', String(-s));
+    el.setAttribute('y', String(-s));
+    el.setAttribute('width', String(s * 2));
+    el.setAttribute('height', String(s * 2));
+    el.setAttribute('rx', String(r * 0.3));
+  } else if (shape === 'diamond') {
+    el = poly([[0, -1.22], [1.12, 0], [0, 1.22], [-1.12, 0]]);
+  } else if (shape === 'triangle') {
+    el = poly([[0, -1.25], [1.12, 0.82], [-1.12, 0.82]]);
+  } else if (shape === 'hexagon') {
+    el = poly([[0, -1.16], [1.02, -0.6], [1.02, 0.6], [0, 1.16], [-1.02, 0.6], [-1.02, -0.6]]);
+  } else if (shape === 'shield') {
+    el = poly([[0, -1.12], [1.0, -1.12], [1.0, 0.26], [0, 1.08], [-1.0, 0.26], [-1.0, -1.12]]);
+  } else {
+    el = document.createElementNS(n, 'circle');
+    el.setAttribute('r', String(r));
+  }
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
 /** 坐标格式化（tooltip 用，避免 -0.00 之类） */
 function num(v) {
   const n = Number(v);
@@ -972,6 +1080,12 @@ function titleNode(text) {
   const t = document.createElementNS(ns(), 'title');
   t.textContent = String(text);
   return t;
+}
+
+/** 文本截断（小地图标签要短，避免药丸太宽糊住地图） */
+function shortText(text, max) {
+  const s = String(text || '');
+  return s.length > max ? s.slice(0, max) + '…' : s;
 }
 
 function textWidth(text, fs) {
@@ -1005,7 +1119,7 @@ function labelPill(text, iconSize, fs) {
 }
 
 // 与主进程 projection.js 相同实现（渲染层独立副本，避免跨进程依赖）
-function makeProjection(detail) {
+export function makeProjection(detail) {
   const [n, r, i, a] = detail.transform || [];
   const rotation = ((detail.coordinateRotation || 0) * Math.PI) / 180;
   const cos = Math.cos(rotation), sin = Math.sin(rotation);

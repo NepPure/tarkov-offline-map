@@ -152,12 +152,29 @@ function cdp(wsUrl, calls) {
     const miniEval = (expr) => cdp(miniTarget.webSocketDebuggerUrl, [['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }]]);
     const miniState = await miniEval(`(() => {
       const root = document.getElementById('mini-root');
+      const sizes = Array.from(document.querySelectorAll('.map-marker image')).map((i) => Number(i.getAttribute('width')));
+      const shapes = {};
+      for (const g of document.querySelectorAll('.map-marker')) {
+        const f = g.firstElementChild;
+        if (!f || f.tagName === 'title') continue;
+        const key = f.tagName === 'polygon' ? 'polygon' : f.tagName;
+        shapes[key] = (shapes[key] || 0) + 1;
+      }
+      const hud = document.getElementById('m-rotate').getBoundingClientRect();
       return {
         backdrop: getComputedStyle(root).backgroundImage.includes('radial-gradient'),
-        clip: getComputedStyle(document.body).clipPath,
+        rootClip: getComputedStyle(root).clipPath,
+        bodyClip: getComputedStyle(document.body).clipPath,
         domMarkers: document.querySelectorAll('.map-marker').length,
         allMarkers: (window.__view && window.__view.markerCache || []).length,
         player: !!document.querySelector('.mapstage-overlay svg g g'),
+        iconMin: sizes.length ? Math.min(...sizes) : null,
+        iconMax: sizes.length ? Math.max(...sizes) : null,
+        badgeShapes: shapes,
+        miniLabels: document.querySelectorAll('.map-marker text').length,
+        hudTabIndex: Array.from(document.querySelectorAll('.mini-hud button')).map((b) => b.tabIndex),
+        // 工具条中心（用于真实鼠标点击校验），转为屏幕坐标
+        hudCenter: { x: Math.round(hud.left + hud.width / 2), y: Math.round(hud.top + hud.height / 2) },
       };
     })()`);
     console.log('[cdp] minimap:', JSON.stringify(miniState));
