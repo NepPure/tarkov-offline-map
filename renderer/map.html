@@ -94,11 +94,20 @@
           <h3>提示与行为</h3>
           <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：进图/定位时播放提示音</label>
           <label class="row"><input type="checkbox" id="set-auto-delete" /> 自动删除截图文件：读取坐标后删除对应文件</label>
+        </section>
+        <section class="settings-card">
+          <h3>圆形小地图雷达</h3>
           <label class="row"><input type="checkbox" id="set-mini" /> 启用小地图雷达：开启独立圆形小地图窗口</label>
-          <label class="row">小地图透明度 <input type="range" id="set-mini-opacity" min="0.2" max="1" step="0.05" style="flex:1" /></label>
-          <label class="row">小地图显示半径(米) <input type="range" id="set-mini-radius" min="20" max="200" step="5" style="flex:1" /></label>
-          <label class="row"><input type="checkbox" id="set-mini-follow" /> 小地图缩放跟随互动地图</label>
-          <div class="hint">小地图用法：鼠标悬停显示顶部按钮；<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆）；滚轮缩放；窗口本身不接受键盘焦点，Tab/空格不会误触按钮。</div>
+          <label class="row">整体透明度 <input type="range" id="set-mini-opacity" min="0.2" max="1" step="0.05" style="flex:1" /></label>
+          <label class="row">显示半径(米) <input type="range" id="set-mini-radius" min="20" max="200" step="5" style="flex:1" /></label>
+          <label class="row"><input type="checkbox" id="set-mini-rotate" /> 随角色朝向旋转（默认关：地图方向固定朝北）</label>
+          <label class="row"><input type="checkbox" id="set-mini-auto-center" /> 定位后自动居中到玩家（默认开）</label>
+          <label class="row"><input type="checkbox" id="set-mini-auto-floor" /> 按玩家高度自动切换楼层（默认开）</label>
+          <label class="row"><input type="checkbox" id="set-mini-click-through" /> 点击穿透：雷达看得到但点不着（鼠标直接作用到游戏）</label>
+          <label class="row"><input type="checkbox" id="set-mini-follow" /> 缩放跟随互动地图（默认关：按自己的显示半径）</label>
+          <div class="hint">雷达默认没有任何按钮：<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆），<b>滚轮缩放</b>；
+            方向/居中/楼层/点击穿透/透明度都在这里调。开了点击穿透后，雷达右下角会出现一个小"解锁"块，
+            鼠标悬停到它上面时会临时恢复交互，点一下就关掉穿透。</div>
         </section>
       </div>
       <div class="dialog-actions">

@@ -13,7 +13,7 @@
       /* 整个圆盘都是"拖动窗口"的把手 */
       cursor: move;
     }
-    /* 圆盘只裁剪地图本体：以前裁剪在 body 上，顶部的四个按钮被裁掉一半 -> 点不到 */
+    /* 圆盘只裁剪地图本体：裁剪挂在 body 上会把边缘的 UI 一起裁掉 */
     #mini-root {
       position: absolute; inset: 0;
       /* 不透明圆形底盘：即使底图/玩家还没绘制，雷达也始终可见（透明窗口一旦不重绘就会"看着消失"） */
@@ -33,34 +33,42 @@
     .map-marker { pointer-events: auto; cursor: move; }
     .player-pulse { animation: pulse 1.6s ease-out infinite; transform-origin: center; transform-box: fill-box; }
     @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
-    /* 顶部工具条：位于圆盘之外/之上，不再被圆形裁剪，鼠标一定点得到 */
-    .mini-hud {
-      position: absolute; top: 1px; left: 50%; transform: translateX(-50%);
-      display: none; gap: 4px; z-index: 9;
-      padding: 3px 6px;
-      border-radius: 999px;
-      background: rgba(8,11,16,.72);
-      border: 1px solid rgba(42,52,68,.9);
-      backdrop-filter: blur(2px);
+
+    /* 雷达默认不带任何常驻按钮：
+       固定地图方向 / 是否自动居中 / 自动切换楼层 / 点击穿透 / 整体透明度 都在"设置"里调，
+       滚轮始终可缩放雷达。
+       右下角这两个小按钮是"鼠标靠近才出现"的：
+         - 未锁定 -> 显示「锁」（开启点击穿透：看得到点不着）
+         - 已锁定 -> 显示「解锁」（关闭点击穿透；锁定时窗口收不到鼠标移动，
+           由主进程按光标命中这个小条的位置，判定"靠近"后临时恢复交互） */
+    #mini-lockbar {
+      position: absolute; right: 3px; bottom: 3px; z-index: 10;
+      display: flex; gap: 4px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.12s ease;
     }
-    .mini-hud button {
-      background: rgba(10,14,20,.9); color: #d7e0ea; border: 1px solid #2a3444;
-      border-radius: 999px; font-size: 11px; line-height: 1.1; padding: 4px 9px;
-      cursor: pointer; white-space: nowrap;
+    body.hot #mini-lockbar { opacity: 1; }                                      /* 锁定时：鼠标放在雷达上就显示 */
+    body.bar-live #mini-lockbar { pointer-events: auto; }                       /* 只有移到小条上才接管鼠标 */
+    body:not(.locked):hover #mini-lockbar { opacity: 1; pointer-events: auto; } /* 未锁定时：悬停即显示可点 */
+    #mini-lockbar button {
+      display: flex; align-items: center; justify-content: center;
+      padding: 3px 8px; cursor: pointer;
+      background: rgba(10,14,20,.72); color: #d7e0ea;
+      border: 1px solid #2a3444; border-radius: 7px;
+      font: 600 11px/1.2 "Segoe UI", "Microsoft YaHei", sans-serif;
+      white-space: nowrap;
     }
-    .mini-hud button.active { border-color: #22d3ee; color: #22d3ee; }
-    .mini-hud button:hover { border-color: #22d3ee; }
-    body:hover .mini-hud { display: flex; }
+    #mini-lockbar button:hover { border-color: #22d3ee; color: #22d3ee; }
+    body.locked #mini-lock { display: none; }
+    body:not(.locked) #mini-unlock { display: none; }
   </style>
 </head>
 <body>
-  <div class="mini-hud">
-    <button id="m-rotate" class="active" tabindex="-1">车头朝上</button>
-    <button id="m-zoom-in" tabindex="-1">+</button>
-    <button id="m-zoom-out" tabindex="-1">−</button>
-    <button id="m-reset" tabindex="-1">定位</button>
-  </div>
   <div id="mini-root"></div>
+  <div id="mini-lockbar">
+    <button id="mini-lock" tabindex="-1" title="锁定：开启点击穿透，雷达看得到点不着（鼠标直接作用到游戏）">锁</button>
+    <button id="mini-unlock" tabindex="-1" title="解锁：关闭点击穿透，恢复用鼠标操作雷达">解锁</button>
+  </div>
   <script type="module" src="minimap.js"></script>
 </body>
 </html>

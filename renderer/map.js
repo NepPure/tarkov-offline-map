@@ -224,6 +224,10 @@ function openSettings() {
   $('#set-map-opacity').value = c.mapOpacity ?? 1;
   $('#set-mini-opacity').value = c.miniOpacity ?? 0.9;
   $('#set-mini-radius').value = c.miniRadius ?? 55;
+  $('#set-mini-rotate').checked = !!c.miniRotate;
+  $('#set-mini-auto-center').checked = c.miniAutoCenter !== false;
+  $('#set-mini-auto-floor').checked = c.miniAutoFloor !== false;
+  $('#set-mini-click-through').checked = !!c.miniClickThrough;
   $('#set-mini-follow').checked = !!c.miniFollowMainZoom;
   $('#set-marker-scale').value = c.markerScale ?? 1;
   $('#set-label-scale').value = c.labelScale ?? 1;
@@ -245,6 +249,10 @@ async function saveSettings() {
     miniOpacity: Number($('#set-mini-opacity').value),
     miniRadius: Number($('#set-mini-radius').value),
     miniFollowMainZoom: $('#set-mini-follow').checked,
+    miniRotate: $('#set-mini-rotate').checked,
+    miniAutoCenter: $('#set-mini-auto-center').checked,
+    miniAutoFloor: $('#set-mini-auto-floor').checked,
+    miniClickThrough: $('#set-mini-click-through').checked,
     markerScale: Number($('#set-marker-scale').value),
     labelScale: Number($('#set-label-scale').value),
   };

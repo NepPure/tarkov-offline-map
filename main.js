@@ -89,7 +89,11 @@ function loadSettings() {
     miniScale: 1.0,
     miniPos: null,               // 小地图悬浮窗位置 {x,y}（拖动后自动记忆）
     miniRadius: 55,
-    miniOpacity: 0.9,
+    miniOpacity: 0.9,            // 雷达整体透明度（默认"有一点点透明"）
+    miniRotate: false,           // 雷达是否随角色朝向旋转（默认 false = 固定地图方向）
+    miniAutoCenter: true,        // 定位后自动居中到玩家
+    miniAutoFloor: true,         // 按玩家高度自动切换楼层层级
+    miniClickThrough: false,     // 点击穿透：看得到、点不着（悬停右下"解锁"小块可恢复）
     miniFollowMainZoom: false, // 小地图缩放依据: false=小地图自身, true=跟随互动地图缩放
     mapOpacity: 1.0,
     rotateWithHeading: false,
@@ -285,9 +289,76 @@ function miniStatus() {
     visible: alive ? miniWin.isVisible() : false,
     crashed: alive ? miniWin.webContents.isCrashed() : false,
     focusable: alive && typeof miniWin.isFocusable === 'function' ? miniWin.isFocusable() : null,
+    ignoreMouseEvents: !!miniIgnoreMouse,
     scaleFactor,
     bounds: alive ? miniWin.getBounds() : null,
   };
+}
+
+// 点击穿透状态（Electron 没有对应的读取 API，自己记一份）
+let miniIgnoreMouse = false;
+// 解锁小条：位置由渲染层上报（DIP，相对窗口左上角），命中判定在主进程做
+// （实测 Windows 上 setIgnoreMouseEvents(true,{forward:true}) 并不会把真实鼠标移动
+//   转发给渲染层，所以只能像拖动那样在主进程轮询光标）
+//   near  = 光标放在雷达圆盘上（或小条上）  -> 让渲染层把「锁/解锁」显示出来
+//   onBar = 光标正好在小条上               -> 临时恢复交互，按钮才点得到
+let miniUnlockRect = null;
+let miniUnlockNear = false;
+let miniUnlockOnBar = false;
+let miniUnlockTimer = null;
+
+function stopMiniUnlockWatch() {
+  if (miniUnlockTimer) { clearInterval(miniUnlockTimer); miniUnlockTimer = null; }
+  // 解锁后必须把"放在雷达上"的状态清掉，否则渲染层会一直显示锁/解锁小条
+  if (miniUnlockNear || miniUnlockOnBar) {
+    miniUnlockNear = false;
+    miniUnlockOnBar = false;
+    if (miniAlive()) {
+      try { miniWin.webContents.send('mini:lock-hot', { near: false, onBar: false }); } catch {}
+    }
+  }
+}
+
+/** 锁定（点击穿透）期间轮询光标：放在雷达上显示按钮，只在小条上才接管鼠标 */
+function startMiniUnlockWatch() {
+  stopMiniUnlockWatch();
+  if (!miniAlive() || !settings.miniClickThrough) return;
+  miniUnlockTimer = setInterval(() => {
+    if (!miniAlive() || !settings.miniClickThrough) return stopMiniUnlockWatch();
+    try {
+      const b = miniWin.getBounds();
+      const c = screen.getCursorScreenPoint();
+      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      const rDisc = b.width / 2 + 4; // 圆盘半径（窗口是正方形，圆盘铺满）
+      const dx = c.x - cx, dy = c.y - cy;
+      const onDisc = dx * dx + dy * dy <= rDisc * rDisc;
+      const r = miniUnlockRect || { x: b.width - 60, y: b.height - 30, w: 52, h: 24 }; // 兜底：右下角
+      const pad = 6;
+      const onBar = c.x >= b.x + r.x - pad && c.x <= b.x + r.x + r.w + pad
+        && c.y >= b.y + r.y - pad && c.y <= b.y + r.y + r.h + pad;
+      const near = onDisc || onBar;
+      if (near !== miniUnlockNear || onBar !== miniUnlockOnBar) {
+        miniUnlockNear = near;
+        miniUnlockOnBar = onBar;
+        miniWin.setIgnoreMouseEvents(!onBar, { forward: true });
+        miniIgnoreMouse = !onBar;
+        try { miniWin.webContents.send('mini:lock-hot', { near, onBar }); } catch {}
+        miniLog(`lock bar near=${near} onBar=${onBar} -> mouse ${onBar ? 'interactive' : 'click-through'}`);
+      }
+    } catch (e) { miniLog('unlock watch failed: ' + e.message); }
+  }, 60);
+}
+
+/** 应用"点击穿透"设置：锁定时鼠标事件直接穿到游戏里 */
+function applyMiniClickThrough() {
+  if (!miniAlive()) { stopMiniUnlockWatch(); return; }
+  const locked = !!settings.miniClickThrough;
+  try {
+    miniWin.setIgnoreMouseEvents(locked, { forward: true });
+    miniIgnoreMouse = locked;
+    if (locked) startMiniUnlockWatch(); else stopMiniUnlockWatch();
+    miniLog(`click-through ${locked ? 'on' : 'off'}`);
+  } catch (e) { miniLog('click-through failed: ' + e.message); }
 }
 
 function broadcastMiniStatus() {
@@ -316,6 +387,13 @@ function startMiniWatchdog() {
       if (!miniAlive()) { miniLog('watchdog: window missing -> recreate'); createMiniWindow('watchdog'); return; }
       if (miniWin.webContents.isCrashed()) { miniLog('watchdog: crashed -> reload'); miniWin.webContents.reload(); return; }
       if (!miniWin.isVisible()) { miniLog('watchdog: hidden -> show'); miniHidden = false; miniWin.show(); return; }
+      // 尺寸自愈：拖动/系统 DPI 取整可能让窗口越变越大，这里纠正回正方形
+      const wb = miniWin.getBounds();
+      if (wb.width !== MINI_SIZE || wb.height !== MINI_SIZE) {
+        miniLog(`watchdog: size ${wb.width}x${wb.height} -> ${MINI_SIZE}`);
+        placeMini(wb.x, wb.y);
+        broadcastMiniStatus();
+      }
       miniReassert();
       miniWin.webContents.invalidate();
     } catch (e) { miniLog('watchdog error: ' + e.message); }
@@ -381,6 +459,16 @@ function miniWorkArea(point) {
   }
 }
 
+/** 把悬浮窗钉回"正方形 + 指定位置"。
+ *  坑：Windows 上 150% 缩放（DIP→物理像素取整）时，反复 setPosition 会让窗口尺寸
+ *  每次"漂"大 1px，拖动几秒就从 300 变成 700+。所以拖动时一律用 setBounds 带上尺寸。 */
+function placeMini(x, y) {
+  if (!miniAlive()) return;
+  const b = miniWin.getBounds();
+  if (b.width === MINI_SIZE && b.height === MINI_SIZE && b.x === x && b.y === y) return;
+  miniWin.setBounds({ x, y, width: MINI_SIZE, height: MINI_SIZE }, false);
+}
+
 function stopMiniDrag(reason = 'release') {
   if (!miniDrag) return;
   clearInterval(miniDrag.timer);
@@ -390,6 +478,11 @@ function stopMiniDrag(reason = 'release') {
       const b = miniWin.getBounds();
       settings.miniPos = { x: b.x, y: b.y };
       saveSettings();
+      // 松手时把尺寸也钉回来（防御：历史版本累积放大过的窗口会立刻恢复正常）
+      if (b.width !== MINI_SIZE || b.height !== MINI_SIZE) {
+        miniLog(`drag end: size ${b.width}x${b.height} -> ${MINI_SIZE}`);
+        placeMini(b.x, b.y);
+      }
       miniWin.webContents.invalidate();
       broadcastMiniStatus();
       miniLog(`drag end (${reason}) pos=${b.x},${b.y}`);
@@ -406,7 +499,7 @@ function startMiniDrag() {
   const cursor = screen.getCursorScreenPoint();
   const offset = { x: cursor.x - b.x, y: cursor.y - b.y };
   const started = Date.now();
-  miniLog(`drag start cursor=${cursor.x},${cursor.y} offset=${offset.x},${offset.y} bounds=${b.x},${b.y}`);
+  miniLog(`drag start cursor=${cursor.x},${cursor.y} offset=${offset.x},${offset.y} bounds=${b.x},${b.y} size=${b.width}x${b.height}`);
   miniDrag = {
     offset,
     started,
@@ -417,8 +510,7 @@ function startMiniDrag() {
       try {
         const c = screen.getCursorScreenPoint();
         const next = dragTarget(c, offset, MINI_SIZE, miniWorkArea(c));
-        const cur = miniWin.getBounds();
-        if (next.x !== cur.x || next.y !== cur.y) miniWin.setPosition(next.x, next.y, false);
+        placeMini(next.x, next.y);
       } catch (e) { stopMiniDrag('error: ' + e.message); }
     }, 12),
   };
@@ -432,6 +524,7 @@ function createMiniWindow(reason = 'startup') {
     miniWin.setAlwaysOnTop(true, 'screen-saver');
     miniWin.moveTop();
     try { miniWin.webContents.invalidate(); } catch {}
+    applyMiniClickThrough();
     miniLog(`reuse (${reason}) visible=${miniWin.isVisible()}`);
     broadcastMiniStatus();
     return miniWin;
@@ -452,12 +545,13 @@ function createMiniWindow(reason = 'startup') {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   miniWin.setIgnoreMouseEvents(false);
+  miniIgnoreMouse = false;
   try { miniWin.setFocusable(false); } catch {}
   miniLog(`created (${reason}) bounds=${JSON.stringify(miniWin.getBounds())}`);
   miniWin.loadURL('app://renderer/minimap.html');
   try { miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
 
-  miniWin.on('closed', () => { miniLog('closed'); stopMiniDrag('closed'); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
+  miniWin.on('closed', () => { miniLog('closed'); stopMiniDrag('closed'); stopMiniUnlockWatch(); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
   miniWin.on('hide', () => { miniHidden = true; stopMiniDrag('hide'); miniLog('hide'); broadcastMiniStatus(); });
   miniWin.on('show', () => { miniHidden = false; miniLog('show'); miniReassert(); });
   miniWin.on('minimize', () => { miniLog('minimize -> restore'); try { miniWin.restore(); } catch {} });
@@ -480,6 +574,7 @@ function createMiniWindow(reason = 'startup') {
   miniWin.webContents.on('did-finish-load', () => {
     miniLog('did-finish-load');
     try { miniWin.webContents.invalidate(); } catch {}
+    applyMiniClickThrough();
     miniReassert();
   });
   miniWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
@@ -506,6 +601,8 @@ function setupIpc() {
     settings = { ...settings, ...patch, markerToggles: { ...settings.markerToggles, ...(patch.markerToggles || {}) } };
     saveSettings();
     syncWatchers();
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniClickThrough')) applyMiniClickThrough();
+    broadcast({}); // 立刻把新配置推给所有窗口（雷达的透明度/方向/楼层/穿透等）
     return settings;
   });
   ipcMain.handle('map:list', () => mapsData.listMaps());
@@ -566,6 +663,21 @@ function setupIpc() {
   ipcMain.handle('mini:drag-start', () => startMiniDrag());
   ipcMain.handle('mini:drag-end', () => { stopMiniDrag('release'); return settings.miniPos || null; });
   ipcMain.handle('mini:status', () => miniStatus());
+  // 点击穿透开关（写配置）；锁定期间由主进程轮询光标，悬停"解锁"小块时临时恢复交互
+  ipcMain.handle('mini:click-through', (_e, on) => {
+    settings.miniClickThrough = !!on;
+    saveSettings();
+    applyMiniClickThrough();
+    broadcastMiniStatus();
+    broadcast({});
+    return miniStatus();
+  });
+  // 渲染层上报"解锁"小块位置（用于锁定时命中判定）
+  ipcMain.on('mini:unlock-rect', (_e, rect) => {
+    if (rect && Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
+      miniUnlockRect = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+    }
+  });
   // 渲染层活动（指针进入/按下）时刷新窗口：透明窗口被点击后偶发停止重绘
   ipcMain.handle('mini:ping', () => {
     miniReassert();
@@ -1052,9 +1164,9 @@ async function runVisualTest() {
       if (miniAlive()) {
         health.focusable = typeof miniWin.isFocusable === 'function' ? miniWin.isFocusable() : null;
         const before = miniWin.getBounds();
-        // 按在顶部工具条按钮上不许触发拖动（否则按钮点不到）
+        // 雷达上不再有任何按钮；按在"解锁"小块上不许触发拖动
         health.hudPointerDown = await miniWin.webContents.executeJavaScript(`(() => {
-          const b = document.getElementById('m-rotate');
+          const b = document.getElementById('mini-unlock');
           b.dispatchEvent(new PointerEvent('pointerdown', { button: 0, bubbles: true }));
           return document.body.classList.contains('dragging');
         })()`);
@@ -1074,14 +1186,18 @@ async function runVisualTest() {
         health.afterDrag = {
           dragging: !!miniDrag,
           movedBy: { x: miniWin.getBounds().x - before.x, y: miniWin.getBounds().y - before.y },
+          size: miniWin.getBounds().width + 'x' + miniWin.getBounds().height,
           savedMiniPos: settings.miniPos,
         };
-        // 窗口不可聚焦 + 小地图按钮不可 Tab 聚焦
+        // 没有按钮可 Tab 聚焦；圆盘裁剪在 #mini-root
         health.hudTabIndex = await miniWin.webContents.executeJavaScript(
-          `Array.from(document.querySelectorAll('.mini-hud button')).map((b) => b.tabIndex)`
+          `document.getElementById('mini-unlock').tabIndex`
         );
         health.bodyClip = await miniWin.webContents.executeJavaScript(
           `({ body: getComputedStyle(document.body).clipPath, root: getComputedStyle(document.getElementById('mini-root')).clipPath })`
+        );
+        health.rotFixed = await miniWin.webContents.executeJavaScript(
+          `({ rotate: window.__view.rotate, rot: window.__view.view.rot })`
         );
         health.iconSizes = await miniWin.webContents.executeJavaScript(
           `Array.from(document.querySelectorAll('.map-marker image')).map((i) => Number(i.getAttribute('width'))).slice(0, 12)`
@@ -1096,10 +1212,26 @@ async function runVisualTest() {
           }
           return out;
         })()`);
+        // 点击穿透：开 -> 主进程 ignoreMouseEvents=true 且小块出现；关 -> 恢复
+        health.clickThrough = {};
+        await mainWin.webContents.executeJavaScript(`window.api.setConfig({ miniClickThrough: true })`);
+        await new Promise((r) => setTimeout(r, 600));
+        health.clickThrough.on = {
+          status: miniStatus().ignoreMouseEvents,
+          lockShown: await miniWin.webContents.executeJavaScript(`getComputedStyle(document.getElementById('mini-lock')).display !== 'none'`),
+          unlockShown: await miniWin.webContents.executeJavaScript(`getComputedStyle(document.getElementById('mini-unlock')).display !== 'none'`),
+          bodyLocked: await miniWin.webContents.executeJavaScript(`document.body.classList.contains('locked')`),
+        };
+        // 悬停"解锁"小块属于真实光标相关的行为，由 tools/verify-mini-input.js 用系统级输入验收；
+        // 这里只验证点它就能关掉穿透（渲染层的 click 路径）
+        await miniWin.webContents.executeJavaScript(`document.getElementById('mini-unlock').click(); true`);
+        await new Promise((r) => setTimeout(r, 600));
+        health.clickThrough.unlockByChip = { setting: !!settings.miniClickThrough, status: miniStatus().ignoreMouseEvents };
         console.log('[visual] MINI-DRAG:', JSON.stringify({
           focusable: health.focusable, hud: health.hudPointerDown, map: health.mapPointerDown,
           duringDrag: health.duringDrag, pointerUp: health.pointerUp, afterDrag: health.afterDrag,
-          tabIndex: health.hudTabIndex, clip: health.bodyClip, iconSizes: health.iconSizes, badges: health.badgeShapes,
+          tabIndex: health.hudTabIndex, clip: health.bodyClip, rotFixed: health.rotFixed,
+          iconSizes: health.iconSizes, badges: health.badgeShapes, clickThrough: health.clickThrough,
         }));
       }
 

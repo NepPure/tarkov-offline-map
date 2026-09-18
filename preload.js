@@ -20,6 +20,13 @@ contextBridge.exposeInMainWorld('api', {
   miniDragStart: () => ipcRenderer.invoke('mini:drag-start'),
   miniDragEnd: () => ipcRenderer.invoke('mini:drag-end'),
   miniStatus: () => ipcRenderer.invoke('mini:status'),
+  miniClickThrough: (on) => ipcRenderer.invoke('mini:click-through', on),
+  miniUnlockRect: (rect) => ipcRenderer.send('mini:unlock-rect', rect),
+  onLockHot: (cb) => {
+    const h = (_e, hot) => cb(hot);
+    ipcRenderer.on('mini:lock-hot', h);
+    return () => ipcRenderer.removeListener('mini:lock-hot', h);
+  },
   miniPing: () => ipcRenderer.invoke('mini:ping'),
   resizeMini: (scale) => ipcRenderer.send('mini:resize', scale),
   pickScreenshot: () => ipcRenderer.invoke('util:pick-screenshot'),

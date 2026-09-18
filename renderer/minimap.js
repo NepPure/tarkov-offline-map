@@ -12,6 +12,10 @@ window.__view = view; // 可视化自检 / CDP 验收用（与主窗口一致）
 let detail = null;
 let RADIUS_M = 55;
 let miniFollowMainZoom = false;
+let miniRotate = false;      // 固定地图方向（默认）；true = 随角色朝向旋转
+let miniAutoCenter = true;   // 定位后自动居中到玩家
+let miniAutoFloor = true;    // 按玩家高度自动切换楼层层级
+let clickThrough = false;    // 点击穿透状态（来自配置）
 
 // 赛季文件刷点（版本活动找东西）：离线快照，主窗口与小地图都标出来
 let seasonData = null;
@@ -42,7 +46,8 @@ function centerOnPlayer(zoomToRadius = false) {
   view.view.cx = p.x;
   view.view.cy = p.y;
   if (zoomToRadius) view.view.scale = radiusScale(view.player.x, view.player.z);
-  if (document.getElementById('m-rotate').classList.contains('active') && view.heading) {
+  // 固定地图方向（默认）：rot 恒为 0；开启"随朝向旋转"才按朝向转
+  if (miniRotate && view.heading) {
     view.view.rot = ((view.heading.screenAngleDeg + 90) * Math.PI) / 180;
   } else {
     view.view.rot = 0;
@@ -75,7 +80,11 @@ async function applyState(s) {
     view.setLabelScale(s.config.labelScale || 1);
     RADIUS_M = s.config.miniRadius || 55;
     miniFollowMainZoom = !!s.config.miniFollowMainZoom;
+    miniRotate = !!s.config.miniRotate;              // 默认 false = 固定地图方向
+    miniAutoCenter = s.config.miniAutoCenter !== false;
+    miniAutoFloor = s.config.miniAutoFloor !== false;
     api.setMiniOpacity(s.config.miniOpacity ?? 0.9);
+    setClickThrough(!!s.config.miniClickThrough);
   }
   if (!detail || detail.id !== s.mapId) {
     detail = await getDetail(s.mapId);
@@ -93,13 +102,16 @@ async function applyState(s) {
     if (!view.player) centerOnMap();
   }
   if (s.position && s.quaternion) {
-    view.rotate = document.getElementById('m-rotate').classList.contains('active');
+    view.rotate = miniRotate;
     const wasNull = !view.player;
     view.setPlayer(s.position, s.quaternion);
     view.setTrail(s.trail);
-    centerOnPlayer(wasNull);
+    // 自动居中：关掉后只更新玩家点/轨迹，不再把视野拉回玩家（配合手动缩放查看周边）
+    if (miniAutoCenter || wasNull) centerOnPlayer(wasNull);
   }
-  if (s.floor) view.setFloor(s.floor);
+  // 楼层：默认按玩家高度自动切层；关掉后固定在地图基础层
+  if (miniAutoFloor) view.setFloor('auto');
+  else view.setFloor((detail && detail.svgLayer) || 'auto');
 }
 
 api.onState((s) => applyState(s));
@@ -112,23 +124,9 @@ api.onViewportSync((vp) => {
   centerOnPlayer(false);
 });
 
-document.getElementById('m-rotate').addEventListener('click', (e) => {
-  e.currentTarget.classList.toggle('active');
-  centerOnPlayer(false);
-});
-document.getElementById('m-zoom-in').addEventListener('click', () => {
-  view.view.scale = Math.min(60, view.view.scale * 1.25);
-  centerOnPlayer(false);
-});
-document.getElementById('m-zoom-out').addEventListener('click', () => {
-  view.view.scale = Math.max(0.01, view.view.scale / 1.25);
-  centerOnPlayer(false);
-});
-document.getElementById('m-reset').addEventListener('click', () => centerOnPlayer(true));
-
 // ---------------------------------------------------------------------------
-// 窗口拖动：圆盘任意位置（HUD 按钮除外）按下即可拖动悬浮窗位置
-// 真正的移动在主进程完成（按真实光标位置 setPosition），所以指针移出小窗口
+// 窗口拖动：圆盘任意位置按下即可拖动悬浮窗位置
+// 真正的移动在主进程完成（按真实光标位置 setBounds），所以指针移出小窗口
 // 甚至移出屏幕都不会中断拖动；松手后位置会记忆到配置里。
 // ---------------------------------------------------------------------------
 let windowDragging = false;
@@ -149,8 +147,9 @@ function endWindowDrag() {
 
 document.body.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
-  // HUD 按钮照旧点击；其余位置都是"拖窗口"的把手
-  if (e.target instanceof Element && e.target.closest('.mini-hud')) return;
+  // 右下角"锁 / 解锁"小条照旧可点；点击穿透状态下不接管鼠标
+  if (e.target instanceof Element && e.target.closest('#mini-lockbar')) return;
+  if (clickThrough) return;
   e.preventDefault();
   api.miniPing();
   beginWindowDrag();
@@ -163,12 +162,53 @@ window.addEventListener('blur', endWindowDrag);
 document.body.addEventListener('pointerenter', () => api.miniPing());
 
 // 键盘兜底：小地图窗口永远不响应 Tab/空格/回车
-// （主进程已设 focusable:false，这里再挡一层，避免焦点跑到四个按钮上）
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Tab' || e.key === ' ' || e.key === 'Enter') e.preventDefault();
 }, true);
 
-// HUD 按钮点完立即失焦，避免焦点滞留后被空格/回车重复触发
-for (const btn of document.querySelectorAll('.mini-hud button')) {
-  btn.addEventListener('click', (e) => e.currentTarget.blur());
+// ---------------------------------------------------------------------------
+// 点击穿透（"能看到点不着"）+ 右下角"靠近才出现"的 锁 / 解锁 小按钮
+//
+// 未锁定：窗口正常接收鼠标，悬停就显示「锁」，点它开启穿透。
+// 已锁定：窗口穿透，渲染层收不到鼠标移动（实测 Windows 上 forward:true 也不会
+//   把真实鼠标移动转给渲染层），所以由主进程按光标轮询这个小条的位置判定"靠近"，
+//   靠近时临时恢复交互并通知渲染层把「解锁」显示出来，点它就关掉穿透。
+// ---------------------------------------------------------------------------
+const lockBar = document.getElementById('mini-lockbar');
+const lockBtn = document.getElementById('mini-lock');
+const unlockBtn = document.getElementById('mini-unlock');
+
+function reportLockBarRect() {
+  const r = lockBar.getBoundingClientRect();
+  if (r.width > 0) api.miniUnlockRect({ x: r.left, y: r.top, w: r.width, h: r.height });
 }
+
+function setClickThrough(on) {
+  if (clickThrough === on) return;
+  clickThrough = on;
+  document.body.classList.toggle('locked', on);
+  requestAnimationFrame(reportLockBarRect);
+}
+
+// 主进程判定"光标放在雷达上 / 正好在小条上"后通知：
+//   near  -> 把「锁 / 解锁」显示出来（锁定时靠它，未锁定时用 CSS hover）
+//   onBar -> 只在这一小块上临时恢复交互，其余区域仍然穿透（点不着）
+api.onLockHot((state) => {
+  const hot = typeof state === 'object' && state ? state : { near: !!state, onBar: !!state };
+  document.body.classList.toggle('hot', !!hot.near);
+  document.body.classList.toggle('bar-live', !!hot.onBar);
+});
+
+lockBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  lockBtn.blur();
+  api.miniClickThrough(true); // 锁定：开启点击穿透
+});
+
+unlockBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  unlockBtn.blur();
+  api.miniClickThrough(false); // 解锁：关闭点击穿透
+});
+
+window.addEventListener('load', () => requestAnimationFrame(reportLockBarRect));

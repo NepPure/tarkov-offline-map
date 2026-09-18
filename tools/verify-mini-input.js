@@ -35,6 +35,7 @@ function ps(action, opts = {}) {
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', PS, action];
   if (opts.x !== undefined) args.push('-X', String(Math.round(opts.x)));
   if (opts.y !== undefined) args.push('-Y', String(Math.round(opts.y)));
+  if (opts.delta !== undefined) args.push('-Delta', String(Math.round(opts.delta)));
   return execFileSync('powershell', args, { encoding: 'utf8', timeout: 20000 }).trim();
 }
 const cursorPos = () => ps('cursor').split(',').map(Number);
@@ -100,27 +101,49 @@ function cdp(wsUrl, calls) {
   if (!status0 || !status0.bounds) throw new Error('拿不到小地图窗口位置（miniStatus.bounds）');
   const bounds0 = status0.bounds;
   const center = { x: bounds0.x + bounds0.width / 2, y: bounds0.y + bounds0.height / 2 };
+  const away = { x: bounds0.x - 140, y: bounds0.y - 90 };
 
-  // 让真实光标进入窗口 -> HUD 才会 display:flex（否则 rect 全 0，点不到按钮）
+  // 起始状态固定：光标挪开 + 明确"未锁定"，避免上一轮遗留状态影响判定
+  ps('move', away);
+  await sleep(400);
+  await mapEval(`window.api.setConfig({ miniClickThrough: false })`);
+  await sleep(800);
+  report.miniStatus = await mapEval(`window.api.miniStatus()`);
+
+  // 空闲态（光标不在雷达上）：小条应当是隐藏的
+  const idle = await miniEval(`(() => {
+    const bar = document.getElementById('mini-lockbar');
+    const r = bar.getBoundingClientRect();
+    return {
+      barOpacityIdle: Number(getComputedStyle(bar).opacity),
+      barRectCss: { x: r.left, y: r.top, w: r.width, h: r.height },
+    };
+  })()`);
+
+  // 让真实光标进入窗口（雷达没有常驻按钮，这里只用于后续悬停）
   ps('move', center);
   await sleep(300);
   const view = await miniEval(`(() => {
     const root = document.getElementById('mini-root');
-    const hud = document.querySelector('.mini-hud');
-    const btn = document.getElementById('m-rotate');
-    const r = btn.getBoundingClientRect();
+    const bar = document.getElementById('mini-lockbar');
+    const lockBtn = document.getElementById('mini-lock');
+    const unlockBtn = document.getElementById('mini-unlock');
     return {
       dpr: window.devicePixelRatio,
       viewport: [window.innerWidth, window.innerHeight],
-      hudDisplay: getComputedStyle(hud).display,
-      hudTabIndex: Array.from(hud.querySelectorAll('button')).map((b) => b.tabIndex),
-      buttonCenterCss: { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height },
+      hudToolbar: !!document.querySelector('.mini-hud'),
+      barButtons: [lockBtn.textContent.trim(), unlockBtn.textContent.trim()],
+      lockBtnTabIndex: lockBtn.tabIndex,
+      unlockBtnTabIndex: unlockBtn.tabIndex,
+      lockBtnShown: getComputedStyle(lockBtn).display !== 'none',
+      unlockBtnShown: getComputedStyle(unlockBtn).display !== 'none',
       bodyClip: getComputedStyle(document.body).clipPath,
       rootClip: getComputedStyle(root).clipPath,
-      rotateActive: btn.classList.contains('active'),
-      cursorCss: getComputedStyle(document.body).cursor,
+      rotate: window.__view.rotate,
+      rot: window.__view.view.rot,
     };
   })()`);
+  view.barOpacityIdle = idle.barOpacityIdle;
   report.miniView = view;
 
   const foreground = ps('foreground');
@@ -134,34 +157,75 @@ function cdp(wsUrl, calls) {
   const cursor0 = await cursorPos();
   report.cursorStart = cursor0;
 
-  // ------------------------------------------------- 1) 真实鼠标点击工具条按钮
-  const clickAt = {
-    x: bounds0.x + view.buttonCenterCss.x,
-    y: bounds0.y + view.buttonCenterCss.y,
+  // ------------------------------------------------- 1) 「锁」：未锁定时靠近才出现，点它开启点击穿透
+  const barRect0 = idle.barRectCss;
+  const barAt = { x: bounds0.x + barRect0.x + barRect0.w / 2, y: bounds0.y + barRect0.y + barRect0.h / 2 };
+  await ps('move', barAt);
+  await sleep(400);
+  report.lockBar = {
+    rectCss: barRect0,
+    at: barAt,
+    opacityOnApproach: await miniEval(`Number(getComputedStyle(document.getElementById('mini-lockbar')).opacity)`),
+    lockShown: await miniEval(`getComputedStyle(document.getElementById('mini-lock')).display !== 'none'`),
+    unlockShown: await miniEval(`getComputedStyle(document.getElementById('mini-unlock')).display !== 'none'`),
   };
-  report.hudClickAt = clickAt;
-  ps('click', clickAt);
-  await sleep(500);
-  const afterClick = await miniEval(`document.getElementById('m-rotate').classList.contains('active')`);
-  const boundsAfterClick = await bounds();
-  report.hudClick = {
-    before: view.rotateActive,
-    after: afterClick,
-    toggled: afterClick !== view.rotateActive,
-    boundsUnchanged: boundsAfterClick.x === bounds0.x && boundsAfterClick.y === bounds0.y,
+  // 真实点「锁」-> 开启点击穿透
+  ps('click', barAt);
+  await sleep(700);
+  report.clickThrough = {
+    settingAfterLockClick: await mapEval(`window.api.getConfig().then((c) => !!c.miniClickThrough)`),
   };
-  ps('click', clickAt); // 恢复原状
+  // 把光标挪开（不在雷达上）-> 点不着的部分生效：主进程应是穿透状态
+  await ps('move', away);
+  await sleep(400);
+  report.clickThrough.lockedIgnoreAway = (await mapEval(`window.api.miniStatus()`)).ignoreMouseEvents;
+  await ps('move', { x: center.x, y: center.y });
   await sleep(300);
-  report.hudClickRestored = await miniEval(`document.getElementById('m-rotate').classList.contains('active')`);
+  // 锁定时把鼠标"放在雷达上"（圆盘中心）-> 显示「解锁」，但鼠标仍穿透
+  await sleep(300);
+  report.clickThrough.hotOnDisc = {
+    hotClass: await miniEval(`document.body.classList.contains('hot')`),
+    barLive: await miniEval(`document.body.classList.contains('bar-live')`),
+    unlockShown: await miniEval(`getComputedStyle(document.getElementById('mini-unlock')).display !== 'none'`),
+    stillClickThrough: (await mapEval(`window.api.miniStatus()`)).ignoreMouseEvents,
+  };
+  // 真实点圆盘中心：事件应穿过去，雷达既不拖动也不移动
+  ps('click', { x: center.x, y: center.y });
+  await sleep(400);
+  report.clickThrough.dragStartedWhileLocked = await miniEval(`document.body.classList.contains('dragging')`);
+  report.clickThrough.boundsUnchangedWhileLocked = (await bounds()).x === bounds0.x;
 
-  // ------------------------------------------------- 2) 按在按钮上不应触发拖动
-  await ps('move', clickAt);
+  // 移到「解锁」小条上 -> 只在这一小块临时恢复交互，按钮可点
+  const barRect = await miniEval(`(() => {
+    const r = document.getElementById('mini-lockbar').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  })()`);
+  report.clickThrough.barRectCss = barRect;
+  const barAt2 = { x: bounds0.x + barRect.x + barRect.w / 2, y: bounds0.y + barRect.y + barRect.h / 2 };
+  report.clickThrough.barAt = barAt2;
+  await ps('move', barAt2);
+  await sleep(600);
+  report.clickThrough.hoverInteractive = (await mapEval(`window.api.miniStatus()`)).ignoreMouseEvents;
+  report.clickThrough.barLive = await miniEval(`document.body.classList.contains('bar-live')`);
+  report.clickThrough.unlockShownWhenLocked = await miniEval(`getComputedStyle(document.getElementById('mini-unlock')).display !== 'none'`);
+
+  // 真实点「解锁」-> 关掉点击穿透
+  //（先用 CDP 按住验证"不触发拖动"，松开正好就是那次点击）
+  const unlockRect = await miniEval(`(() => {
+    const r = document.getElementById('mini-unlock').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  })()`);
+  await input('mousePressed', unlockRect.x + unlockRect.w / 2, unlockRect.y + unlockRect.h / 2);
   await sleep(200);
-  await input('mousePressed', view.buttonCenterCss.x, view.buttonCenterCss.y);
-  await sleep(200);
-  const hudDragStarted = await miniEval(`document.body.classList.contains('dragging')`);
-  await input('mouseReleased', view.buttonCenterCss.x, view.buttonCenterCss.y);
-  report.hudDragStarted = hudDragStarted;
+  const barDragStarted = await miniEval(`document.body.classList.contains('dragging')`);
+  await input('mouseReleased', unlockRect.x + unlockRect.w / 2, unlockRect.y + unlockRect.h / 2);
+  report.barDragStarted = barDragStarted;
+  await sleep(700);
+  report.clickThrough.afterUnlockClick = {
+    setting: await mapEval(`window.api.getConfig().then((c) => !!c.miniClickThrough)`),
+    ignore: (await mapEval(`window.api.miniStatus()`)).ignoreMouseEvents,
+    lockShown: await miniEval(`getComputedStyle(document.getElementById('mini-lock')).display !== 'none'`),
+  };
 
   // ------------------------------------------------- 3) 拖动窗口：精确跟随真实光标
   await dragPress();
@@ -184,6 +248,7 @@ function cdp(wsUrl, calls) {
     boundsDuringDrag: bounds1,
     boundsAfterRelease: bounds2,
     movedDip: { x: bounds1.x - bounds0.x, y: bounds1.y - bounds0.y },
+    sizeChanged: { w: bounds2.width - bounds0.width, h: bounds2.height - bounds0.height },
     savedMiniPos: saved,
   };
 
@@ -204,19 +269,49 @@ function cdp(wsUrl, calls) {
   // 光标归位
   ps('move', { x: cursor0[0], y: cursor0[1] });
 
+  // ------------------------------------------------- 4.5) 滚轮缩放（真实滚轮事件）
+  const scaleBefore = await miniEval(`Math.round(window.__view.view.scale * 1000) / 1000`);
+  ps('wheel', { x: center.x, y: center.y, delta: 120 });
+  await sleep(300);
+  ps('wheel', { x: center.x, y: center.y, delta: 120 });
+  await sleep(300);
+  const scaleIn = await miniEval(`Math.round(window.__view.view.scale * 1000) / 1000`);
+  ps('wheel', { x: center.x, y: center.y, delta: -120 });
+  ps('wheel', { x: center.x, y: center.y, delta: -120 });
+  await sleep(300);
+  const scaleBack = await miniEval(`Math.round(window.__view.view.scale * 1000) / 1000`);
+  report.wheel = { scaleBefore, scaleIn, scaleBack, zoomedIn: scaleIn > scaleBefore, zoomedBack: scaleBack < scaleIn };
+
   // ------------------------------------------------- 5) 结论
   const expected = DELTA;
   const checks = {
     '窗口不可键盘聚焦': status0.focusable === false,
-    '小地图按钮不可 Tab 聚焦': view.hudTabIndex.every((t) => t === -1),
+    '雷达没有常驻工具条（按钮仅靠近时出现）': view.hudToolbar === false && view.barOpacityIdle === 0,
+    '锁 / 解锁两个按钮都在雷达上': view.barButtons.join('/') === '锁/解锁',
+    '两个按钮都不可 Tab 聚焦': view.lockBtnTabIndex === -1 && view.unlockBtnTabIndex === -1,
     '圆盘裁剪在 #mini-root 而非 body': view.bodyClip === 'none' && /circle/.test(view.rootClip || ''),
-    '悬停后工具条可见': view.hudDisplay === 'flex',
-    '真实鼠标点击工具条按钮生效': report.hudClick.toggled === true,
-    '点击按钮不会移动窗口': report.hudClick.boundsUnchanged === true,
-    '按在按钮上不触发拖动': hudDragStarted === false,
+    '默认固定地图方向（不随视角旋转）': view.rotate === false && view.rot === 0,
+    '未锁定时靠近才显示（此时显示「锁」）': report.lockBar.opacityOnApproach === 1
+      && report.lockBar.lockShown === true && report.lockBar.unlockShown === false,
+    '按在「锁」上不触发拖动': report.barDragStarted === false,
+    '点「锁」即开启点击穿透并写回配置': report.clickThrough.settingAfterLockClick === true
+      && report.clickThrough.lockedIgnoreAway === true,
+    '点击穿透：锁定时真实点击不落到雷达上': report.clickThrough.dragStartedWhileLocked === false
+      && report.clickThrough.boundsUnchangedWhileLocked === true,
+    '锁定后鼠标放在雷达上就显示「解锁」（鼠标仍穿透）': report.clickThrough.hotOnDisc.hotClass === true
+      && report.clickThrough.hotOnDisc.unlockShown === true
+      && report.clickThrough.hotOnDisc.stillClickThrough === true,
+    '移到小条上才临时接管鼠标（此时才可点）': report.clickThrough.barLive === true
+      && report.clickThrough.unlockShownWhenLocked === true
+      && report.clickThrough.hoverInteractive === false,
+    '点「解锁」即关闭点击穿透并写回配置': report.clickThrough.afterUnlockClick.setting === false
+      && report.clickThrough.afterUnlockClick.ignore === false
+      && report.clickThrough.afterUnlockClick.lockShown === true,
+    '滚轮仍可缩放雷达': report.wheel.zoomedIn === true && report.wheel.zoomedBack === true,
     '按下圆盘进入拖动会话': dragStarted === true,
     '拖动精确跟随真实光标': Math.abs(report.drag.movedDip.x - expected) <= 3
       && Math.abs(report.drag.movedDip.y - expected) <= 3,
+    '拖动不会把窗口越拖越大': report.drag.sizeChanged.w === 0 && report.drag.sizeChanged.h === 0,
     '松手后位置被记忆': !!saved && !!bounds2 && saved.x === bounds2.x && saved.y === bounds2.y,
     '可拖回原位置': report.dragRestored.backToOrigin === true,
   };

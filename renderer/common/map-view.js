@@ -649,42 +649,25 @@ export class MapView {
       const icon = this.#iconFor(m);
       const baseSize = m.group === 'boss' ? 30 : (m.group.startsWith('loot:') ? 22 : 26);
       const iconSize = Math.max(this.mini ? 18 : 10, baseSize * (this.mini ? 1.12 : 1) * sf);
-      // 底盘半径：小地图与赛季文件都画"形状 + 分组色"底盘，比图标大一圈（否则边框被图标盖住看不见）
-      const badgeR = icon && (this.mini || m.group.startsWith('season:')) ? iconSize / 2 + 4 : 0;
-      const drawn = badgeR ? iconSize * 0.85 : iconSize; // 图标略小于底盘，露出可见的边框
+      // 所有标记一律只画图标本体——不加任何底盘/圆形背景（主窗口与雷达一致）
       const label = this.mini
         ? (miniLabeled && miniLabeled.has(m) ? shortText(m.shortLabel || m.label, 8) : null)
         : (this.#labelVisible(m) ? (m.shortLabel || m.label) : null);
       const fs = this.mini ? 10 : Math.max(8, 12 * sf);
       if (icon) {
-        if (badgeR && m.group.startsWith('season:')) {
-          // 赛季文件图标是游戏内物品图（自带深色底），用类型色圆盘做粗环：远看也能分辨文件类型
-          el.appendChild(shapeEl('circle', badgeR, {
-            fill: m.color, 'fill-opacity': '0.95',
-            stroke: 'rgba(6,8,12,0.85)', 'stroke-width': '1.4',
-          }));
-        } else if (badgeR) {
-          // 小地图底盘：按分组用不同形状 + 分组色描边（原来全是一模一样的灰圆圈，分不清）
-          // Boss 头像是深色美术，用浅色底盘才看得清；其他图标是浅色/彩色字形，用深色底盘
-          el.appendChild(shapeEl(markerShape(m.group), badgeR, {
-            fill: m.group === 'boss' ? 'rgba(237,242,247,0.92)' : 'rgba(8,11,16,0.88)',
-            stroke: m.color,
-            'stroke-width': '2',
-          }));
-        }
         const img = document.createElementNS(ns(), 'image');
         img.setAttribute('href', 'app://data/icons/' + icon);
-        img.setAttribute('x', String(-drawn / 2));
-        img.setAttribute('y', String(-drawn / 2));
-        img.setAttribute('width', String(drawn));
-        img.setAttribute('height', String(drawn));
+        img.setAttribute('x', String(-iconSize / 2));
+        img.setAttribute('y', String(-iconSize / 2));
+        img.setAttribute('width', String(iconSize));
+        img.setAttribute('height', String(iconSize));
         img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
         el.appendChild(img);
-        if (label) el.appendChild(labelPill(label, Math.max(drawn, badgeR * 2), fs));
+        if (label) el.appendChild(labelPill(label, iconSize, fs));
         // 最近撤离点高亮圈
         if (this.nearestExfil && m === this.nearestExfil) {
           const ring = document.createElementNS(ns(), 'circle');
-          ring.setAttribute('r', String((badgeR || drawn / 2) + 5));
+          ring.setAttribute('r', String(iconSize / 2 + 5));
           ring.setAttribute('fill', 'none');
           ring.setAttribute('stroke', '#fef08a');
           ring.setAttribute('stroke-width', '2');
@@ -1081,22 +1064,6 @@ export class MapView {
 function ns() { return 'http://www.w3.org/2000/svg'; }
 
 /**
- * 标记底盘形状（小地图用）：形状 + 分组色一起区分标记类型，
- * 解决"全是一模一样的圆圈、远看没有任何辨识度"的问题。
- */
-export function markerShape(group) {
-  if (group.startsWith('season:')) return 'circle';
-  if (group.startsWith('extract')) return 'shield';
-  if (group.startsWith('loot:')) return 'square';
-  if (group === 'boss') return 'hexagon';
-  if (group === 'hazard') return 'triangle';
-  if (group === 'transit' || group === 'weapon') return 'diamond';
-  if (group === 'lock' || group === 'switch') return 'square';
-  if (group === 'btrStop') return 'hexagon';
-  return 'circle';
-}
-
-/**
  * `meters` 米的世界距离在 scale=1 时对应多少屏幕像素（用于"半径 N 米铺满视口"的换算）。
  * 必须用屏幕距离（hypot）而不是单看 x/y 分量：像工厂这种 coordinateRotation=90° 的地图，
  * +x 的世界偏移只体现在屏幕 y 上，只看 x 分量会得到 0（缩放直接失控）。
@@ -1108,38 +1075,6 @@ export function metersToScreen(proj, x, z, meters = 1) {
   const d1 = Math.hypot(p1.x - p0.x, p1.y - p0.y);
   const d2 = Math.hypot(p2.x - p0.x, p2.y - p0.y);
   return Math.max(d1, d2);
-}
-
-/** 生成底盘图形（circle | square | diamond | triangle | hexagon | shield），半径 r 为屏幕像素 */export function shapeEl(shape, r, attrs = {}) {
-  const n = ns();
-  const poly = (points) => {
-    const el = document.createElementNS(n, 'polygon');
-    el.setAttribute('points', points.map(([x, y]) => `${(x * r).toFixed(2)},${(y * r).toFixed(2)}`).join(' '));
-    return el;
-  };
-  let el;
-  if (shape === 'square') {
-    const s = r * 0.92;
-    el = document.createElementNS(n, 'rect');
-    el.setAttribute('x', String(-s));
-    el.setAttribute('y', String(-s));
-    el.setAttribute('width', String(s * 2));
-    el.setAttribute('height', String(s * 2));
-    el.setAttribute('rx', String(r * 0.3));
-  } else if (shape === 'diamond') {
-    el = poly([[0, -1.22], [1.12, 0], [0, 1.22], [-1.12, 0]]);
-  } else if (shape === 'triangle') {
-    el = poly([[0, -1.25], [1.12, 0.82], [-1.12, 0.82]]);
-  } else if (shape === 'hexagon') {
-    el = poly([[0, -1.16], [1.02, -0.6], [1.02, 0.6], [0, 1.16], [-1.02, 0.6], [-1.02, -0.6]]);
-  } else if (shape === 'shield') {
-    el = poly([[0, -1.12], [1.0, -1.12], [1.0, 0.26], [0, 1.08], [-1.0, 0.26], [-1.0, -1.12]]);
-  } else {
-    el = document.createElementNS(n, 'circle');
-    el.setAttribute('r', String(r));
-  }
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  return el;
 }
 
 /** 坐标格式化（tooltip 用，避免 -0.00 之类） */
