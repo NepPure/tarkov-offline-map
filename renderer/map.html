@@ -50,8 +50,8 @@
     <div class="legend-head">
       <span>标记点图例</span>
       <div class="legend-actions">
-        <button id="legend-all" title="全部显示">全部</button>
-        <button id="legend-none" title="全部隐藏">无</button>
+        <button id="legend-all" title="所有大类全部显示">全开</button>
+        <button id="legend-none" title="所有大类全部隐藏">全关</button>
         <button id="legend-close">×</button>
       </div>
     </div>
@@ -87,6 +87,8 @@
           <label class="row"><input type="checkbox" id="set-auto-floor" /> 自动切换地图图层：根据玩家高度自动切换楼层</label>
           <label class="row">地图透明度 <input type="range" id="set-map-opacity" min="0.2" max="1" step="0.05" style="flex:1" /></label>
           <label class="row">标记大小 <input type="range" id="set-marker-scale" min="0.5" max="2" step="0.1" style="flex:1" /></label>
+          <label class="row">地名文字大小 <input type="range" id="set-label-scale" min="0.8" max="2.5" step="0.1" style="flex:1" /></label>
+          <div class="hint">地名文字是"白色内色 + 深色外框"（先描边后填充，笔画平滑），默认已比旧版大；嫌挡地图就调小。</div>
         </section>
         <section class="settings-card">
           <h3>提示与行为</h3>

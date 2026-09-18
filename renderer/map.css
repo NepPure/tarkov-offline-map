@@ -191,6 +191,26 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
 .legend-actions button { padding: 2px 8px; font-size: 11px; }
 .legend-section { margin-bottom: 10px; }
 .legend-title { font-size: 12px; color: var(--muted); margin: 4px 0; }
+/* 大类组头：一个批量开关 + 组名 + "已开/总数" */
+.legend-group {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 6px; margin-bottom: 2px;
+  border-radius: 5px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  background: rgba(255,255,255,0.045);
+  border-left: 2px solid var(--accent);
+}
+.legend-group:hover { background: rgba(34,211,238,0.12); }
+.legend-group input { accent-color: var(--accent); flex: none; }
+.legend-group input:indeterminate { accent-color: var(--yellow); }
+.legend-caret { width: 11px; flex: none; color: var(--muted); font-size: 10px; text-align: center; }
+.legend-caret:hover { color: var(--accent); }
+.legend-section.collapsed .legend-items { display: none; }
+.legend-group-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend-group .legend-count { font-variant-numeric: tabular-nums; }
+.legend-section.all-off .legend-group { border-left-color: var(--line); color: var(--muted); }
+.legend-section.all-off .legend-group-name { color: var(--muted); }
+.legend-items { padding-left: 14px; }
 .legend-item {
   display: flex; align-items: center; gap: 7px;
   padding: 3px 4px; border-radius: 5px; cursor: pointer; font-size: 12px;

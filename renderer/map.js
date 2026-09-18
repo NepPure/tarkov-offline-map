@@ -101,6 +101,7 @@ async function init() {
   view.setShowAllHeights(state.cfg.showAllMarkers !== false);
   view.setViewMode({ follow: state.cfg.autoCenter !== false });
   view.setMarkerScale(state.cfg.markerScale || 1);
+  view.setLabelScale(state.cfg.labelScale || 1);
   $('#btn-follow').classList.toggle('active', state.cfg.autoCenter !== false);
   applyAutoZoom(state.cfg.autoZoom !== false);
 
@@ -123,23 +124,63 @@ function setAllToggles(on) {
 }
 
 // ---------------------------------------------------------------------------
-// 图例面板
+// 图例面板：按大类分组，每组一个"批量显示/隐藏"的组开关（三态：全开/部分/全关）
+// 组头左侧的小三角可折叠该组（面板很长时很方便），折叠状态在重绘后保持
 // ---------------------------------------------------------------------------
+const collapsedLegendGroups = new Set();
+
 function renderLegend() {
   const body = $('#legend-body');
   const legend = view.getLegend ? view.getLegend() : [];
   body.innerHTML = '';
-  for (const item of legend) {
-    const rows = item.children && item.children.length ? item.children : [item];
+  for (const group of legend) {
     const sec = document.createElement('div');
     sec.className = 'legend-section';
-    let titleEl = null;
-    if (item.children) {
-      sec.innerHTML = `<div class="legend-title">${item.label}</div><div class="legend-items"></div>`;
-      titleEl = sec.querySelector('.legend-items');
-    }
-    const itemsWrap = titleEl || sec;
-    for (const it of rows) {
+
+    const head = document.createElement('label');
+    head.className = 'legend-group';
+    head.innerHTML = `
+      <span class="legend-caret"></span>
+      <input type="checkbox" class="legend-group-box" />
+      <span class="legend-group-name"></span>
+      <span class="legend-count"></span>`;
+    head.querySelector('.legend-group-name').textContent = group.label;
+    const box = head.querySelector('input');
+    const caret = head.querySelector('.legend-caret');
+    const countEl = head.querySelector('.legend-count');
+    const isCollapsed = () => collapsedLegendGroups.has(group.id);
+    const paintCaret = () => { caret.textContent = isCollapsed() ? '▸' : '▾'; };
+    caret.title = '折叠 / 展开本组';
+    caret.addEventListener('click', (e) => {
+      e.preventDefault(); // 阻止 label 把点击转成勾选框
+      e.stopPropagation();
+      if (isCollapsed()) collapsedLegendGroups.delete(group.id);
+      else collapsedLegendGroups.add(group.id);
+      sec.classList.toggle('collapsed', isCollapsed());
+      paintCaret();
+    });
+    const syncHead = () => {
+      const on = group.items.filter((it) => view.markerToggles[it.id] !== false).length;
+      box.checked = on === group.items.length;
+      box.indeterminate = on > 0 && on < group.items.length;
+      countEl.textContent = `${on}/${group.items.length}`;
+      sec.classList.toggle('all-off', on === 0);
+    };
+    syncHead();
+    paintCaret();
+    sec.classList.toggle('collapsed', isCollapsed());
+    box.addEventListener('change', () => {
+      const toggles = {};
+      for (const it of group.items) toggles[it.id] = box.checked;
+      api.setConfig({ markerToggles: toggles });
+      view.setMarkerToggles(toggles);
+      renderLegend();
+    });
+    sec.appendChild(head);
+
+    const itemsWrap = document.createElement('div');
+    itemsWrap.className = 'legend-items';
+    for (const it of group.items) {
       const row = document.createElement('label');
       row.className = 'legend-item';
       const checked = view.markerToggles[it.id] !== false;
@@ -157,9 +198,11 @@ function renderLegend() {
         toggles[gid] = e.target.checked;
         api.setConfig({ markerToggles: toggles });
         view.setMarkerToggles(toggles);
+        syncHead(); // 只更新组头状态，不重建面板（避免滚动位置跳动）
       });
       itemsWrap.appendChild(row);
     }
+    sec.appendChild(itemsWrap);
     body.appendChild(sec);
   }
 }
@@ -183,6 +226,7 @@ function openSettings() {
   $('#set-mini-radius').value = c.miniRadius ?? 55;
   $('#set-mini-follow').checked = !!c.miniFollowMainZoom;
   $('#set-marker-scale').value = c.markerScale ?? 1;
+  $('#set-label-scale').value = c.labelScale ?? 1;
   $('#settings-dialog').showModal();
 }
 
@@ -202,6 +246,7 @@ async function saveSettings() {
     miniRadius: Number($('#set-mini-radius').value),
     miniFollowMainZoom: $('#set-mini-follow').checked,
     markerScale: Number($('#set-marker-scale').value),
+    labelScale: Number($('#set-label-scale').value),
   };
   state.cfg = { ...state.cfg, ...patch };
   await api.setConfig(patch);
@@ -212,6 +257,7 @@ async function saveSettings() {
   applyAutoZoom(patch.autoZoom);
   view.setMapOpacity(patch.mapOpacity);
   view.setMarkerScale(patch.markerScale);
+  view.setLabelScale(patch.labelScale);
   $('#btn-mini').classList.toggle('active', patch.miniVisible);
 }
 

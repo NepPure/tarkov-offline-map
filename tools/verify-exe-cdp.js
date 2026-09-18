@@ -91,9 +91,9 @@ function cdp(wsUrl, calls) {
       domMarkers: document.querySelectorAll('.map-marker').length,
       seasonGroups: Object.keys(groups).filter((k) => k.startsWith('season:')).map((k) => k + '=' + groups[k]),
       btrStops: groups.btrStop || 0,
-      legendSeason: (v.getLegend().find((g) => g.id === 'group-season') || { children: [] }).children
-        .map((c) => c.label + ' x' + c.count + ' icon=' + c.icon),
+      legendGroups: v.getLegend().map((g) => g.label + '[' + g.items.length + ']:' + g.items.map((c) => c.label + ' x' + c.count).join(' | ')),
       legendIconCount: document.querySelectorAll('.legend-icon').length,
+      legendGroupBoxes: document.querySelectorAll('.legend-group-box').length,
       seasonIconSrc: (() => { const i = document.querySelector('img.legend-icon'); return i ? i.getAttribute('src') : null; })(),
       seasonIconOk: (() => {
         const i = document.querySelector('img.legend-icon');

@@ -101,6 +101,7 @@ function loadSettings() {
     sound: true,                // 声音提示
     autoDeleteScreenshots: false, // 自动删除截图文件
     markerScale: 1,             // 标记大小乘数
+    labelScale: 1,              // 地名文字大小乘数
     markerToggles: null,        // 由渲染层管理（null = 全部开启）
   };
   let merged = defaults;
@@ -656,6 +657,12 @@ async function runVisualTest() {
         legendRows: document.querySelectorAll('.legend-item').length,
         statusText: document.querySelector('.statusbar')?.innerText.slice(0, 200),
         pillTexts: Array.from(document.querySelectorAll('.map-marker text')).slice(0, 8).map(t => t.textContent),
+        // 地名文字样式：白色内色 + 深色外框 + paint-order=stroke（平滑）
+        placeLabels: Array.from(document.querySelectorAll('.map-marker text'))
+          .filter((t) => t.getAttribute('paint-order') === 'stroke')
+          .slice(0, 4)
+          .map((t) => ({ text: t.textContent, fs: t.getAttribute('font-size'), fill: t.getAttribute('fill'), stroke: t.getAttribute('stroke'), sw: t.getAttribute('stroke-width') })),
+        labelScale: window.__view.labelScale,
         markerHtml: Array.from(document.querySelectorAll('.map-marker')).slice(0, 2).map(m => m.outerHTML.slice(0, 1400)),
         dbg: document.querySelector('.mapstage') ? window.__viewDebug : null,
       })`);
@@ -798,12 +805,18 @@ async function runVisualTest() {
         const groups = {};
         for (const m of (window.__view.markerCache || [])) groups[m.group] = (groups[m.group] || 0) + 1;
         return {
-          legendSections: Array.from(document.querySelectorAll('.legend-title')).map((t) => t.textContent),
+          legendSections: Array.from(document.querySelectorAll('.legend-group-name')).map((t) => t.textContent),
+          legendGroupStates: Array.from(document.querySelectorAll('.legend-group')).map((h) => ({
+            name: h.querySelector('.legend-group-name').textContent,
+            state: h.querySelector('.legend-count').textContent,
+            checked: h.querySelector('input').checked,
+            indeterminate: h.querySelector('input').indeterminate,
+          })),
           legendIcons: document.querySelectorAll('.legend-icon').length,
           seasonRows: Array.from(document.querySelectorAll('.legend-item'))
             .filter((r) => r.querySelector('input').dataset.group.startsWith('season:'))
             .map((r) => r.innerText.replace(/\\s+/g, ' ')),
-          legendSeasonCount: ((legend.find((g) => g.id === 'group-season') || {}).children || [])
+          legendSeasonCount: ((legend.find((g) => g.id === 'g-season') || {}).items || [])
             .reduce((a, c) => a + c.count, 0),
           seasonCount: (groups['season:pmc'] || 0) + (groups['season:technical'] || 0),
           btrStops: groups.btrStop,
@@ -814,7 +827,13 @@ async function runVisualTest() {
       fs.writeFileSync(path.join(outDir, 'lighthouse.png'), img.toPNG());
       console.log('[visual] lighthouse.png saved');
       // 关掉全部"赛季文件"图钉 -> 标记数应正好减少 seasonCount（验证图钉开关生效）
-      const before = await mainWin.webContents.executeJavaScript(`document.querySelectorAll('.map-marker').length`);
+      // 注意：setMap 内部有 await（读图标清单），此刻 DOM 可能正好是空的，先强制重绘一次再数
+      const settleMarkers = async () => {
+        await mainWin.webContents.executeJavaScript(`(() => { const v = window.__view; v.setViewport(v.getViewport()); return true; })()`);
+        await new Promise((r) => setTimeout(r, 250));
+        return mainWin.webContents.executeJavaScript(`document.querySelectorAll('.map-marker').length`);
+      };
+      const before = await settleMarkers();
       await mainWin.webContents.executeJavaScript(`(() => {
         const rows = Array.from(document.querySelectorAll('.legend-item'))
           .filter((r) => r.querySelector('input').dataset.group.startsWith('season:'));
@@ -823,14 +842,80 @@ async function runVisualTest() {
       })()`);
       await new Promise((r) => setTimeout(r, 400));
       const after = await mainWin.webContents.executeJavaScript(`document.querySelectorAll('.map-marker').length`);
-      console.log('[visual] season 图钉开关: ' + before + ' -> ' + after + ' (应减少 ' + season.seasonCount + ')');
-      const img2 = await mainWin.webContents.capturePage();
+      console.log('[visual] season 图钉开关: ' + before + ' -> ' + after + ' (应减少 ' + season.seasonCount + ')');      const img2 = await mainWin.webContents.capturePage();
       fs.writeFileSync(path.join(outDir, 'season-off.png'), img2.toPNG());
       // 恢复图钉
       await mainWin.webContents.executeJavaScript(`(() => {
         const rows = Array.from(document.querySelectorAll('.legend-item'))
           .filter((r) => r.querySelector('input').dataset.group.startsWith('season:'));
         for (const r of rows) { const i = r.querySelector('input'); if (!i.checked) i.click(); }
+        return true;
+      })()`);
+      await new Promise((r) => setTimeout(r, 300));
+      // 大类批量开关：点"物资箱 · 散落物资"组头 -> 该组全部关闭，标记数应正好减少该组数量
+      const markersBeforeGroup = await settleMarkers();
+      const groupBefore = await mainWin.webContents.executeJavaScript(`(() => {
+        const h = Array.from(document.querySelectorAll('.legend-group'))
+          .find((x) => x.querySelector('.legend-group-name').textContent.includes('物资'));
+        if (!h) return null;
+        const items = Array.from(document.querySelectorAll('.legend-item'))
+          .filter((r) => r.querySelector('input').dataset.group.startsWith('loot:') || r.querySelector('input').dataset.group === 'loose');
+        const sum = items.reduce((a, r) => a + Number(r.querySelector('.legend-count').textContent || 0), 0);
+        return { name: h.querySelector('.legend-group-name').textContent, state: h.querySelector('.legend-count').textContent, items: items.length, sum, markers: document.querySelectorAll('.map-marker').length };
+      })()`);
+      await mainWin.webContents.executeJavaScript(`(() => {
+        const h = Array.from(document.querySelectorAll('.legend-group'))
+          .find((x) => x.querySelector('.legend-group-name').textContent.includes('物资'));
+        h.querySelector('input').click();
+        return true;
+      })()`);
+      await new Promise((r) => setTimeout(r, 500));
+      const groupAfter = await mainWin.webContents.executeJavaScript(`(() => {
+        const h = Array.from(document.querySelectorAll('.legend-group'))
+          .find((x) => x.querySelector('.legend-group-name').textContent.includes('物资'));
+        const el = document.getElementById('legend-none');
+        return {
+          state: h.querySelector('.legend-count').textContent,
+          checked: h.querySelector('input').checked,
+          indeterminate: h.querySelector('input').indeterminate,
+          markers: document.querySelectorAll('.map-marker').length,
+        };
+      })()`);
+      console.log('[visual] LEGEND-GROUP 批量开关:', JSON.stringify({
+        before: { ...groupBefore, markers: markersBeforeGroup },
+        after: groupAfter,
+        expectDrop: groupBefore && groupBefore.sum,
+        actualDrop: groupBefore ? markersBeforeGroup - groupAfter.markers : null,
+      }));
+      // 组内单个开关 -> 组头应变三态（部分选中）；再恢复整组
+      const partial = await mainWin.webContents.executeJavaScript(`(() => {
+        const r = Array.from(document.querySelectorAll('.legend-item'))
+          .find((x) => x.querySelector('input').dataset.group === 'loose');
+        if (!r) return null;
+        r.querySelector('input').click();
+        const h = Array.from(document.querySelectorAll('.legend-group'))
+          .find((x) => x.querySelector('.legend-group-name').textContent.includes('物资'));
+        return { state: h.querySelector('.legend-count').textContent, checked: h.querySelector('input').checked, indeterminate: h.querySelector('input').indeterminate };
+      })()`);
+      console.log('[visual] LEGEND-GROUP 组头三态:', JSON.stringify(partial));
+      // 组头小三角：折叠该组（面板很长时用），折叠后组内行不可见
+      const collapse = await mainWin.webContents.executeJavaScript(`(() => {
+        const secs = Array.from(document.querySelectorAll('.legend-section'));
+        const sec = secs.find((s) => s.querySelector('.legend-group-name').textContent.includes('物资'));
+        const visibleRows = () => Array.from(sec.querySelectorAll('.legend-item')).filter((r) => r.offsetParent !== null).length;
+        const total = sec.querySelectorAll('.legend-item').length;
+        const before = visibleRows();
+        sec.querySelector('.legend-caret').click();
+        const after = visibleRows();
+        const collapsed = sec.classList.contains('collapsed');
+        sec.querySelector('.legend-caret').click();
+        return { total, before, after, collapsed, restored: visibleRows(), stillCollapsed: sec.classList.contains('collapsed') };
+      })()`);
+      console.log('[visual] LEGEND-GROUP 折叠:', JSON.stringify(collapse));
+      await mainWin.webContents.executeJavaScript(`(() => {
+        const h = Array.from(document.querySelectorAll('.legend-group'))
+          .find((x) => x.querySelector('.legend-group-name').textContent.includes('物资'));
+        if (h.querySelector('.legend-count').textContent.split('/')[0] !== h.querySelector('.legend-count').textContent.split('/')[1]) h.querySelector('input').click();
         return true;
       })()`);
       await new Promise((r) => setTimeout(r, 300));

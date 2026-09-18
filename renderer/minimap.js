@@ -72,6 +72,7 @@ async function applyState(s) {
   if (s.config) {
     view.setMarkerToggles(s.config.markerToggles);
     view.setMarkerScale(s.config.markerScale || 1);
+    view.setLabelScale(s.config.labelScale || 1);
     RADIUS_M = s.config.miniRadius || 55;
     miniFollowMainZoom = !!s.config.miniFollowMainZoom;
     api.setMiniOpacity(s.config.miniOpacity ?? 0.9);

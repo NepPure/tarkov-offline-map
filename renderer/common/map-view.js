@@ -50,6 +50,32 @@ const MINI_MARKER_CAP = 260;
 /** 小地图"舒适区"：超过这个数量就按重要度丢弃次要标记（否则小圆盘里全是重叠的图标） */
 const MINI_SOFT_CAP = 90;
 
+/**
+ * 地名文字大小（px）：随缩放、标记大小与"地名文字大小"设置变化。
+ * @param {number} sf 缩放系数（主窗口 = 随地图缩放，小地图 = 标记大小设置）
+ * @param {number} labelScale 用户设置的地名文字倍率
+ * @param {boolean} mini 是否小地图
+ */
+export function mapLabelFontSize(sf, labelScale = 1, mini = false) {
+  const base = mini ? 9 : 14;
+  const min = mini ? 8 : 10;
+  const max = mini ? 26 : 44;
+  return Math.max(min, Math.min(max, base * (sf || 1) * (labelScale || 1)));
+}
+
+/**
+ * 地名文字样式：白色内色 + 深色外框，外框宽度随字号变化。
+ * 配合 SVG 的 paint-order="stroke"（先描边后填充）→ 描边在外、字形完整、交界平滑。
+ */
+export function mapLabelStyle(fontSize) {
+  const fs = Number(fontSize) || 12;
+  return {
+    fill: '#ffffff',
+    stroke: '#05070b',
+    strokeWidth: Math.max(2.4, fs * 0.3),
+  };
+}
+
 export class MapView {
   constructor(container, { mini = false } = {}) {
     this.container = container;
@@ -76,6 +102,7 @@ export class MapView {
     this.seasonTypes = null;     // 赛季文件类型元数据 { itemId: {type,name,shortName,icon,color} }
     this.seasonNo = null;        // 赛季编号（图例标题）
     this.markerScale = 1;        // 标记大小乘数（设置项）
+    this.labelScale = 1;         // 地名文字大小乘数（设置项）
     this.measureMode = false;    // 尺子测距
     this.measurePoints = [];     // [{x,z}]
     this.measurePending = false;
@@ -401,11 +428,9 @@ export class MapView {
     this.#renderOverlay();
   }
 
-  /** 当前图例全部组 id（含动态物资组），供"全部/无"使用 */
+  /** 当前图例全部组 id（含动态物资组与赛季文件组），供"全部/无"使用 */
   allGroupIds() {
-    return this.getLegend().flatMap((item) =>
-      item.children && item.children.length ? item.children.map((c) => c.id) : [item.id]
-    );
+    return this.getLegend().flatMap((group) => (group.items || []).map((it) => it.id));
   }
 
   setShowAllHeights(v) {
@@ -667,15 +692,24 @@ export class MapView {
           el.appendChild(ring);
         }
       } else if (m.group === 'label') {
+        // 地名：白色内色 + 深色外框（paint-order: stroke = 先描边再填充，
+        // 描边不会侵蚀字形，笔画交界处平滑），大小随缩放与"地名文字大小"设置
         const text = document.createElementNS(ns(), 'text');
-        const fsLabel = this.mini ? 6 : Math.max(6, Math.min(14, 11 * sf));
-        text.setAttribute('x', '0'); text.setAttribute('y', '-2');
+        const fsLabel = mapLabelFontSize(sf, this.labelScale, this.mini);
+        const style = mapLabelStyle(fsLabel);
+        text.setAttribute('x', '0');
+        text.setAttribute('y', '-2');
         text.setAttribute('text-anchor', 'middle');
         text.setAttribute('font-size', String(fsLabel));
-        text.setAttribute('fill', m.color);
-        text.setAttribute('stroke', '#0b0e13');
-        text.setAttribute('stroke-width', '0.6');
-        text.setAttribute('opacity', '0.85');
+        text.setAttribute('font-weight', '600');
+        text.setAttribute('font-family', '"Microsoft YaHei", "Segoe UI", sans-serif');
+        text.setAttribute('fill', style.fill);
+        text.setAttribute('stroke', style.stroke);
+        text.setAttribute('stroke-width', String(style.strokeWidth));
+        text.setAttribute('stroke-linejoin', 'round');
+        text.setAttribute('stroke-linecap', 'round');
+        text.setAttribute('paint-order', 'stroke');
+        text.setAttribute('opacity', '0.98');
         text.textContent = m.label;
         el.appendChild(text);
       } else {
@@ -749,6 +783,12 @@ export class MapView {
 
   setMarkerScale(v) {
     this.markerScale = v > 0 ? v : 1;
+    this.#renderOverlay();
+  }
+
+  /** 地名文字大小（设置项） */
+  setLabelScale(v) {
+    this.labelScale = v > 0 ? v : 1;
     this.#renderOverlay();
   }
 
@@ -923,13 +963,43 @@ export class MapView {
     return out;
   }
 
-  /** 图例（含动态物资组与赛季文件组）：[{id,label,color,count}] */
+  /**
+   * 图例：按大类分组，每组都有"批量显示/隐藏"的组开关
+   * @returns {Array<{id:string,label:string,items:Array<{id:string,label:string,color?:string,count:number,icon?:string}>}>}
+   */
   getLegend() {
     if (!this.detail) return [];
     if (!this.markerCache) this.markerCache = this.#buildMarkers();
     const counts = this.markerCounts || {};
-    const defs = [];
-    // 赛季文件刷点（版本活动，放在最前；每个文件类型一个开关，图标用文件自身图标）
+    const entry = (key) => {
+      const d = MARKER_GROUPS[key];
+      if (!counts[key] || !d) return null;
+      return { id: key, label: d.label, color: d.color, count: counts[key] };
+    };
+    const groups = [];
+
+    // 1) 撤离 · 转移 · 交通（BTR 站点也是载具上下车点）
+    groups.push({
+      id: 'g-extract', label: '撤离 · 转移 · 交通',
+      items: ['extract_pmc', 'extract_scav', 'extract_shared', 'transit', 'btrStop'].map(entry).filter(Boolean),
+    });
+    // 2) Boss · 出生点（威胁分布）
+    groups.push({
+      id: 'g-threat', label: 'Boss · 出生点',
+      items: ['boss', 'spawn'].map(entry).filter(Boolean),
+    });
+    // 3) 钥匙锁 · 开关（开门/机关）
+    groups.push({
+      id: 'g-access', label: '钥匙锁 · 开关',
+      items: ['lock', 'switch'].map(entry).filter(Boolean),
+    });
+    // 4) 危险 · 固定武器
+    groups.push({
+      id: 'g-hazard', label: '危险 · 固定武器',
+      items: ['hazard', 'weapon'].map(entry).filter(Boolean),
+    });
+
+    // 5) 赛季文件刷点（版本活动找东西，按文件类型分开开关）
     const season = [];
     for (const key of Object.keys(counts)) {
       if (!key.startsWith('season:')) continue;
@@ -947,26 +1017,28 @@ export class MapView {
     if (season.length) {
       const order = Object.values(this.seasonTypes || {}).map((t) => t.type);
       season.sort((a, b) => order.indexOf(a.id.slice(7)) - order.indexOf(b.id.slice(7)));
-      defs.push({ id: 'group-season', label: `图例 · 赛季文件刷点${this.seasonNo ? `（赛季 ${this.seasonNo}）` : ''}`, children: season });
+      groups.push({
+        id: 'g-season',
+        label: `赛季文件刷点${this.seasonNo ? `（赛季 ${this.seasonNo}）` : ''}`,
+        items: season,
+      });
     }
-    for (const input of ['extract_pmc', 'extract_scav', 'extract_shared', 'transit']) {
-      const d = MARKER_GROUPS[input];
-      if (counts[input]) defs.push({ id: input, label: d.label, color: d.color, count: counts[input] });
-    }
-    // 物资容器分类
+
+    // 6) 物资箱 · 散落物资
     const loot = [];
     for (const key of Object.keys(counts)) {
       if (!key.startsWith('loot:')) continue;
       const name = key.slice(5);
-      const zh = this.#zhLootName(name);
-      loot.push({ id: key, label: zh, color: '#facc15', count: counts[key] });
+      loot.push({ id: key, label: this.#zhLootName(name), color: '#facc15', count: counts[key] });
     }
-    defs.push({ id: 'group-loot', label: '图例 · 物资箱', children: loot });
-    for (const input of ['boss', 'spawn', 'lock', 'switch', 'hazard', 'btrStop', 'loose', 'weapon', 'label']) {
-      const d = MARKER_GROUPS[input];
-      if (counts[input]) defs.push({ id: input, label: d.label, color: d.color, count: counts[input] });
-    }
-    return defs;
+    const loose = entry('loose');
+    if (loose) loot.push(loose);
+    if (loot.length) groups.push({ id: 'g-loot', label: '物资箱 · 散落物资', items: loot });
+
+    // 7) 地名
+    groups.push({ id: 'g-label', label: '地名', items: ['label'].map(entry).filter(Boolean) });
+
+    return groups.filter((g) => g.items.length > 0);
   }
 
   #zhLootName(raw) {
@@ -1104,14 +1176,15 @@ function labelPill(text, iconSize, fs) {
   rect.setAttribute('width', String(w + 8));
   rect.setAttribute('height', String(fs + 6));
   rect.setAttribute('rx', '3');
-  rect.setAttribute('fill', 'rgba(8,11,16,0.72)');
-  rect.setAttribute('stroke', 'rgba(255,255,255,0.14)');
+  rect.setAttribute('fill', 'rgba(8,11,16,0.82)');
+  rect.setAttribute('stroke', 'rgba(255,255,255,0.22)');
   const textEl = document.createElementNS(ns(), 'text');
   textEl.setAttribute('x', '0');
   textEl.setAttribute('y', String(iconSize / 2 + fs + 3.5));
   textEl.setAttribute('text-anchor', 'middle');
   textEl.setAttribute('font-size', String(fs));
-  textEl.setAttribute('fill', '#e8edf3');
+  textEl.setAttribute('font-weight', '600');
+  textEl.setAttribute('fill', '#ffffff');
   textEl.textContent = String(text);
   g.appendChild(rect);
   g.appendChild(textEl);
