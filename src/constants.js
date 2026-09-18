@@ -10,22 +10,62 @@
 // 场景 Bundle 名 → 地图 raidCode（来自原站 _pe 表）
 // 日志 scene preset path:maps/<bundleName>_preset.bundle
 // ---------------------------------------------------------------------------
+// 注意：日志里绝大多数是 "maps/<name>_preset.bundle"，但立交桥是 "maps/shopping_mall.bundle"
+// （全游戏唯一一个不带 _preset 的），两种写法都要查得到，否则立交桥永远识别不出来。
 const BUNDLE_TO_RAIDCODE = {
   city_1st_iteration_preset: 'TarkovStreets',
+  city_1st_iteration: 'TarkovStreets',
   city_preset: 'TarkovStreets',
+  city: 'TarkovStreets',
   customs_preset: 'bigmap',
+  customs: 'bigmap',
   factory_day_preset: 'factory4_day',
+  factory_day: 'factory4_day',
   factory_night_preset: 'factory4_night',
+  factory_night: 'factory4_night',
   laboratory_preset: 'laboratory',
+  laboratory: 'laboratory',
   labyrinth_preset: 'Labyrinth',
+  labyrinth: 'Labyrinth',
   lighthouse_preset: 'Lighthouse',
+  lighthouse: 'Lighthouse',
   rezerv_base_preset: 'RezervBase',
+  rezerv_base: 'RezervBase',
   sandbox_preset: 'Sandbox',
+  sandbox: 'Sandbox',
   sandbox_high_preset: 'Sandbox_high',
+  sandbox_high: 'Sandbox_high',
   sandbox_start_preset: 'Sandbox_start',
+  sandbox_start: 'Sandbox_start',
+  sandbox_sl: 'Sandbox_start',
+  shopping_mall_preset: 'Interchange',
   shopping_mall: 'Interchange',
   shoreline_preset: 'Shoreline',
+  shoreline: 'Shoreline',
   woods_preset: 'Woods',
+  woods: 'Woods',
+};
+
+// ---------------------------------------------------------------------------
+// 第二信号：同一行末尾的 rcid:<Asset>.<ScenesPreset>.asset
+// 万一以后 bundle 命名又变了（例如某张图去掉了 _preset），这里还能兜住。
+// 取值来自真实日志统计（1.1.x）。
+// ---------------------------------------------------------------------------
+const RCID_TO_RAIDCODE = {
+  bigmap: 'bigmap',
+  city: 'TarkovStreets',
+  factory_day: 'factory4_day',
+  factory_night: 'factory4_night',
+  laboratory: 'laboratory',
+  labyrinth: 'Labyrinth',
+  lighthouse: 'Lighthouse',
+  rezerv_base: 'RezervBase',
+  sandbox: 'Sandbox',
+  sandbox_high: 'Sandbox_high',
+  sandbox_sl: 'Sandbox_start',
+  shopping_mall: 'Interchange',
+  shoreline: 'Shoreline',
+  woods: 'Woods',
 };
 
 // ---------------------------------------------------------------------------
@@ -79,6 +119,7 @@ const SCREENSHOT_RE_TOLERANT =
 
 module.exports = {
   BUNDLE_TO_RAIDCODE,
+  RCID_TO_RAIDCODE,
   RAIDCODE_TO_MAPKEY,
   MAPKEY_TO_SVG,
   SESSION_DIR_RE,

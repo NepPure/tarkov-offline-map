@@ -224,10 +224,14 @@ function applyLogEvent(ev) {
   if (raidCode) {
     const key = RAIDCODE_TO_MAPKEY[raidCode];
     const detail = key && mapsData.getByKey(key);
-    if (detail && detail.id !== state.mapId) {
+    if (!detail) {
+      appLog(`UNMAPPED raidCode: ${raidCode} by ${ev.type} (日志里有这张图，但表里没有)`);
+    } else if (detail.id !== state.mapId) {
+      appLog(`map switch -> ${detail.key} (${detail.name}) by ${ev.type} raidCode=${raidCode}`);
       broadcast({ mapId: detail.id, mapKey: detail.key, floor: 'auto', lastMapSource: 'logs' });
     }
   }
+  // 认不出来的 bundle 由 logWatcherStatus('unknown-map') 统一记日志（见 startWatchers）
   broadcast({ logSummary: { ...state.logSummary, lastEvent: ev } });
 }
 
@@ -269,6 +273,18 @@ function miniLog(msg) {
   try {
     const file = path.join(app.getPath('userData'), 'mini.log');
     try { if (fs.statSync(file).size > 256 * 1024) fs.writeFileSync(file, ''); } catch {}
+    fs.appendFileSync(file, line);
+  } catch {}
+}
+
+// 地图识别诊断日志（userData/app.log）：记录会话切换、地图切换、认不出来的图。
+// 用户报"没切换地图"时，先看这个文件就能定位是日志没读到、还是 bundle 名没认出来。
+function appLog(msg) {
+  const line = `${new Date().toISOString()} ${msg}\n`;
+  console.log('[app]', msg);
+  try {
+    const file = path.join(app.getPath('userData'), 'app.log');
+    try { if (fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, ''); } catch {}
     fs.appendFileSync(file, line);
   } catch {}
 }
@@ -723,6 +739,9 @@ function syncWatchers() {
 
 function startWatchers() {
   logWatcher = new LogWatcher(settings.logsPath, (ev) => applyLogEvent(ev), (s) => {
+    if (s.state === 'watching') appLog(`log session: ${s.session} (${s.version}) root=${s.root}`);
+    else if (s.state === 'unknown-map') appLog(`UNKNOWN map bundle: ${s.bundle} (rcid=${s.rcid}) sample=${s.sample}`);
+    else appLog(`log watcher: ${s.state}${s.message ? ' ' + s.message : ''}`);
     broadcast({ logWatcherStatus: s });
   });
   shotWatcher = new ScreenshotWatcher(settings.screenshotsPath, (pos) => applyPosition(pos), (s) => {

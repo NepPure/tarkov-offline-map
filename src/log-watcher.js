@@ -14,6 +14,8 @@ const { SESSION_DIR_RE } = require('./constants');
 const { parseLogLine } = require('./parsers');
 
 const POLL_INTERVAL = 700; // ms
+const BACKFILL_BYTES = 2 * 1024 * 1024; // 启动时回补解析的字节数
+const SYNC_SCAN_BYTES = 8 * 1024 * 1024; // 启动定位"当前地图"时最多回扫的字节数
 
 class LogWatcher {
   /**
@@ -30,6 +32,8 @@ class LogWatcher {
     this.buffers = new Map(); // 文件名 -> 残余半行
     this.timer = null;
     this.started = false;
+    this.needSync = null; // 切换会话后需要回扫定位当前地图的目录
+    this.sawMapEvent = false; // 回补窗口里是否已经解析出地图行
   }
 
   start() {
@@ -89,20 +93,34 @@ class LogWatcher {
     const dirs = this.sessionDirs();
     if (dirs.length === 0) {
       if (this.currentDir) {
+        // 会话目录被清掉（游戏清理日志）：顺手关掉尾巴，别攥着已删除文件的句柄
+        this.closeTails();
         this.currentDir = null;
+        this.needSync = null;
         this.onStatus({ state: 'no-session', root: this.root });
       }
       return;
     }
     const latest = dirs[0];
     if (!this.currentDir || this.currentDir.full !== latest.full) {
-      // 切换会话：关闭旧尾巴，打开最新会话（回补最近 128KB 历史）
+      // 切换会话：关闭旧尾巴，打开最新会话（回补最近 2MB 历史）
       this.closeTails();
       this.currentDir = latest;
       this.openSession(latest, true);
+      this.needSync = latest.full;
+      this.sawMapEvent = false;
       this.onStatus({ state: 'watching', root: this.root, session: latest.name, version: latest.version });
     }
     this.readTails(fileChanged);
+    // 回补窗口里没解析出任何地图行时才做回扫：
+    // 窗口是文件尾部，只要窗口里有一条地图行，那它必然就是最后一条，不需要再扫。
+    if (this.needSync && !this.sawMapEvent) {
+      const dir = this.needSync;
+      this.needSync = null;
+      this.syncLastMap(dir);
+    } else if (this.needSync) {
+      this.needSync = null;
+    }
   }
 
   openSession(dir, backfill) {
@@ -117,7 +135,7 @@ class LogWatcher {
       if (backfill) {
         try {
           const size = fs.statSync(full).size;
-          pos = Math.max(0, size - 128 * 1024);
+          pos = Math.max(0, size - BACKFILL_BYTES);
         } catch {}
       }
       try {
@@ -136,6 +154,45 @@ class LogWatcher {
       this.tails.delete(name);
     }
     this.buffers.clear();
+  }
+
+  /**
+   * 回扫会话日志，找出"最后一处能确定地图的日志行"并抛出对应事件。
+   * 用于：应用在局内才启动、或会话很长导致进图行掉出回补窗口时，仍能立刻切到正确的图。
+   * @param {string} dirFull 会话目录绝对路径
+   */
+  syncLastMap(dirFull) {
+    let files;
+    try {
+      files = fs.readdirSync(dirFull).filter((n) => / application_\d+\.log$/i.test(n));
+    } catch {
+      return;
+    }
+    let best = null;
+    for (const name of files) {
+      const full = path.join(dirFull, name);
+      let size;
+      try { size = fs.statSync(full).size; } catch { continue; }
+      const from = Math.max(0, size - SYNC_SCAN_BYTES);
+      let buf;
+      try {
+        const fd = fs.openSync(full, 'r');
+        buf = Buffer.alloc(size - from);
+        fs.readSync(fd, buf, 0, buf.length, from);
+        fs.closeSync(fd);
+      } catch {
+        continue;
+      }
+      const lines = buf.toString('utf8').split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const ev = parseLogLine(lines[i]);
+        if (!ev) continue;
+        if (ev.type !== 'scene-preset' && ev.type !== 'network-game-create') continue;
+        if (ev.raidCode && (!best || (ev.ts || 0) >= (best.ts || 0))) best = ev;
+        break; // 每个文件只看最后一条地图行
+      }
+    }
+    if (best) this.onEvent(best);
   }
 
   readTails(fileChanged) {
@@ -160,7 +217,15 @@ class LogWatcher {
       for (const line of lines) {
         if (!line.trim()) continue;
         const ev = parseLogLine(line);
-        if (ev) this.onEvent(ev);
+        if (!ev) continue;
+        // 认不出来的地图在这里报上去（只会写进诊断日志），下次遇到新版本改名的图能直接看到
+        if (ev.type === 'scene-preset' && !ev.raidCode) {
+          this.onStatus({ state: 'unknown-map', bundle: ev.bundle, rcid: ev.rcid, sample: line.trim().slice(0, 200) });
+        }
+        if ((ev.type === 'scene-preset' || ev.type === 'network-game-create') && ev.raidCode) {
+          this.sawMapEvent = true;
+        }
+        this.onEvent(ev);
       }
     }
   }

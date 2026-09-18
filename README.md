@@ -170,6 +170,31 @@ Boss 就是头像、钥匙就是钥匙、赛季文件就是文件图标），大
 配置文件：`%APPDATA%\tarkov-offline-map\settings.json`（开发与打包版共用）
 运行状态转储：`%APPDATA%\tarkov-offline-map\state.json`（排查识别/定位问题用）
 小地图窗口日志：`%APPDATA%\tarkov-offline-map\mini.log`（窗口被系统吞掉/崩溃/自动重建都会记录）
+地图识别日志：`%APPDATA%\tarkov-offline-map\app.log`（会话切换/切图/认不出来的图，见下）
+
+### 地图识别怎么工作 & "没切图"怎么排查
+
+进图时游戏会往最新会话目录的 `* application_*.log` 写这样一行：
+
+```
+2026-09-18 21:21:48.057|1.1.5.1.47473|Info|application|scene preset path:maps/shopping_mall.bundle rcid:Shopping_Mall.ScenesPreset.asset
+```
+
+程序按 **bundle 名 → raidCode → 地图 key** 两级映射切图；bundle 名认不出来时再用同一行的 `rcid:` 兜底。
+注意 14 张图里有 13 张是 `xxx_preset.bundle`，**只有立交桥是 `shopping_mall.bundle`**（不带 `_preset`）。
+早期版本这里写死拼 `_preset` 去查表，于是立交桥永远查不到 → 进图不切图（现在两种写法都支持）。
+
+`app.log` 里能直接看到判定过程：
+
+| 日志行 | 含义 |
+|---|---|
+| `log session: log_2026.09.18_21-00-14_1.1.5.1.47473` | 正在跟踪哪个游戏日志会话 |
+| `map switch -> interchange (立交桥) by scene-preset raidCode=Interchange` | 切图成功（含来源与 raidCode） |
+| `UNKNOWN map bundle: xxx (rcid=Yyy)` | 游戏改了图名，需要补映射表（把这一行反馈即可） |
+| `UNMAPPED raidCode: xxx` | raidCode 认出来了，但没对应到地图 |
+
+另外两点加固：应用在**局内才启动**时会回扫日志尾部（最多 8MB）找**最后一条**地图行，所以中途开程序也能立刻对上当前图；
+会话目录消失（游戏清理日志）时会松开文件句柄并报 `no-session`，不会攥着已删除的文件。
 
 ### 小地图雷达"消失"问题（已加固）
 

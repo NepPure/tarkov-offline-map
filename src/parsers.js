@@ -7,7 +7,32 @@ const {
   SCREENSHOT_RE_STRICT,
   SCREENSHOT_RE_TOLERANT,
   BUNDLE_TO_RAIDCODE,
+  RCID_TO_RAIDCODE,
 } = require('./constants');
+
+/**
+ * bundle 名 / rcid 名 -> raidCode
+ * 日志里 14 张图中有 13 个是 "<name>_preset.bundle"，只有立交桥是 "shopping_mall.bundle"，
+ * 所以这里不能无脑拼 _preset：带后缀和不带后缀都要试一遍，最后用同一行的 rcid 兜底。
+ * @param {string} base bundle 名（已去掉 _preset 后缀）
+ * @param {string|null} rcid 同一行 rcid: 后的资源名
+ * @returns {string|null}
+ */
+function resolveRaidCode(base, rcid) {
+  const b = String(base || '').toLowerCase().replace(/_preset$/, '');
+  if (b) {
+    for (const key of [`${b}_preset`, b]) {
+      if (BUNDLE_TO_RAIDCODE[key]) return BUNDLE_TO_RAIDCODE[key];
+    }
+  }
+  const r = String(rcid || '').toLowerCase();
+  if (r) {
+    for (const key of [r, r.replace(/_/g, '')]) {
+      if (RCID_TO_RAIDCODE[key]) return RCID_TO_RAIDCODE[key];
+    }
+  }
+  return null;
+}
 
 /**
  * 解析截图文件名
@@ -48,11 +73,21 @@ function parseLogLine(line) {
   const ts = tsMatch ? new Date(tsMatch[1].replace(' ', 'T') + 'Z').getTime() : null;
 
   // 1) scene preset path:maps/factory_day_preset.bundle rcid:factory_day.scenespreset.asset
-  const preset = line.match(/scene preset path:maps\/([a-z0-9_]+?)(?:_preset)?\.bundle/i);
+  //    （立交桥为 maps/shopping_mall.bundle，不带 _preset）
+  const preset = line.match(/scene preset path:\s*maps\/([A-Za-z0-9_]+)\.bundle/i);
   if (preset) {
-    const bundle = preset[1] + '_preset';
-    const raidCode = BUNDLE_TO_RAIDCODE[bundle] || BUNDLE_TO_RAIDCODE[preset[1] + '_preset'] || null;
-    return { type: 'scene-preset', ts, bundleName: preset[1], raidCode };
+    const bundle = preset[1];
+    const bundleName = bundle.replace(/_preset$/i, '');
+    const rcidMatch = line.match(/rcid:\s*([A-Za-z0-9_]+)/i);
+    const rcid = rcidMatch ? rcidMatch[1] : null;
+    return {
+      type: 'scene-preset',
+      ts,
+      bundleName,
+      bundle,
+      rcid,
+      raidCode: resolveRaidCode(bundleName, rcid),
+    };
   }
 
   // 2) 局内登场：TRACE-NetworkGameCreate profileStatus: '... Location: factory4_day ...'
@@ -76,4 +111,4 @@ function parseLogLine(line) {
   return null;
 }
 
-module.exports = { parseScreenshotFilename, parseLogLine };
+module.exports = { parseScreenshotFilename, parseLogLine, resolveRaidCode };

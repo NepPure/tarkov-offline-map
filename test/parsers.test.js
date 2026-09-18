@@ -30,6 +30,53 @@ test('日志 scene preset 解析', () => {
   const ev = parseLogLine(line);
   assert.strictEqual(ev.type, 'scene-preset');
   assert.strictEqual(ev.raidCode, 'factory4_day');
+  assert.strictEqual(ev.bundleName, 'factory_day');
+});
+
+test('立交桥：日志里是 shopping_mall.bundle（唯一不带 _preset 的图）', () => {
+  // 真实日志行（2026-09-18 21:21:48，1.1.5.1.47473）
+  const line = '2026-09-18 21:21:48.057|1.1.5.1.47473|Info|application|scene preset path:maps/shopping_mall.bundle rcid:Shopping_Mall.ScenesPreset.asset';
+  const ev = parseLogLine(line);
+  assert.strictEqual(ev.type, 'scene-preset');
+  assert.strictEqual(ev.bundle, 'shopping_mall');
+  assert.strictEqual(ev.bundleName, 'shopping_mall');
+  assert.strictEqual(ev.raidCode, 'Interchange');
+});
+
+test('全部已知图都能从真实日志行识别出 raidCode', () => {
+  // bundle 名 -> rcid 名，取自真实日志统计
+  const samples = {
+    city_preset: 'city',
+    customs_preset: 'bigmap',
+    factory_day_preset: 'factory_day',
+    factory_night_preset: 'factory_night',
+    laboratory_preset: 'laboratory',
+    labyrinth_preset: 'Labyrinth',
+    lighthouse_preset: 'lighthouse',
+    rezerv_base_preset: 'Rezerv_Base',
+    sandbox_preset: 'sandbox',
+    sandbox_high_preset: 'sandbox_high',
+    sandbox_start_preset: 'Sandbox_SL',
+    shopping_mall: 'Shopping_Mall',
+    shoreline_preset: 'shoreline',
+    woods_preset: 'woods',
+  };
+  for (const [bundle, rcid] of Object.entries(samples)) {
+    const line = `2026-09-18 21:00:00.000|1.1.5.1.47473|Info|application|scene preset path:maps/${bundle}.bundle rcid:${rcid}.scenespreset.asset`;
+    const ev = parseLogLine(line);
+    assert.ok(ev && ev.type === 'scene-preset', `${bundle} 应被识别为 scene-preset`);
+    assert.ok(ev.raidCode, `${bundle} 应有 raidCode`);
+    assert.ok(RAIDCODE_TO_MAPKEY[ev.raidCode], `${bundle} -> ${ev.raidCode} 应能映射到地图 key`);
+  }
+});
+
+test('rcid 兜底：bundle 名未知时靠 rcid 认图', () => {
+  const line = '2026-09-18 21:00:00.000|1.1.5.1.47473|Info|application|scene preset path:maps/some_new_name.bundle rcid:Shopping_Mall.ScenesPreset.asset';
+  assert.strictEqual(parseLogLine(line).raidCode, 'Interchange');
+  // 两个信号都认不出来 -> null（会写进诊断日志）
+  const unknown = parseLogLine('2026-09-18 21:00:00.000|1.1.5.1.47473|Info|application|scene preset path:maps/brand_new_map.bundle rcid:Brand_New.ScenesPreset.asset');
+  assert.strictEqual(unknown.raidCode, null);
+  assert.strictEqual(unknown.bundle, 'brand_new_map');
 });
 
 test('日志 NetworkGameCreate 解析', () => {
