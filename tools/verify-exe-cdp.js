@@ -160,7 +160,9 @@ function cdp(wsUrl, calls) {
         const key = f.tagName === 'polygon' ? 'polygon' : f.tagName;
         shapes[key] = (shapes[key] || 0) + 1;
       }
-      const hud = document.getElementById('m-rotate').getBoundingClientRect();
+      const bar = document.getElementById('mini-lockbar').getBoundingClientRect();
+      const lockBtn = document.getElementById('mini-lock');
+      const unlockBtn = document.getElementById('mini-unlock');
       return {
         backdrop: getComputedStyle(root).backgroundImage.includes('radial-gradient'),
         rootClip: getComputedStyle(root).clipPath,
@@ -170,11 +172,18 @@ function cdp(wsUrl, calls) {
         player: !!document.querySelector('.mapstage-overlay svg g g'),
         iconMin: sizes.length ? Math.min(...sizes) : null,
         iconMax: sizes.length ? Math.max(...sizes) : null,
-        badgeShapes: shapes,
+        firstChildTags: shapes,
         miniLabels: document.querySelectorAll('.map-marker text').length,
-        hudTabIndex: Array.from(document.querySelectorAll('.mini-hud button')).map((b) => b.tabIndex),
-        // 工具条中心（用于真实鼠标点击校验），转为屏幕坐标
-        hudCenter: { x: Math.round(hud.left + hud.width / 2), y: Math.round(hud.top + hud.height / 2) },
+        hudToolbar: !!document.querySelector('.mini-hud'),
+        lockBar: {
+          idleOpacity: Number(getComputedStyle(document.getElementById('mini-lockbar')).opacity),
+          buttons: [lockBtn.textContent.trim(), unlockBtn.textContent.trim()],
+          tabIndex: [lockBtn.tabIndex, unlockBtn.tabIndex],
+          center: { x: Math.round(bar.left + bar.width / 2), y: Math.round(bar.top + bar.height / 2) },
+        },
+        rotate: window.__view.rotate,
+        rot: window.__view.view.rot,
+        labelScale: window.__view.labelScale,
       };
     })()`);
     console.log('[cdp] minimap:', JSON.stringify(miniState));
