@@ -389,6 +389,39 @@ cd server && docker compose up -d            # 推荐
 
 > 端口要放行：Windows 防火墙 / 云服务器安全组允许 8787（或你映射的端口）。
 
+### 一台电脑怎么自己试
+
+不用两台机器，也不用 Docker：
+
+```bash
+# 窗口 1：起服务端（用的是仓库里的 ws 依赖，不需要装别的东西）
+npm run room                       # = node server/server.js，默认 8787 端口
+
+# 窗口 2：起客户端
+npm start
+# 设置 → 房间（联机）：服务器地址 127.0.0.1、端口 8787、房间号随便填（例如 测试房）、昵称随便
+#   点「测试连接」→ 显示服务端版本 → 点「加入房间」，顶栏出现「在线 · 1 人」
+
+# 窗口 3：放一个"假队友"进来（脚本客户端，走的是同一套联机代码）
+npm run room:peer -- --room 测试房 --nick 假队友 --map customs
+#   它会在海关地图中心附近绕圈走并画一个圈：
+#   你那边能看到它的标记（首字"假" + 朝向箭头 + "假队友 · 刚刚"）、虚线轨迹和一个粉色圈，
+#   右侧图例出现「房间成员 · 假队友」一行，勾掉它这三样一起消失
+```
+
+想同时开两个**真**客户端自测，用 `TAKOV_USER_DATA` 给第二个实例换一份配置目录：
+
+```powershell
+$env:TAKOV_USER_DATA="$env:TEMP\takov-alt"; npm start     # 第二个实例（另一份 settings.json）
+```
+
+连这套"服务端 + 两个真客户端"的完整流程也有一键验收（脚本自己起服务端、自己拉两个客户端、
+顺手往截图目录扔两张带坐标的假截图验证"定位 -> 房间 -> 对方地图"这条链路，跑完全收掉并还原配置）：
+
+```bash
+node tools/verify-room-2clients.js        # 18 项：互看/真定位同步/轨迹/标注同步/按人开关/离开
+```
+
 ### 会共享什么
 
 | 共享 | 说明 |
@@ -474,7 +507,8 @@ npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距
 powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截屏 -> 读状态 -> 关主窗口确认零残留
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
 node tools/verify-about.js                 # 关于页面验收（15 项：标题改名/纯本地徽标移除/版本号/GitHub 地址/设置入口）
-node tools/verify-room.js                  # 房间联机界面验收（38 项，脚本自起真服务端 + 一个真队友客户端）
+node tools/verify-room.js                  # 房间联机界面验收（42 项，脚本自起真服务端 + 一个真队友客户端 + 假队友脚本）
+node tools/verify-room-2clients.js         # 真·多客户端联机验收（18 项：自起服务端 + 两个真客户端，含截图->定位->房间->对方地图真链路）
 node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
 node tools/verify-mini-pan.js              # 雷达 Ctrl+拖动平移地图验收（CDP 合成输入，不动系统鼠标，游戏在前台也能跑）
 node tools/verify-quests.js                # 任务侧边栏验收（39 项：搜索/分组/勾选/图层/图例覆盖/详情卡 + "位置在别的图"提示与一键切图，CDP 合成点击，不动系统鼠标）

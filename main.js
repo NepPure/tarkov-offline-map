@@ -25,7 +25,10 @@ const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
 const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry');
 
 // 固定 userData 目录（保证开发环境与打包后共用同一份配置）
-app.setPath('userData', path.join(app.getPath('appData'), 'tarkov-offline-map'));
+// TAKOV_USER_DATA 是给"一台机器同时开两个客户端"做联机测试用的（平时不用管它）：
+//   set TAKOV_USER_DATA=%TEMP%\takov-alt && npm start
+if (process.env.TAKOV_USER_DATA) app.setPath('userData', process.env.TAKOV_USER_DATA);
+else app.setPath('userData', path.join(app.getPath('appData'), 'tarkov-offline-map'));
 
 const APP_TITLE = '塔可夫地图';
 const REPO_ROOT = __dirname;

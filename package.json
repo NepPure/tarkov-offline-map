@@ -23,6 +23,8 @@
     "test:server": "npm --prefix server run test",
     "test:all": "npm test && npm run test:server",
     "simulate": "node tools/simulate.js",
+    "room": "node server/server.js",
+    "room:peer": "node tools/fake-peer.js",
     "fetch:data": "node tools/fetch-all.js",
     "fetch:quests": "node tools/fetch-quests.js",
     "fetch:icons": "node tools/fetch-icons.js",

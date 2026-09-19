@@ -111,6 +111,7 @@ function check(name, ok, detail) {
   console.log(`原图例开关: ${Object.keys(origToggles || {}).length} 个（结束会还原）`);
   console.log(`原标注: ${JSON.stringify(Object.keys(origAnnos || {}))}（结束会还原）`);
   let peer = null;
+  let scriptPeer = null;
   let joined = false;
 
   try {
@@ -364,13 +365,61 @@ function check(name, ok, detail) {
       await sleep(150);
     }
     check('删掉那一笔后队友那边也消失', gone);
-    // 收尾：把这一笔从本地标注里删掉（用户原来的标注文件要原样还原）
+    // 收尾：把这一笔从本地标注里删掉（用户原来的标注文件要原样还原）。
+    // 注意必须**同时**清掉渲染层的待保存定时器：不然 600ms 后它会把这一笔又写回去，
+    // 我们刚还原好的 annotations.json 就被覆盖了（第一次跑就是这么被改脏的）。
     await ev(`(async () => {
+      const id = ${JSON.stringify(useMap)};
+      if (window.__anno) {
+        if (window.__anno.saveTimer) { clearTimeout(window.__anno.saveTimer); window.__anno.saveTimer = null; }
+        delete window.__anno.store[id];
+      }
       const all = await window.api.getAnnotations();
-      delete all[${JSON.stringify(useMap)}];
+      delete all[id];
       await window.api.setAnnotations(all);
       return true;
     })()`);
+    await sleep(800); // 等主进程那边的防抖落盘也走完，再让 finally 去做最终还原
+
+    // 6g) 假队友脚本（README 让用户单人自测的那条命令）必须真能用
+    const { spawn } = require('node:child_process');
+    scriptPeer = spawn(
+      process.execPath,
+      [path.join(__dirname, 'fake-peer.js'), '--url', '127.0.0.1', '--port', String(srvPort),
+        '--room', roomId, '--nick', '脚本队友', '--map', 'customs', '--seconds', '60'],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let peerLog = '';
+    scriptPeer.stdout.on('data', (d) => {
+      peerLog += String(d);
+    });
+    scriptPeer.stderr.on('data', (d) => {
+      peerLog += String(d);
+    });
+    let scripted = null;
+    for (let i = 0; i < 60; i++) {
+      scripted = await ev(`({ marks: document.querySelectorAll('.peer-mark').length, initials: [...document.querySelectorAll('.peer-mark text')].map((t) => t.textContent).join(',') })`);
+      if (scripted && /脚/.test(scripted.initials)) break;
+      await sleep(250);
+    }
+    check('npm run room:peer（假队友脚本）能连进来并被看到', !!scripted && /脚/.test(scripted.initials), JSON.stringify(scripted));
+    let peerAnnos = 0;
+    for (let i = 0; i < 40; i++) {
+      peerAnnos = await ev(`document.querySelectorAll('.peer-anno').length`);
+      if (peerAnnos >= 2) break; // 之前那位假队友的笔画 + 脚本队友画的圈
+      await sleep(250);
+    }
+    check('脚本队友画的圈也画在地图上', peerAnnos >= 2, `peer-anno=${peerAnnos}`);
+    scriptPeer.kill();
+    let gonePeer = false;
+    for (let i = 0; i < 40; i++) {
+      if ((await ev(`document.querySelectorAll('.peer-mark').length`)) === 1) {
+        gonePeer = true;
+        break;
+      }
+      await sleep(250);
+    }
+    check('脚本队友退出后标记消失（只剩先前那位）', gonePeer, peerLog.split('\n')[0] || '');
 
     // 7) 离开房间
     await ev(`document.querySelector('#room-disconnect').click()`);
@@ -388,6 +437,11 @@ function check(name, ok, detail) {
     // 8) 收尾：还原（先还原配置，再关掉可能的连接）
     try {
       if (peer) peer.destroy();
+      if (scriptPeer) {
+        try {
+          scriptPeer.kill();
+        } catch {}
+      }
       if (origRoom) {
         await ev(`window.api.setConfig({ room: ${JSON.stringify(origRoom)} })`);
       }
