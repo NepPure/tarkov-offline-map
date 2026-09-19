@@ -538,6 +538,32 @@ test('队友换图：他之前那张图上的定位要作废（不能留个假�
   c.destroy();
 });
 
+test('防御：服务端把自己的 id 回传时，不能把自己画成一个"队友"', () => {
+  const c = newClient();
+  c.applyConfig({ ...CFG, peerId: 'meSELF01' });
+  const ws = FakeWS.instances[0];
+  ws.doOpen();
+  ws.doMsg({ t: 'welcome', self: { id: 'meSELF01', nick: '我' }, peers: [], annos: {} });
+  // 正常不会发生，但服务端改错/被冒充时不能把界面搞乱
+  ws.doMsg({ t: 'peer-pos', id: 'meSELF01', map: 'woods', x: 1, z: 2 });
+  ws.doMsg({ t: 'peer-join', peer: { id: 'meSELF01', nick: '我', map: 'woods' } });
+  assert.deepStrictEqual(c.snapshot().peers, [], '自己不该出现在队友列表里');
+  c.destroy();
+});
+
+test('防御：没有 owner 的队友笔画一律丢弃（画出来却关不掉，等于破坏图例硬约束）', () => {
+  // 正常的能进来
+  const ok = RC.normalizeAnnos({ woods: [{ id: 'a1', kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }], owner: 'peerAAAA1' }] });
+  assert.strictEqual(ok.woods.length, 1);
+  assert.strictEqual(ok.woods[0].owner, 'peerAAAA1');
+  // 缺 owner / owner 非法 -> 丢掉
+  assert.deepStrictEqual(RC.normalizeAnnos({ woods: [{ id: 'a1', kind: 'pen', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] }), {});
+  assert.deepStrictEqual(RC.normalizeAnnos({ woods: [{ id: 'a1', kind: 'pen', owner: '', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] }), {});
+  assert.deepStrictEqual(RC.normalizeAnnos({ woods: [{ id: 'a1', kind: 'pen', owner: '有 空格', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] }), {});
+  // 实时广播那条路也一样
+  assert.deepStrictEqual(RC.applyAnno({}, { t: 'anno', op: 'add', map: 'woods', id: 'a1', kind: 'pen', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }), {});
+});
+
 test('重复 connect 不会因为"关旧连接"排一次假重连', async () => {
   const c = newClient();
   c.applyConfig(CFG);

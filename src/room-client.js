@@ -450,6 +450,9 @@ class RoomClient {
   }
 
   patchPeer(id, patch) {
+    // 自己的状态由本地负责：万一服务端（或被冒充的中继）把我的 id 回传过来，
+    // 也不能把自己当成一个"队友"画到地图上。
+    if (!id || (this.state.self && id === this.state.self.id)) return;
     let hit = false;
     this.state.peers = this.state.peers.map((p) => {
       if (p.id !== id) return p;
@@ -562,6 +565,10 @@ function normalizeAnnos(raw) {
 
 function sanitizeIncoming(a, owner) {
   if (!a || typeof a !== 'object' || !P.KINDS.has(a.kind)) return null;
+  // 必须带合法的 owner：界面上每个队友笔画都挂在一个"人的图例开关"下，
+  // 没有 owner 的笔画会画出来却关不掉，等于破坏"地图上有什么，图例里就有什么"的硬约束。
+  const ownerId = String(owner || '');
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(ownerId)) return null;
   const pts = Array.isArray(a.pts) ? a.pts.filter((p) => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.z))) : [];
   if (pts.length < 2) return null;
   return {
@@ -570,7 +577,7 @@ function sanitizeIncoming(a, owner) {
     color: /^#[0-9a-f]{6}$/i.test(String(a.color)) ? String(a.color).toLowerCase() : '#f87171',
     width: P.clampWidth(a.width),
     pts: pts.map((p) => ({ x: Number(p.x), z: Number(p.z) })),
-    owner: String(owner || ''),
+    owner: ownerId,
     at: Number.isFinite(Number(a.at)) ? Number(a.at) : 0,
   };
 }
