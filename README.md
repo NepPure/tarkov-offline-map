@@ -424,8 +424,8 @@ cd server && docker compose up -d            # 推荐
 
 ```bash
 npm run test:all                       # 客户端 91 项 + 服务端 20 项（含真服务端 + 两个真客户端的互看测试）
-node tools/verify-room.js              # 界面验收 38 项：进房/队友标记与箭头/轨迹/图例分组/按人开关/
-                                       # 点标记跳转/我的标注同步给队友/删除同步 + 收尾还原用户配置
+node tools/verify-room.js              # 界面验收 39 项：进房/队友标记与箭头/轨迹/图例分组/按人开关/
+                                       # 点标记跳转/雷达上也有队友/我的标注同步给队友/删除同步 + 收尾还原用户配置
 ```
 
 ## 打包 Windows 一键运行 exe

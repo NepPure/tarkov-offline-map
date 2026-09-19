@@ -253,6 +253,22 @@ function check(name, ok, detail) {
     check('队友标注也画在地图上（别人的笔画）', (await ev(`document.querySelectorAll('.peer-anno').length`)) >= 1);
     await shot('room-peer-on-map.png');
 
+    // 6b-2) 雷达（小地图窗口）也要画队友：它是另一个渲染进程，单独查一遍
+    const miniTarget = (await targets()).find((x) => x.url.endsWith('/minimap.html'));
+    if (!miniTarget) {
+      check('雷达窗口存在（设置里"小地图雷达"开着才会创建）', false, '没找到 minimap.html，跳过队友检查');
+    } else {
+      const miniWs = miniTarget.webSocketDebuggerUrl;
+      const miniEv = (expr) => cdp(miniWs, [['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }]]).then((r) => r[0]);
+      let miniOk = null;
+      for (let i = 0; i < 40; i++) {
+        miniOk = await miniEv(`({ marks: document.querySelectorAll('.peer-mark').length, initials: [...document.querySelectorAll('.peer-mark text')].map((t) => t.textContent).join('') })`);
+        if (miniOk && miniOk.marks > 0) break;
+        await sleep(150);
+      }
+      check('雷达上也画了队友（圆底 + 首字）', !!miniOk && miniOk.marks === 1 && miniOk.initials === '假', JSON.stringify(miniOk));
+    }
+
     // 6c) 右侧图例：一人一行（地图上画了谁，图例里就有谁）
     const legend = await ev(`(() => {
       const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
