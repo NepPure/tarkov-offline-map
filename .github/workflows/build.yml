@@ -105,6 +105,8 @@ jobs:
 
             - 默认不联网：监听游戏日志自动识图 + 监听截图目录定位，运行时不发任何网络请求、无遥测
             - 房间联机（v2.0 新增）为可选功能：需要你自己部署 `server/` 里的服务端并填写地址后才会连接
+              服务端镜像：`docker run -d -p 8787:8787 ghcr.io/neppure/tarkov-offline-map-server:latest`
+              用法见 [README 的房间联机一节](https://github.com/NepPure/tarkov-offline-map#房间联机v20可选)
             - 内含 15 张地图中文数据、赛季文件刷点 419 处与位置参考截图，离线可查
             - 未做代码签名，SmartScreen 提示"未知发布者"时选择"仍要运行"
             - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏画面之上

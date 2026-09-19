@@ -1,7 +1,7 @@
 {
   "name": "tarkov-offline-map",
   "productName": "塔可夫地图",
-  "version": "1.3.1",
+  "version": "2.0.0",
   "description": "塔可夫地图 - 日志自动识别地图 + 截图定位 + 悬浮小地图，默认完全本地运行；房间联机（和队友互看位置与标注）为可选功能",
   "main": "main.js",
   "private": true,
