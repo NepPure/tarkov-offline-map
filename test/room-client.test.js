@@ -397,6 +397,37 @@ test('集成：后来的人进房就能看到房间里的标注（不需要额�
   assert.strictEqual(c.snapshot().peers.length, 1);
 });
 
+test('「测试连接」探活：能认出正常的服务端、版本不匹配、连不上三种情况', async (t) => {
+  const { srv, port } = await startServer();
+  t.after(() => srv.close());
+
+  const ok = await RC.probeServer('127.0.0.1', port);
+  assert.strictEqual(ok.ok, true);
+  assert.strictEqual(ok.protoOk, true, '协议一致');
+  assert.strictEqual(ok.proto, RC.PROTO);
+  assert.match(ok.ver, /^\d+\.\d+\.\d+$/);
+  assert.ok(ok.maxRoomPeers >= 2);
+
+  // 协议大版本不同的服务端：能连上但要明确提示版本不匹配（不能假装成功）
+  const http = require('node:http');
+  const stub = http.createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, name: 'stub', ver: '0.9.0', proto: 1, maxRoomPeers: 4 }));
+  });
+  const stubPort = await new Promise((res) => stub.listen(0, '127.0.0.1', () => res(stub.address().port)));
+  t.after(() => new Promise((r) => stub.close(r)));
+  const mism = await RC.probeServer('127.0.0.1', stubPort);
+  assert.strictEqual(mism.ok, true, 'HTTP 是通的');
+  assert.strictEqual(mism.protoOk, false, '但协议不匹配要标出来');
+  assert.match(String(mism.error), /协议不匹配/);
+
+  // 没填地址 / 端口没人听：不能抛，要给可读的失败原因
+  assert.deepStrictEqual(await RC.probeServer(''), { ok: false, error: '没填服务器地址' });
+  const dead = await RC.probeServer('127.0.0.1', 1, 1200);
+  assert.strictEqual(dead.ok, false);
+  assert.ok(dead.error, '要有失败原因');
+});
+
 test('集成：不同房间号互不串门；口令不同也进不去', async (t) => {
   const { srv, port } = await startServer();
   t.after(() => srv.close());
