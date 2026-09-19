@@ -154,7 +154,7 @@ room.example.com {
 
 ```bash
 cd server
-npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 WebSocket 客户端）+ 5 个 Dockerfile/compose 一致性用例
+npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 WebSocket 客户端）+ 8 个守卫行为用例 + 5 个 Dockerfile/compose 一致性用例
 ```
 
 根目录下等价的一条命令：
