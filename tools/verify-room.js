@@ -522,6 +522,65 @@ function check(name, ok, detail) {
     check('「离开房间」后回到未联机', st2 && st2.status === 'off', `status=${st2 && st2.status}`);
     check('离开后顶栏胶囊隐藏', (await ev(`document.querySelector('#room-chip').classList.contains('hidden')`)) === true);
     check('离开后不再显示队友', ((await ev(`window.api.roomStatus().then((s) => (s && s.peers) || [])`)) || []).length === 0);
+
+    // 7b) 离线时画的标注，重新进房后必须补发。
+    //     关键：**画完立刻进房**（同一个 CDP 调用里完成，中间没有任何等待）——
+    //     渲染层要 600ms 防抖才把标注同步给主进程，所以进房那一刻主进程手里根本没有这一笔。
+    //     以前补发是主进程做的，正好漏掉这一笔；现在由渲染层在"变成 online"那一刻补发。
+    const offlineId = await ev(`(() => {
+      document.querySelector('#btn-anno').click();
+      const stage = document.querySelector('.mapstage');
+      const r = stage.getBoundingClientRect();
+      const x1 = r.left + r.width * 0.2, y1 = r.top + r.height * 0.25;
+      const x2 = r.left + r.width * 0.35, y2 = r.top + r.height * 0.4;
+      stage.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x1, clientY: y1, button: 0 }));
+      for (let i = 1; i <= 6; i++) {
+        const t = i / 6;
+        window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x1 + (x2 - x1) * t, clientY: y1 + (y2 - y1) * t }));
+      }
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x2, clientY: y2, button: 0 }));
+      document.querySelector('#anno-exit').click();
+      const list = window.__view.annos;
+      const id = list.length ? list[list.length - 1].id : null;
+      // 立刻进房（不等防抖）
+      document.querySelector('#set-room-enabled').checked = true;
+      document.querySelector('#room-connect').click();
+      return id;
+    })()`);
+    check('离线画一笔后立刻进房（不给防抖留时间）', !!offlineId, String(offlineId));
+    for (let i = 0; i < 40; i++) {
+      const st = await ev(`window.api.roomStatus()`);
+      if (st && st.status === 'online') break;
+      await sleep(150);
+    }
+    joined = true;
+    let backfilled = null;
+    for (let i = 0; i < 50; i++) {
+      const annos = peer.snapshot().annos[useMap] || [];
+      backfilled = annos.find((a) => a.id === offlineId) || null;
+      if (backfilled) break;
+      await sleep(150);
+    }
+    check('重新进房后，离线画的那一笔补发给了队友', !!backfilled && backfilled.owner === selfId,
+      backfilled ? `owner=${backfilled.owner}` : `队友没收到 ${offlineId}`);
+    // 收尾：删掉这一笔（本地 + 房间），别把它留在用户文件里
+    await ev(`(async () => {
+      const id = ${JSON.stringify(useMap)};
+      if (window.__anno) {
+        if (window.__anno.saveTimer) { clearTimeout(window.__anno.saveTimer); window.__anno.saveTimer = null; }
+        window.__anno.store[id] = (window.__anno.store[id] || []).filter((s) => s.id !== ${JSON.stringify(offlineId)});
+        if (!window.__anno.store[id].length) delete window.__anno.store[id];
+      }
+      const all = await window.api.getAnnotations();
+      if (all[id]) {
+        all[id] = all[id].filter((s) => s.id !== ${JSON.stringify(offlineId)});
+        if (!all[id].length) delete all[id];
+      }
+      await window.api.setAnnotations(all);
+      await window.api.roomAnno({ op: 'del', map: id, id: ${JSON.stringify(offlineId)} });
+      return true;
+    })()`);
+    await sleep(500);
   } finally {
     // 8) 收尾：还原（先还原配置，再关掉可能的连接）
     try {

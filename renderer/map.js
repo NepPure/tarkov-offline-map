@@ -14,6 +14,7 @@ const state = {
   cfg: null,
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
   room: null,          // 房间联机状态（主进程广播过来的快照）
+  roomStatusPrev: null, // 上一次的房间状态（用来抓"刚变成 online"这个时刻）
   peersSig: null,      // 房间成员的图例指纹（变了才重建图例）
   lastMapId: null,
   lastPosFile: null,
@@ -398,9 +399,16 @@ async function applyMainState(s) {
   const wantedId = s.mapId;
 
   // 0) 房间状态与队友（顶栏胶囊 + 地图上的队友标记 + 右侧"房间成员"图例）
+  const statusNow = s.room ? s.room.status : null;
+  const justOnline = statusNow === 'online' && state.roomStatusPrev !== 'online';
   state.room = s.room || null;
+  state.roomStatusPrev = statusNow;
   renderRoomStatus(state.room);
   applyRoomView(state.room);
+  // 刚连上（含重连、渲染层重载后重新挂上）：把当前这张图上我画过的标注补发一遍。
+  // 补发必须由渲染层做 —— 它手里才是实时的标注列表：主进程那份要等 600ms 防抖才收到，
+  // 正好在这窗口里进房的话，那一笔就永远传不出去（此前就是这么漏的）。
+  if (justOnline) pushMyAnnosToRoom();
 
   // 1) 地图切换
   if (wantedId && (!state.detail || state.detail.id !== wantedId)) {
@@ -958,11 +966,33 @@ function scheduleAnnoSave() {
 }
 
 /**
+ * 刚进房（含重连 / 渲染层重载）时，把**当前这张图上我画过的标注**补发一遍，
+ * 上限 100 笔 —— 一次性糊 400 笔过去会把队友的图例顶爆，也没必要。
+ *
+ * 为什么放在渲染层：这里的 anno.store 才是实时的那份；主进程那份要等 600ms 防抖才收到，
+ * 用户"画完立刻进房"就会漏。
+ */
+function pushMyAnnosToRoom() {
+  const id = currentMapId();
+  if (!id) return;
+  const list = (anno.store[id] || []).filter((s) => s && s.id).slice(-100);
+  if (!list.length) return;
+  for (const s of list) roomAnno({ op: 'add', map: id, anno: { ...s, map: id } });
+}
+
+/** 发给房间的标注操作（IPC 是异步的，失败也不该冒出未处理的 rejection） */
+function roomAnno(msg) {
+  try {
+    const p = api.roomAnno(msg);
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch {}
+}
+
+/**
  * 标注增删同步给房间（只发"变了的那一笔"，不做全量）。
  *
  * 换图时不动：`anno.sent.mapId` 变了就只重置基准，不然每切一次图都会把
- * 那张图上我画过的几十笔全当作"新增"糊给队友。进房时的补发由主进程负责
- * （见 main.js 的 pushAnnotations）。
+ * 那张图上我画过的几十笔全当作"新增"糊给队友。进房时的补发见 pushMyAnnosToRoom。
  */
 function syncAnnosToRoom(mapId, list) {
   if (!mapId) return;
@@ -973,10 +1003,10 @@ function syncAnnosToRoom(mapId, list) {
     return;
   }
   for (const [id, s] of cur) {
-    if (!before.has(id)) api.roomAnno({ op: 'add', map: mapId, anno: { ...s, map: mapId } });
+    if (!before.has(id)) roomAnno({ op: 'add', map: mapId, anno: { ...s, map: mapId } });
   }
   for (const id of before.keys()) {
-    if (!cur.has(id)) api.roomAnno({ op: 'del', map: mapId, id });
+    if (!cur.has(id)) roomAnno({ op: 'del', map: mapId, id });
   }
   anno.sent = { mapId, byId: cur };
 }

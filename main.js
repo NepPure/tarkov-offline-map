@@ -1047,10 +1047,11 @@ function syncRoom() {
       onState: () => broadcast({ roomAt: Date.now() }),
       onLog: (msg) => appLog(`[room] ${msg}`),
       onOnline: () => {
-        // 刚进房：把"我在哪张图"和最近一次定位补一遍，队友不用等下一次换图/截图
+        // 刚进房（含重连）：把"我在哪张图"和最近一次定位补一遍，队友不用等下一次换图/截图。
+        // 标注的补发在渲染层做（见 renderer/map.js 的 pushMyAnnosToRoom）：主进程手里那份
+        // 要等渲染层 600ms 防抖，正好在这窗口里进房就会漏掉最新那一笔。
         room.setMap(state.mapId);
         pushPosition();
-        pushAnnotations();
       },
     });
   }
@@ -1071,20 +1072,6 @@ function pushPosition() {
     hdg: state.headingDeg,
     ts: state.positionAt || Date.now(),
     trail: (state.trail || []).map((p) => ({ x: p.x, z: p.z })),
-  });
-}
-
-/**
- * 进房时把当前这张图上"我已经画过的"补发一次，队友立刻就能看到。
- * 上限 100 笔、15ms 一笔地发：一次性糊 400 笔过去会把队友的图例顶爆，也没必要。
- */
-function pushAnnotations() {
-  if (!room || !state.mapId || !settings.room.shareAnno) return;
-  const list = (annotations.get()[state.mapId] || []).slice(-100);
-  if (!list.length) return;
-  appLog(`[room] 补发当前地图的 ${list.length} 笔标注`);
-  list.forEach((s, i) => {
-    setTimeout(() => room && room.sendAnnoAdd({ ...s, map: state.mapId }), i * 15);
   });
 }
 

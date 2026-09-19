@@ -147,4 +147,11 @@ test('渲染层接线：队友图层、图例分组、点击、雷达同步都�
   assert.ok(mv.includes('clampToRadar(s.x, s.y, cx, cy, radarR)'), '雷达上要调用 clampToRadar');
   assert.ok(mv.includes("g.setAttribute('data-off-range', '1')"), '出范围的标记要能看出来（验收脚本靠它断言）');
   assert.ok(mv.includes('peer-offrange-chevron'), '出范围时要有朝外的箭头指明方位');
+
+  // 进房补发标注：必须在渲染层做（主进程那份要等 600ms 防抖，正好漏掉"画完立刻进房"那一笔）
+  assert.ok(mj.includes('function pushMyAnnosToRoom()'), '缺少渲染层的标注补发');
+  assert.ok(mj.includes("statusNow === 'online' && state.roomStatusPrev !== 'online'"), '要能抓住"刚变成 online"这个时刻');
+  assert.ok(mj.includes('if (justOnline) pushMyAnnosToRoom();'), '刚连上就要补发');
+  assert.ok(mj.includes('function roomAnno(msg)'), '标注 IPC 要有失败兜底（别冒未处理的 rejection）');
+  assert.ok(!read('main.js').includes('function pushAnnotations()'), '主进程那份补发已经挪走，别留两套');
 });
