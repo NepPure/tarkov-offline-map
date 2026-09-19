@@ -44,7 +44,7 @@ const need = [
   'otherMapsWithLocation', 'quest-hint', 'openMissing', 'syncLastMap',
   // 2.0.0 房间联机
   'RoomClient', 'setPeers', 'setPeerAnnos', 'peer-mark', 'peer-trail', '房间成员',
-  'room:test', 'room:anno', 'pushAnnotations', 'syncAnnosToRoom', 'makeAnnoId',
+  'room:test', 'room:anno', 'pushMyAnnosToRoom', 'syncAnnosToRoom', 'makeAnnoId',
   // 雷达出范围贴边方位指示
   'clampToRadar', 'data-off-range', 'peer-offrange-chevron',
   // 2.0.0 界面：改名 + 关于页
