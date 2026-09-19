@@ -71,7 +71,8 @@ tarkov-offline-map/
 │  ├─ projection.js          投影/四元数/朝向（复刻原站公式）
 │  ├─ parsers.js             截图文件名 & 日志行解析
 │  ├─ log-watcher.js         日志目录监听（新会话切换 + 追加读 + 启动回补）
-│  └─ screenshot-watcher.js  截图目录监听
+│  ├─ screenshot-watcher.js  截图目录监听
+│  └─ room-key.js            房间号推导（sha256，客户端/服务端各一份，交叉校验）
 ├─ renderer/
 │  ├─ common/map-view.js     地图渲染引擎（SVG 底图/楼层/标记/玩家/轨迹/平移缩放）
 │  ├─ map.html|css|js        主地图窗口
@@ -94,8 +95,14 @@ tarkov-offline-map/
 │  ├─ verify-exe.ps1         打包版验收（启动/截屏/零残留）
 │  ├─ verify-exe-cdp.js      打包版深检（标记/赛季文件/截图查看器/小地图）
 │  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
+│  ├─ verify-about.js        关于页面验收（标题改名/纯本地徽标移除/版本号/GitHub 地址/设置里的入口）
 │  ├─ input.ps1              系统级鼠标输入助手（SetCursorPos / mouse_event）
 │  └─ simulate.js            用 samples 跑完整管线验证
+├─ server/                   房间服务端（v2.0，可选功能，见 server/README.md）
+│  ├─ server.js              HTTP + WebSocket + 房间表（纯内存，PERSIST=1 才落盘）
+│  ├─ protocol.js            协议层纯函数（房间号/帧解析/位置与标注校验）
+│  ├─ Dockerfile             极轻量镜像（node:22-alpine，非 root，自带 HEALTHCHECK）
+│  └─ docker-compose.yml     一条命令起服务
 ├─ samples/                  真实样本（日志 + 截图）
 └─ test/                     node:test 单测（解析器 + 数据完整性）
 ```
@@ -392,12 +399,15 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm test                 # 单元测试（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字），59 个用例
+npm run test:all         # 客户端 + 服务端全部单测/集成测试（下面两条的合并）
+npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页），61 个用例
+npm run test:server      # 房间服务端：协议纯函数 8 项 + 真起服务的集成测试 12 项（真 WebSocket 客户端）
 npm run simulate         # 用 samples 里的日志+截图跑完整管线
 node tools/diagnose.js   # 诊断真实游戏日志：会话选择/文件匹配/事件解析
 npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距/图钉/赛季文件/小地图拖动与焦点，截屏到 test-artifacts/
 powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截屏 -> 读状态 -> 关主窗口确认零残留
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
+node tools/verify-about.js                 # 关于页面验收（15 项：标题改名/纯本地徽标移除/版本号/GitHub 地址/设置入口）
 node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
 node tools/verify-mini-pan.js              # 雷达 Ctrl+拖动平移地图验收（CDP 合成输入，不动系统鼠标，游戏在前台也能跑）
 node tools/verify-quests.js                # 任务侧边栏验收（39 项：搜索/分组/勾选/图层/图例覆盖/详情卡 + "位置在别的图"提示与一键切图，CDP 合成点击，不动系统鼠标）
