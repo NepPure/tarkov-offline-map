@@ -123,6 +123,8 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
   box-shadow: 0 6px 20px rgba(0,0,0,.5);
 }
 .info-card.hidden { display: none; }
+/* 任务侧边栏展开时，信息卡片让开（否则会压在侧边栏上） */
+body.quest-open .info-card { left: 332px; }
 .info-card h4 { font-size: 13px; color: var(--text); margin-bottom: 6px; }
 .info-card .row { font-size: 12px; color: var(--muted); margin: 2px 0; }
 .info-card .row.desc { max-height: 150px; overflow-y: auto; color: #9fb0c2; line-height: 1.45; border-left: 2px solid var(--line); padding-left: 7px; }
@@ -219,6 +221,14 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
 .legend-item input { accent-color: var(--accent); }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .legend-icon { width: 18px; height: 18px; object-fit: contain; flex: none; image-rendering: auto; }
+.legend-icons { display: flex; align-items: center; gap: 0; flex: none; }
+.legend-swatch { width: 18px; height: 18px; flex: none; }
+.legend-icons .legend-icon { width: 16px; height: 16px; }
+.legend-icons .legend-icon + .legend-icon { margin-left: -3px; }
+.legend-glyph {
+  width: 18px; flex: none; text-align: center;
+  font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: -0.5px;
+}
 .legend-name { flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend-count { color: var(--muted); font-size: 11px; }
 
@@ -242,4 +252,168 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .settings-form input[type=checkbox] { accent-color: var(--accent); }
 .settings-form .hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* ---------- 任务侧边栏（左侧） ---------- */
+.quest-panel {
+  position: absolute; top: 58px; left: 0; bottom: 34px;
+  width: 310px; z-index: 21;
+  display: flex; flex-direction: column;
+  background: rgba(13, 17, 24, 0.94);
+  border-right: 1px solid var(--line);
+  transition: transform 0.18s ease;
+}
+.quest-panel.collapsed { transform: translateX(-100%); }
+.quest-head {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 10px 8px; border-bottom: 1px solid var(--line);
+}
+.quest-title { font-size: 13px; font-weight: 600; }
+.quest-badge {
+  font-size: 11px; color: var(--bg); background: var(--accent);
+  border-radius: 9px; padding: 0 7px; line-height: 16px; font-variant-numeric: tabular-nums;
+}
+.quest-badge.empty { background: var(--line); color: var(--muted); }
+.quest-head-actions { margin-left: auto; display: flex; gap: 4px; }
+.quest-head-actions button { padding: 2px 8px; font-size: 11px; }
+.quest-tools { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+#quest-q {
+  width: 100%; padding: 5px 8px; font-size: 12px;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+#quest-q:focus { outline: none; border-color: var(--accent); }
+.quest-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.chip {
+  padding: 2px 8px; font-size: 11px; border-radius: 10px;
+  background: var(--panel2); color: var(--muted); border: 1px solid var(--line);
+}
+.chip:hover { color: var(--text); border-color: var(--accent); }
+.chip.active { background: rgba(34,211,238,0.16); color: var(--accent); border-color: var(--accent); }
+.quest-selects { display: flex; gap: 6px; margin-top: 6px; }
+.quest-selects select {
+  flex: 1; min-width: 0; padding: 3px 6px; font-size: 11px;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+.quest-list { flex: 1; overflow-y: auto; padding: 4px 6px 10px; }
+.quest-foot {
+  padding: 6px 10px; border-top: 1px solid var(--line);
+  font-size: 11px; color: var(--muted);
+}
+
+/* 商人大组 */
+.quest-trader-group { margin-top: 6px; }
+.quest-trader-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 7px; border-radius: 6px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border-left: 2px solid var(--accent);
+}
+.quest-trader-head:hover { background: rgba(34,211,238,0.12); }
+.quest-trader-name { font-size: 12px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quest-trader-en { font-size: 10px; color: var(--muted); }
+.quest-trader-count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.quest-trader-checked { color: var(--accent); }
+.quest-trader-group.collapsed .quest-stage-group { display: none; }
+
+/* 阶段小标题 */
+.quest-stage-group { margin: 2px 0 0 4px; }
+.quest-stage-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 6px; cursor: pointer; color: var(--muted); font-size: 11px;
+}
+.quest-stage-head:hover { color: var(--text); }
+.quest-stage-line { flex: 1; height: 1px; background: var(--line); }
+.quest-stage-group.collapsed .quest-rows { display: none; }
+
+/* 任务行 */
+.quest-row { border-radius: 6px; margin: 1px 0; }
+.quest-row:hover { background: rgba(255,255,255,0.045); }
+.quest-row.checked { background: rgba(34,211,238,0.10); }
+.quest-row.hot { box-shadow: inset 0 0 0 1px var(--accent); }
+.quest-row-main { display: flex; align-items: flex-start; gap: 6px; padding: 4px 6px; cursor: pointer; }
+.quest-row-main input { accent-color: var(--accent); margin-top: 2px; flex: none; }
+.quest-row-text { flex: 1; min-width: 0; }
+.quest-row-name { font-size: 12px; color: var(--text); line-height: 1.35; }
+.quest-row.checked .quest-row-name { color: var(--accent); }
+.quest-row-sub { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+.quest-row-badges { display: flex; gap: 4px; align-items: center; margin-top: 2px; }
+.qbadge {
+  font-size: 10px; padding: 0 5px; border-radius: 8px; line-height: 15px;
+  background: var(--panel2); color: var(--muted); border: 1px solid var(--line);
+}
+.qbadge.lv { color: var(--yellow); border-color: rgba(251,191,36,0.4); }
+.qbadge.stage { color: var(--green); border-color: rgba(74,222,128,0.35); }
+.qbadge.kappa { color: #f0abfc; border-color: rgba(240,171,252,0.4); }
+.qbadge.elsewhere { color: #fdba74; border-color: rgba(253,186,116,0.45); }
+.qbadge.nocord { color: var(--muted); border-style: dashed; }
+.quest-row.no-loc .quest-row-name { opacity: 0.72; }
+/* "勾了任务但本图没有位置"的横幅：给出可点的切图按钮 */
+.quest-hint {
+  margin: 0 6px 6px; padding: 6px 8px;
+  background: rgba(253,186,116,0.10); border: 1px solid rgba(253,186,116,0.4);
+  border-radius: 8px; font-size: 11px; color: var(--text); line-height: 1.6;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+.quest-hint.hidden { display: none; }
+.quest-hint-text { color: #fdba74; }
+.quest-hint-go {
+  font-size: 10.5px; padding: 0 7px; line-height: 18px;
+  background: var(--panel2); color: var(--text);
+  border: 1px solid rgba(253,186,116,0.5); border-radius: 8px;
+}
+.quest-hint-go:hover { border-color: var(--accent); color: var(--accent); }
+.quest-detail { padding: 0 8px 6px 26px; }
+.quest-obj {
+  display: flex; gap: 6px; align-items: flex-start;
+  font-size: 11px; color: var(--muted); padding: 1px 0;
+}
+.quest-obj-type {
+  flex: none; font-size: 10px; color: var(--accent);
+  border: 1px solid rgba(34,211,238,0.35); border-radius: 8px; padding: 0 5px; line-height: 15px;
+}
+.quest-obj.optional .quest-obj-type { color: var(--muted); border-color: var(--line); }
+.quest-obj-text { flex: 1; }
+.quest-obj-go {
+  flex: none; font-size: 10px; padding: 0 6px; line-height: 16px;
+  background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+}
+.quest-obj-go:hover { border-color: var(--accent); color: var(--accent); }
+.quest-obj-none { align-items: center; flex-wrap: wrap; color: var(--muted); }
+.quest-empty { padding: 14px 10px; color: var(--muted); font-size: 12px; text-align: center; line-height: 1.7; }
+.quest-layer .quest-dot { pointer-events: auto; cursor: pointer; }
+.quest-layer .quest-spot { pointer-events: auto; }
+
+/* ---------- 手动标注工具条 ---------- */
+.anno-bar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 26; max-width: 94%;
+  display: flex; flex-direction: column; gap: 6px;
+  background: rgba(13, 17, 24, 0.95); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+}
+.anno-bar.hidden { display: none; }
+.anno-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.anno-tool, .anno-widths button, #anno-undo, #anno-clear, #anno-exit {
+  padding: 3px 8px; font-size: 11px; border-radius: 6px; cursor: pointer;
+  background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+}
+.anno-tool.active, .anno-widths button.active {
+  background: rgba(34,211,238,0.16); color: var(--accent); border-color: var(--accent);
+}
+.anno-tool:hover, .anno-widths button:hover,
+#anno-undo:hover, #anno-clear:hover, #anno-exit:hover { border-color: var(--accent); color: var(--accent); }
+.anno-colors { display: flex; gap: 3px; margin-right: 4px; }
+.anno-color { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+.anno-color.active { border-color: #fff; }
+.anno-hint { font-size: 10.5px; color: var(--muted); }
+.mapstage.drawing { cursor: crosshair; }
+/* 任务详情卡里的按钮行 */
+.info-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.info-actions button {
+  padding: 3px 10px; font-size: 11px; border-radius: 6px;
+  background: var(--panel2); color: var(--text); border: 1px solid var(--line); cursor: pointer;
+}
+.info-actions button:hover { border-color: var(--accent); color: var(--accent); }
+.info-card .muted { color: var(--muted); font-size: 10.5px; }
+.info-card .quest-obj-list { margin-top: 4px; }
 

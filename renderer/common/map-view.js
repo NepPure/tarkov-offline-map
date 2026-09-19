@@ -51,6 +51,15 @@ const MINI_MARKER_CAP = 260;
 const MINI_SOFT_CAP = 90;
 
 /**
+ * 任务标记的颜色/尺寸：统一用图例里那个橘色，样式也跟图例 swatch 对齐 ——
+ * 区域 = 橘色半透明面 + 橘色边框，地点 = 橘色半透明小框（QUEST_BOX 见方），
+ * 刷新点 = 橘色虚线圈。以前是"每个任务按 id 分一个颜色 + 实心圆点"，
+ * 地图上会出现绿色/紫色圆点，和图例里的橘色框对不上。
+ */
+const QUEST_COLOR = '#f59e0b';
+const QUEST_BOX = 15;
+
+/**
  * 地名文字大小（px）：随缩放、标记大小与"地名文字大小"设置变化。
  * @param {number} sf 缩放系数（主窗口 = 随地图缩放，小地图 = 标记大小设置）
  * @param {number} labelScale 用户设置的地名文字倍率
@@ -91,12 +100,36 @@ export function panCenterAfterDrag(cx, cy, scale, rot, dx, dy) {
   };
 }
 
+/**
+ * 转移点标记的文字。
+ *
+ * 游戏数据里没有 `name`，只有 `description`（如"前往中心区"）和目的地 `map.id`。
+ * 以前拼的是 `e.name || '转移点'`，于是地图上所有转移点都只写"转移点"三个字，
+ * 玩家看不出这个口子通向哪。
+ * 规则：description 里带地名就直接用；只写了"前往"这种（有 4 个）就用地名表把
+ * `map.id` 翻成中文补上；都查不到才退回"转移点"。
+ * @param {object} transit detail.transits[] 的一项
+ * @param {Map<string,string>|null} mapNames 地图 id -> 中文名
+ */
+export function transitLabel(transit, mapNames = null) {
+  const raw = String((transit && transit.description) || '').trim();
+  const m = raw.match(/^(前往|通往|转移到|去往)\s*(.*)$/);
+  const prefix = m ? m[1] : '';
+  const dest = (m ? m[2] : raw).trim();
+  if (dest) return raw;
+  const id = transit && transit.map && transit.map.id;
+  const name = id && mapNames && typeof mapNames.get === 'function' ? mapNames.get(id) : null;
+  if (name) return `${prefix || '前往'}${name}`;
+  return '转移点';
+}
+
 export class MapView {
   constructor(container, { mini = false } = {}) {
     this.container = container;
     this.mini = mini;
     this.detail = null;
     this.proj = null;
+    this.mapNames = null;        // 地图 id -> 中文名（转移点文字要用，见 transitLabel）
     this.px = null;              // 地图像素范围
     this.svgSize = { w: 100, h: 100 };
     this.view = { cx: 0, cy: 0, scale: 1, rot: 0 };
@@ -124,9 +157,23 @@ export class MapView {
     this.nearestExfil = null;    // 最近撤离点标记（高亮）
     this.playerEl = null;
     this.trailEl = null;
+    // 任务区域/刷新点（侧边栏勾选的任务；画在轨迹与标记之下）
+    this.questItems = [];
+    this.questLayer = null;
+    this.questOpacity = 0.25;    // 区域填充透明度（设置项；默认和图例 swatch 一致）
+    this.onQuestClick = null;    // 点区域中心点 -> 侧边栏定位到该任务
     this.onViewChange = null;
     this.onPlayerSettled = null;
     this.onLegendChange = null;
+    // 手动标注（画笔/路径/箭头/圆/矩形）：世界坐标存储，随缩放旋转自动跟手
+    this.annos = [];
+    this.annoLayer = null;
+    this.drawMode = null;        // null | { tool, color, width }
+    this.onAnnoChange = null;    // 每加/删一笔时回调（用于持久化）
+    this.onDrawModeChange = null;
+    this._annoDraft = null;      // 正在画的草稿（不落盘）
+    this._annoActive = false;
+    this._annoDown = null;
     this.#buildDom();
     this.#bindEvents();
   }
@@ -165,12 +212,14 @@ export class MapView {
     if (!this.mini) {
       this.el.addEventListener('mousedown', (e) => {
         if (e.button !== 0) return;
+        if (this.drawMode) { this.#drawStart(e); return; } // 标注模式：不拖地图，改画画
         dragging = true; moved = 0;
         this.pressX = e.clientX; this.pressY = e.clientY;
         sx = e.clientX; sy = e.clientY; scx = this.view.cx; scy = this.view.cy;
         this.el.classList.add('dragging');
       });
       window.addEventListener('mousemove', (e) => {
+        if (this.drawMode) { this.#drawMove(e); return; }
         if (!dragging) return;
         moved += Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy);
         // 空间平移 = 屏幕位移 / 缩放（含车头朝上旋转的逆变换）
@@ -181,6 +230,7 @@ export class MapView {
         this.#requestRender();
       });
       window.addEventListener('mouseup', (e) => {
+        if (this.drawMode) { this.#drawEnd(e); return; }
         if (!dragging) return;
         dragging = false;
         this.el.classList.remove('dragging');
@@ -188,8 +238,12 @@ export class MapView {
         const onMarker = e.target instanceof Element && e.target.closest('.map-marker');
         if (moved < 5 && !onMarker) this.#mapClick(e.clientX, e.clientY);
       });
-      // 双击放大（以光标为中心）
+      // 双击放大（以光标为中心）；标注的"路径"工具下调成"结束这条路径"
       this.el.addEventListener('dblclick', (e) => {
+        if (this.drawMode) {
+          if (this.drawMode.tool === 'path') this.#finishPath();
+          return;
+        }
         const rect = this.el.getBoundingClientRect();
         this.#zoomAt(e.clientX - rect.left, e.clientY - rect.top, 1.6);
       });
@@ -204,6 +258,11 @@ export class MapView {
       if (e.key === 'Escape') {
         this.measurePoints = [];
         this.measurePending = false;
+        if (this.drawMode) {
+          // 先取消正在画的那一笔，再按一次才退出标注模式
+          if (this._annoDraft) this._annoDraft = null;
+          else this.setDrawMode(null);
+        }
         this.#renderOverlay();
       }
     });
@@ -440,9 +499,367 @@ export class MapView {
     if (this.onPlayerSettled) this.onPlayerSettled(null, null);
   }
 
+  // ------------------------------------------------------------------ 手动标注
+  /** 开/关标注模式：tool = pen|path|line|arrow|circle|rect|erase */
+  setDrawMode(mode) {
+    this.drawMode = mode
+      ? { tool: mode.tool || 'pen', color: mode.color || '#f87171', width: clampAnnoWidth(mode.width) }
+      : null;
+    this._annoDraft = null;
+    this._annoActive = false;
+    if (this.drawMode) {
+      this.measureMode = false;
+      this.measurePoints = [];
+      this.measurePending = false;
+      this.follow = false;
+    }
+    this.el.classList.toggle('drawing', Boolean(this.drawMode));
+    this.#renderOverlay();
+    if (this.onDrawModeChange) this.onDrawModeChange(this.drawMode);
+  }
+
+  /** 换颜色/粗细（不退出标注模式） */
+  setAnnoStyle(patch) {
+    if (!this.drawMode) return;
+    if (patch.color) this.drawMode.color = patch.color;
+    if (patch.width != null) this.drawMode.width = clampAnnoWidth(patch.width);
+  }
+
+  /** 载入某张图的标注（世界坐标） */
+  setAnnotations(list) {
+    this.annos = Array.isArray(list) ? list : [];
+    this._annoDraft = null;
+    this.#renderOverlay();
+  }
+
+  undoAnno() {
+    if (!this.annos.length) return false;
+    this.annos = this.annos.slice(0, -1);
+    this.#renderOverlay();
+    if (this.onAnnoChange) this.onAnnoChange(this.annos);
+    return true;
+  }
+
+  clearAnnos() {
+    if (!this.annos.length) return;
+    this.annos = [];
+    this.#renderOverlay();
+    if (this.onAnnoChange) this.onAnnoChange(this.annos);
+  }
+
+  /** 结束"路径"工具当前这条折线（双击 / 回车） */
+  finishPath() {
+    this.#finishPath();
+  }
+
+  #finishPath() {
+    const d = this._annoDraft;
+    this._annoDraft = null;
+    this._annoActive = false;
+    if (d && d.pts.length >= 2) this.#commit(d);
+    else this.#renderOverlay();
+  }
+
+  /** 画完一笔：入库 + 通知持久化 */
+  #commit(stroke) {
+    this.annos = [...this.annos, stroke];
+    this._annoDraft = null;
+    this.#renderOverlay();
+    if (this.onAnnoChange) this.onAnnoChange(this.annos);
+  }
+
+  /** 屏幕坐标 -> 世界坐标 */
+  #clientToWorld(clientX, clientY) {
+    if (!this.proj) return null;
+    const rect = this.el.getBoundingClientRect();
+    const p = this.#screenToWorld(clientX - rect.left, clientY - rect.top);
+    if (!p) return null;
+    const w = this.proj.unproject(p.px, p.py);
+    return w && Number.isFinite(w.x) && Number.isFinite(w.z) ? { x: w.x, z: w.z } : null;
+  }
+
+  #drawStart(e) {
+    if (e.button !== 0 || !this.proj) return;
+    const w = this.#clientToWorld(e.clientX, e.clientY);
+    if (!w) return;
+    this._annoDown = { x: e.clientX, y: e.clientY };
+    const tool = this.drawMode.tool;
+    if (tool === 'erase') {
+      const idx = this.#annoHitAt(e.clientX, e.clientY);
+      if (idx != null) {
+        this.annos = this.annos.filter((_, i) => i !== idx);
+        this.#renderOverlay();
+        if (this.onAnnoChange) this.onAnnoChange(this.annos);
+      }
+      return;
+    }
+    this._annoActive = true;
+    if (tool === 'path') {
+      const d = this._annoDraft;
+      if (d && d.kind === 'path') {
+        // 第一次点击时尾巴是占位点（和首点相同），第二次点击顶掉它
+        const p = d.pts;
+        if (p.length === 2 && p[0].x === p[1].x && p[0].z === p[1].z) p[1] = w;
+        else p.push(w);
+      } else {
+        this._annoDraft = { kind: 'path', color: this.drawMode.color, width: this.drawMode.width, pts: [w, w] };
+      }
+    } else {
+      this._annoDraft = { kind: tool, color: this.drawMode.color, width: this.drawMode.width, pts: [w, w] };
+    }
+    this.#renderOverlay();
+  }
+
+  #drawMove(e) {
+    if (!this._annoActive || !this._annoDraft) return;
+    const w = this.#clientToWorld(e.clientX, e.clientY);
+    if (!w) return;
+    const d = this._annoDraft;
+    if (d.kind === 'pen') d.pts.push(w);
+    else if (d.kind === 'path') d.pts[d.pts.length - 1] = w;
+    else d.pts[1] = w;
+    this.#requestRender();
+  }
+
+  #drawEnd(e) {
+    if (!this._annoActive) return;
+    const d = this._annoDraft;
+    this._annoActive = false;
+    if (!d) return;
+    if (d.kind === 'path') return; // 折线继续加段，等双击/回车
+    const down = this._annoDown || { x: e.clientX, y: e.clientY };
+    const moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y);
+    this._annoDown = null;
+    if (moved < 4) { // 只是点了一下：不留痕迹
+      this._annoDraft = null;
+      this.#renderOverlay();
+      return;
+    }
+    this.#commit(d);
+  }
+
+  /** 世界坐标 -> 屏幕点（含圆/矩形的采样展开） */
+  #annoScreenPts(stroke) {
+    const pts = stroke.pts || [];
+    if (!pts.length) return [];
+    let world = pts;
+    if (stroke.kind === 'circle') {
+      const c = pts[0];
+      const edge = pts[1] || pts[0];
+      const r = Math.hypot(edge.x - c.x, edge.z - c.z);
+      world = [];
+      for (let i = 0; i < 28; i++) {
+        const a = (i / 28) * Math.PI * 2;
+        world.push({ x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r });
+      }
+    } else if (stroke.kind === 'rect') {
+      const a = pts[0];
+      const b = pts[1] || pts[0];
+      world = [{ x: a.x, z: a.z }, { x: b.x, z: a.z }, { x: b.x, z: b.z }, { x: a.x, z: b.z }];
+    }
+    const out = [];
+    for (const p of world) {
+      const pr = this.proj.project(p.x, p.z);
+      out.push(this.#worldToScreen(pr.x, pr.y));
+    }
+    return out;
+  }
+
+  /** 橡皮：找出光标下最近的一笔（边界 10px 内，圆/矩形内部也算） */
+  #annoHitAt(clientX, clientY) {
+    const rect = this.el.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    let best = null;
+    let bestD = 10;
+    for (let i = this.annos.length - 1; i >= 0; i--) {
+      const s = this.annos[i];
+      const sp = this.#annoScreenPts(s);
+      if (sp.length < 2) continue;
+      const closed = s.kind === 'circle' || s.kind === 'rect';
+      let d = polylineHitDistance(sp, x, y, closed);
+      if (closed && pointInPolygon(sp, x, y)) d = 0;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  #renderAnnos() {
+    if (!this.overlaySvg) return;
+    if (!this.annoLayer || !this.annoLayer.isConnected) {
+      this.annoLayer = document.createElementNS(ns(), 'g');
+      this.annoLayer.setAttribute('class', 'anno-layer');
+      this.overlaySvg.appendChild(this.annoLayer);
+    }
+    this.annoLayer.innerHTML = '';
+    if (!this.proj || this.#off('anno')) return;
+    const frag = document.createDocumentFragment();
+    for (const s of this.annos) frag.appendChild(this.#annoNode(s, false));
+    if (this._annoDraft) frag.appendChild(this.#annoNode(this._annoDraft, true));
+    this.annoLayer.appendChild(frag);
+  }
+
+  /** 一笔 -> SVG 节点（圆/矩形用多边形，其余用折线） */
+  #annoNode(stroke, draft) {
+    const sp = this.#annoScreenPts(stroke);
+    const closed = stroke.kind === 'circle' || stroke.kind === 'rect';
+    const el = document.createElementNS(ns(), closed ? 'polygon' : 'polyline');
+    el.setAttribute('points', sp.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
+    el.setAttribute('fill', closed ? stroke.color : 'none');
+    if (closed) el.setAttribute('fill-opacity', '0.14');
+    el.setAttribute('stroke', stroke.color);
+    el.setAttribute('stroke-width', String(clampAnnoWidth(stroke.width)));
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.setAttribute('pointer-events', 'none');
+    if (draft) el.setAttribute('stroke-dasharray', '6 4');
+    el.setAttribute('class', draft ? 'anno-draft' : 'anno-item');
+    if (stroke.kind === 'arrow' && sp.length >= 2) {
+      // 箭头：在末端补一个三角（屏幕坐标里算方向，缩放/旋转都对）
+      const a = sp[sp.length - 2];
+      const b = sp[sp.length - 1];
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      const len = 12 + clampAnnoWidth(stroke.width) * 1.5;
+      const g = document.createElementNS(ns(), 'g');
+      g.appendChild(el);
+      const head = document.createElementNS(ns(), 'path');
+      const p1 = `${b.x},${b.y}`;
+      const p2 = `${b.x - Math.cos(ang - 0.4) * len},${b.y - Math.sin(ang - 0.4) * len}`;
+      const p3 = `${b.x - Math.cos(ang + 0.4) * len},${b.y - Math.sin(ang + 0.4) * len}`;
+      head.setAttribute('d', `M${p1} L${p2} L${p3} Z`);
+      head.setAttribute('fill', stroke.color);
+      head.setAttribute('pointer-events', 'none');
+      g.appendChild(head);
+      return g;
+    }
+    return el;
+  }
+
   setTrail(trail) {
     this.trail = trail || [];
     this.#renderOverlay();
+  }
+
+  /**
+   * 设置要画的任务区域。
+   * items: [{ id, label, color, zones: [{x,z,top,bottom,outline:[[x,z],...]}], spots: [{x,z}] }]
+   * 只传"当前地图"的部分，切图/换楼层由调用方重新算。
+   */
+  setQuests(items) {
+    this.questItems = Array.isArray(items) ? items : [];
+    this.#renderOverlay();
+  }
+
+  /**
+   * 注入"地图 id -> 中文名"字典（转移点文字要用：数据里 description 只写"前往"时靠它补地名）
+   * @param {Map<string,string>} map
+   */
+  setMapNames(map) {
+    this.mapNames = map instanceof Map ? map : null;
+    this.#renderOverlay();
+  }
+
+  setQuestOpacity(opacity) {
+    this.questOpacity = Math.max(0.05, Math.min(0.6, Number(opacity) || 0.25));
+    this.#renderOverlay();
+  }
+
+  /** 某个图例开关是否被关掉（缺省 = 显示；"地图上出现什么，图例里就必须有什么"这条约束靠它统一） */
+  #off(key) {
+    return Boolean(this.markerToggles && this.markerToggles[key] === false);
+  }
+
+  #renderQuests() {
+    if (!this.overlaySvg) return;
+    if (!this.questLayer || !this.questLayer.isConnected) {
+      this.questLayer = document.createElementNS(ns(), 'g');
+      this.questLayer.setAttribute('class', 'quest-layer');
+      this.overlaySvg.insertBefore(this.questLayer, this.overlaySvg.firstChild);
+    }
+    this.questLayer.innerHTML = '';
+    const items = this.questItems || [];
+    if (!this.proj || !items.length) return;
+    const showZones = !this.#off('quest:zone');
+    const showSpots = !this.#off('quest:spot');
+    const op = this.questOpacity;
+    const py = this.player ? this.player.y : null;
+    const frag = document.createDocumentFragment();
+    // 任务标记统一用图例里那个橘色（#f59e0b）：区域 = 橘色半透明面 + 橘色边框，
+    // 地点 = 橘色半透明小框，刷新点 = 橘色虚线圈 —— 跟图例 swatch 一模一样。
+    // （以前每个任务按 id 分到一个颜色，地图上出现绿圆点/紫圆点，和图例对不上）
+    const color = QUEST_COLOR;
+    for (const item of items) {
+      for (const z of showZones ? item.zones || [] : []) {
+        // 不在当前楼层的区域淡化（有定位时才有意义）——不隐藏，因为有些区域跨层
+        const offFloor = py != null && z.top != null && z.bottom != null && (z.top < py - 1.5 || z.bottom > py + 1.5);
+        if (z.outline && z.outline.length >= 3) {
+          const pts = [];
+          for (const q of z.outline) {
+            const pr = this.proj.project(q[0], q[1]);
+            const s = this.#worldToScreen(pr.x, pr.y);
+            pts.push(`${s.x.toFixed(1)},${s.y.toFixed(1)}`);
+          }
+          const poly = document.createElementNS(ns(), 'polygon');
+          poly.setAttribute('points', pts.join(' '));
+          poly.setAttribute('fill', color);
+          poly.setAttribute('fill-opacity', String(offFloor ? op * 0.4 : op));
+          poly.setAttribute('stroke', color);
+          poly.setAttribute('stroke-opacity', offFloor ? '0.35' : '0.95');
+          poly.setAttribute('stroke-width', '1.8');
+          if (offFloor) poly.setAttribute('stroke-dasharray', '4 4');
+          poly.setAttribute('pointer-events', 'none'); // 大块区域不吃鼠标，地图照常拖动
+          frag.appendChild(poly);
+        }
+        const pc = this.proj.project(z.x, z.z);
+        const sc = this.#worldToScreen(pc.x, pc.y);
+        // 地点标记 = 橘色半透明小框（可点，用来弹详情卡）
+        const box = document.createElementNS(ns(), 'rect');
+        box.setAttribute('x', String(sc.x - QUEST_BOX / 2));
+        box.setAttribute('y', String(sc.y - QUEST_BOX / 2));
+        box.setAttribute('width', String(QUEST_BOX));
+        box.setAttribute('height', String(QUEST_BOX));
+        box.setAttribute('rx', '2.5');
+        box.setAttribute('fill', color);
+        box.setAttribute('fill-opacity', offFloor ? '0.14' : '0.3');
+        box.setAttribute('stroke', color);
+        box.setAttribute('stroke-width', '1.8');
+        if (offFloor) box.setAttribute('stroke-dasharray', '3 2');
+        box.setAttribute('class', 'quest-dot');
+        box.style.cursor = 'pointer';
+        box.appendChild(titleNode(`${item.label || '任务'} · 点击看详情`));
+        box.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (this.onQuestClick) this.onQuestClick(item, z);
+        });
+        frag.appendChild(box);
+      }
+      for (const sp of showSpots ? item.spots || [] : []) {
+        const pr = this.proj.project(sp.x, sp.z);
+        const s = this.#worldToScreen(pr.x, pr.y);
+        // 刷新点 = 橘色虚线圈（和图例 swatch 同款，里面不再点实心小点）
+        const c = document.createElementNS(ns(), 'circle');
+        c.setAttribute('cx', String(s.x));
+        c.setAttribute('cy', String(s.y));
+        c.setAttribute('r', '6.5');
+        c.setAttribute('fill', color);
+        c.setAttribute('fill-opacity', '0.18');
+        c.setAttribute('stroke', color);
+        c.setAttribute('stroke-width', '1.8');
+        c.setAttribute('stroke-dasharray', '4 3');
+        c.setAttribute('class', 'quest-spot');
+        c.style.cursor = 'pointer';
+        c.appendChild(titleNode(`${item.label || '任务'} · 任务物品可能刷在这里（点击看详情）`));
+        c.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (this.onQuestClick) this.onQuestClick(item, sp);
+        });
+        frag.appendChild(c);
+      }
+    }
+    this.questLayer.appendChild(frag);
   }
 
   setMarkerToggles(toggles) {
@@ -529,6 +946,48 @@ export class MapView {
     return null;
   }
 
+  /** 图例项用哪张 SVG/PNG（与地图上的标记同一套图标；没有素材的返回 null，由调用方退化成圆点） */
+  #legendIcon(key) {
+    if (!this.iconSet) return null;
+    const has = (k) => this.iconSet.has(k);
+    switch (key) {
+      case 'extract_pmc': return has('extract_pmc') ? 'extract_pmc.png' : null;
+      case 'extract_scav': return has('extract_scav') ? 'extract_scav.png' : null;
+      case 'extract_shared': return has('extract_shared') ? 'extract_shared.png' : null;
+      case 'transit': return has('extract_transit') ? 'extract_transit.png' : null;
+      case 'boss': return has('spawn_boss') ? 'spawn_boss.png' : null;
+      case 'spawn': return has('spawn_pmc') ? 'spawn_pmc.png' : (has('spawn_scav') ? 'spawn_scav.png' : null);
+      case 'lock': return has('key') ? 'key.png' : (has('lock') ? 'lock.png' : null);
+      case 'switch': return has('switch') ? 'switch.png' : null;
+      case 'hazard': return has('hazard') ? 'hazard.png' : null;
+      case 'weapon': return has('stationarygun') ? 'stationarygun.png' : null;
+      case 'btrStop': return has('btr_stop') ? 'btr_stop.png' : (has('switch') ? 'switch.png' : null);
+      case 'loose': return has('loose_loot_favorite') ? 'loose_loot_favorite.png' : null;
+      default:
+        if (key.startsWith('season:')) return `season_${key.slice(7)}.webp`;
+        if (key.startsWith('loot:')) return this.#lootIcon(key.slice(5));
+        return null; // 地名等没有图标的组
+    }
+  }
+
+  /** 物资箱类型 -> 图标名（别名表与地图标记一致） */
+  #lootIcon(rawName) {
+    if (!this.iconSet) return null;
+    const has = (k) => this.iconSet.has(k);
+    let name = String(rawName).toLowerCase().replace(/\s+/g, '-');
+    const alias = {
+      'bank-safe': 'safe', 'bank-cash-register': 'cash-register', 'dead-civilian': 'dead-scav',
+      'pmc-body': 'dead-scav', 'lab-technician-body': 'dead-scav', 'scav-body': 'dead-scav',
+      'cash-register-tar2-2': 'cash-register', 'shturmans-stash': 'weapon-box',
+      'medical-supply-crate': 'crate', 'ration-supply-crate': 'crate',
+      'technical-supply-crate': 'crate', 'wooden-ammo-box': 'wooden-ammo-box',
+    };
+    name = alias[name] || name;
+    const key = 'container_' + name;
+    if (has(key)) return key + '.png';
+    return has('container_crate') ? 'container_crate.png' : null;
+  }
+
   /** 是否显示名称标签（相对参考缩放判定，随缩放大小时标尺变化） */
   #labelVisible(m) {
     if (this.mini) return false;
@@ -603,6 +1062,14 @@ export class MapView {
   #buildOverlay() {
     const ns = 'http://www.w3.org/2000/svg';
     this.overlaySvg.innerHTML = '';
+    // 任务区域必须在最底层：轨迹、玩家、标记都要压在它上面
+    this.questLayer = document.createElementNS(ns, 'g');
+    this.questLayer.setAttribute('class', 'quest-layer');
+    this.overlaySvg.appendChild(this.questLayer);
+    // 手动标注压在任务区域之上、玩家/轨迹之下
+    this.annoLayer = document.createElementNS(ns, 'g');
+    this.annoLayer.setAttribute('class', 'anno-layer');
+    this.overlaySvg.appendChild(this.annoLayer);
     this.trailEl = document.createElementNS(ns, 'polyline');
     this.trailEl.setAttribute('fill', 'none');
     this.trailEl.setAttribute('stroke', '#22d3ee');
@@ -615,9 +1082,11 @@ export class MapView {
 
   #renderOverlay() {
     if (!this.detail) return;
+    this.#renderQuests();
+    this.#renderAnnos();
     // 玩家
     if (this.playerEl) {
-      if (this.player && this.proj) {
+      if (this.player && this.proj && !this.#off('player')) {
         const p = this.proj.project(this.player.x, this.player.z);
         const s = this.#worldToScreen(p.x, p.y);
         const size = this.mini ? 20 : 18;
@@ -636,8 +1105,9 @@ export class MapView {
           const s2 = this.#worldToScreen(q.x, q.y);
           return `${s2.x},${s2.y}`;
         });
-        this.trailEl.setAttribute('points', pts.join(' '));
+        this.trailEl.setAttribute('points', this.#off('trail') ? '' : pts.join(' '));
         this.trailEl.setAttribute('stroke-width', String(this.mini ? 3 : Math.max(2, 2.5 / this.view.scale * 2)));
+        this.trailEl.setAttribute('opacity', this.#off('trail') ? '0' : '0.7');
       } else {
         // 没有玩家（新一局还没定位 / 刚清空）：连同轨迹一起抹掉，别留上一局的残影
         this.playerEl.innerHTML = '';
@@ -920,7 +1390,9 @@ export class MapView {
     }
     for (const e of detail.transits || []) {
       const q = p(e.position) || p(e);
-      if (q) push('transit', q.x, q.z, q.y, `转移点: ${e.name || '马拉松转移'}`, { dashed: true, shortLabel: e.name || '转移点' });
+      // 文字写清目的地：description 有地名就用它，只写"前往"的用地名表补（"前往塔科夫街区"）
+      const label = transitLabel(e, this.mapNames);
+      if (q) push('transit', q.x, q.z, q.y, label, { dashed: true, shortLabel: label });
     }
     if (detail.bosses?.length) {
       const zones = new Map();
@@ -976,7 +1448,26 @@ export class MapView {
       push('label', x, z, 0, lb.text, { color: 'rgba(255,255,255,0.75)', size: 'label' });
     }
     this.markerCounts = counts;
+    // 每个组在地图上实际用到哪些图标（图例按这个显示，保证"地图上看到的图标图例里都有"：
+    // 出生点分 PMC/Scav、Boss 每个头目一张、散落物资分高价值……）
+    const iconCounts = {};
+    for (const m of out) {
+      const ic = this.#iconFor(m);
+      if (!ic) continue;
+      if (!iconCounts[m.group]) iconCounts[m.group] = new Map();
+      iconCounts[m.group].set(ic, (iconCounts[m.group].get(ic) || 0) + 1);
+    }
+    this.markerIcons = iconCounts;
     return out;
+  }
+
+  /** 图例要显示的图标（按出现次数排序，最多 3 个）；没有素材时退化成静态映射/圆点 */
+  #legendIcons(key) {
+    const m = this.markerIcons && this.markerIcons[key];
+    const list = m ? [...m.entries()].sort((a, b) => b[1] - a[1]).map(([f]) => f) : [];
+    if (list.length) return list.slice(0, 3);
+    const one = this.#legendIcon(key);
+    return one ? [one] : [];
   }
 
   /**
@@ -990,9 +1481,39 @@ export class MapView {
     const entry = (key) => {
       const d = MARKER_GROUPS[key];
       if (!counts[key] || !d) return null;
-      return { id: key, label: d.label, color: d.color, count: counts[key] };
+      const icons = this.#legendIcons(key);
+      return { id: key, label: d.label, color: d.color, count: counts[key], icon: icons[0] || null, icons };
     };
     const groups = [];
+
+    // 0) 任务标记（玩家勾选的任务：区域 + 物品刷新点）—— 地图上画了就必须在图例里有
+    const questZones = (this.questItems || []).reduce((n, it) => n + (it.zones || []).length, 0);
+    const questSpots = (this.questItems || []).reduce((n, it) => n + (it.spots || []).length, 0);
+    groups.push({
+      id: 'g-quest',
+      label: '任务标记',
+      items: [
+        { id: 'quest:zone', label: '任务区域', count: questZones, swatch: 'zone', color: '#f59e0b' },
+        { id: 'quest:spot', label: '任务物品刷新点', count: questSpots, swatch: 'spot', color: '#f59e0b' },
+      ],
+    });
+
+    // 0b) 玩家 · 轨迹
+    groups.push({
+      id: 'g-player',
+      label: '玩家 · 轨迹',
+      items: [
+        { id: 'player', label: '玩家位置', count: this.player ? 1 : 0, swatch: 'player', color: '#22d3ee' },
+        { id: 'trail', label: '移动轨迹', count: (this.trail || []).length, swatch: 'trail', color: '#22d3ee' },
+      ],
+    });
+
+    // 0c) 手动标注（画笔/路径/箭头/圆/矩形）
+    groups.push({
+      id: 'g-anno',
+      label: '手动标注',
+      items: [{ id: 'anno', label: '我的标注', count: (this.annos || []).length, swatch: 'pen', color: '#f87171' }],
+    });
 
     // 1) 撤离 · 转移 · 交通（BTR 站点也是载具上下车点）
     groups.push({
@@ -1021,11 +1542,13 @@ export class MapView {
       if (!key.startsWith('season:')) continue;
       const type = key.slice(7);
       const meta = Object.values(this.seasonTypes || {}).find((t) => t && t.type === type) || null;
+      const icons = this.#legendIcons(key);
       season.push({
         id: key,
         label: meta?.name || type,
         shortLabel: meta?.shortName || type,
-        icon: meta?.icon || `season_${type}.webp`,
+        icon: icons[0] || meta?.icon || `season_${type}.webp`,
+        icons: icons.length ? icons : [meta?.icon || `season_${type}.webp`],
         color: meta?.color || '#f59e0b',
         count: counts[key],
       });
@@ -1045,7 +1568,8 @@ export class MapView {
     for (const key of Object.keys(counts)) {
       if (!key.startsWith('loot:')) continue;
       const name = key.slice(5);
-      loot.push({ id: key, label: this.#zhLootName(name), color: '#facc15', count: counts[key] });
+      const icons = this.#legendIcons(key);
+      loot.push({ id: key, label: this.#zhLootName(name), color: '#facc15', count: counts[key], icon: icons[0] || null, icons });
     }
     const loose = entry('loose');
     if (loose) loot.push(loose);
@@ -1095,6 +1619,51 @@ export class MapView {
 // 工具函数
 // ---------------------------------------------------------------------------
 function ns() { return 'http://www.w3.org/2000/svg'; }
+
+/** 标注线宽钳制（1~20） */
+export function clampAnnoWidth(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 4;
+  return Math.max(1, Math.min(20, Math.round(n)));
+}
+
+/** 点到线段的距离（橡皮命中判定用） */
+export function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+/** 点到折线/多边形边界的最小距离 */
+export function polylineHitDistance(points, x, y, closed = false) {
+  let best = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    best = Math.min(best, distToSegment(x, y, points[i - 1].x, points[i - 1].y, points[i].x, points[i].y));
+  }
+  if (closed && points.length > 2) {
+    const a = points[points.length - 1];
+    const b = points[0];
+    best = Math.min(best, distToSegment(x, y, a.x, a.y, b.x, b.y));
+  }
+  return best;
+}
+
+/** 点是否在多边形内（射线法；圆/矩形的"内部也算命中"用） */
+export function pointInPolygon(points, x, y) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = points[i].x;
+    const yi = points[i].y;
+    const xj = points[j].x;
+    const yj = points[j].y;
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
 
 /**
  * `meters` 米的世界距离在 scale=1 时对应多少屏幕像素（用于"半径 N 米铺满视口"的换算）。

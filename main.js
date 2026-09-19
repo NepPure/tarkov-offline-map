@@ -8,7 +8,7 @@
  *  - 协议：app:// 提供本地数据（renderer 同源 fetch SVG/JSON）
  *  - 纯离线：无任何网络请求
  */
-const { app, BrowserWindow, ipcMain, dialog, protocol, net, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, Menu, screen, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -16,6 +16,7 @@ const { pathToFileURL } = require('url');
 const os = require('os');
 
 const mapsData = require('./src/maps-data');
+const annotations = require('./src/annotations');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
@@ -28,6 +29,8 @@ const APP_TITLE = '塔可夫离线地图';
 const REPO_ROOT = __dirname;
 const DATA_DIR = path.join(REPO_ROOT, 'data');
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
+const ANNOTATIONS_FILE = path.join(app.getPath('userData'), 'annotations.json');
+let annoSaveTimer = null;
 
 // ---------------------------------------------------------------------------
 // 配置
@@ -107,12 +110,28 @@ function loadSettings() {
     markerScale: 1,             // 标记大小乘数
     labelScale: 1,              // 地名文字大小乘数
     markerToggles: null,        // 由渲染层管理（null = 全部开启）
+    // 任务侧边栏：勾选的任务 id + 面板状态（由渲染层管理，这里只给默认值）
+    quests: {
+      checked: [],              // 已勾选（"我接了的任务"），跨图/跨会话保留
+      open: true,               // 面板是否展开
+      mapOnly: true,            // 只看当前地图
+      locationOnly: true,       // 只看有地点的
+      showKill: false,          // 显示击杀/刷怪区（默认关：区域很大很糊）
+      checkedOnly: false,       // 只看已勾选
+      trader: '',               // 商人过滤（空 = 全部）
+      levelMax: 0,              // 等级上限（0 = 不限）
+      opacity: 0.25,            // 区域填充透明度
+    },
   };
   let merged = defaults;
   try {
     const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
     merged = { ...defaults, ...raw, markerToggles: { ...defaults.markerToggles, ...(raw.markerToggles || {}) } };
   } catch {}
+  // 一次性迁移：0.18 是"每个任务一个颜色 + 实心圆点"时代的老默认值，现在任务标记
+  // 统一成图例的橘色半透明样式（默认 0.25）。只搬"恰好还是老默认"的存档，
+  // 用户自己调过的数值（0.20/0.30…）不动。
+  if (merged.quests && Number(merged.quests.opacity) === 0.18) merged.quests.opacity = 0.25;
   // 配置中的目录无效时，自动探测游戏目录兜底
   const exists = (p) => { try { return !!p && fs.existsSync(p); } catch { return false; } };
   if (!exists(merged.logsPath) || !exists(merged.screenshotsPath)) {
@@ -868,6 +887,25 @@ function setupIpc() {
     applyPosition({ ...parsed, at: Date.now() });
     return parsed;
   });
+  // 任务详情卡里的"打开 Wiki"：只放行 https，其它一律忽略
+  ipcMain.handle('util:open-external', (_e, url) => {
+    const u = String(url || '');
+    if (!/^https:\/\//i.test(u)) return false;
+    shell.openExternal(u).catch(() => {});
+    return true;
+  });
+  // 手动标注：独立文件（不塞进 settings.json），写入做 500ms 防抖
+  ipcMain.handle('annotations:get', () => annotations.get());
+  ipcMain.handle('annotations:set', (_e, data) => {
+    const next = annotations.set(data);
+    clearTimeout(annoSaveTimer);
+    annoSaveTimer = setTimeout(() => {
+      annotations.save(ANNOTATIONS_FILE);
+      const st = annotations.stats();
+      appLog(`annotations saved: ${st.maps} 图 / ${st.strokes} 笔 / ${st.points} 点`);
+    }, 500);
+    return next;
+  });
   ipcMain.handle('view:sync', (_e, viewport) => {
     // 主图视口 -> 小地图
     if (miniWin && !miniWin.isDestroyed()) {
@@ -890,8 +928,14 @@ let logWatcher = null;
 let shotWatcher = null;
 
 function syncWatchers() {
-  if (logWatcher) logWatcher.setRoot(settings.logsPath);
-  if (shotWatcher) shotWatcher.setDir(settings.screenshotsPath);
+  // 只有路径**真的变了**才重建监听器。
+  // 以前是无条件 setRoot()：而 setRoot() = stop()+start()，stop() 会关掉文件尾巴，
+  // 但 currentDir 没变 -> scan() 不会走"切换会话"分支 -> 不会重新打开日志文件 ->
+  // 监听器一直读到 0 行,瞎到下次换会话为止。也就是说：游戏里随便动一下设置
+  // （拖小地图、切图例、勾任务……任何一次 config:set）都会让"进图不切图"。
+  // 反过来，重启还会重放回补窗口里的历史进图行，把地图抢回去（曾形成 700ms 死循环）。
+  if (logWatcher && logWatcher.root !== settings.logsPath) logWatcher.setRoot(settings.logsPath);
+  if (shotWatcher && shotWatcher.dir !== settings.screenshotsPath) shotWatcher.setDir(settings.screenshotsPath);
 }
 
 function startWatchers() {
@@ -1428,6 +1472,9 @@ async function runVisualTest() {
 app.whenReady().then(() => {
   settings = loadSettings();
   mapsData.load(path.join(DATA_DIR, 'maps-dump.json'));
+  // 手动标注（世界坐标，独立文件）
+  annotations.load(ANNOTATIONS_FILE);
+  appLog(`annotations loaded: ${JSON.stringify(annotations.stats())}`);
   state.mapsVersion = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'maps-dump.json'), 'utf-8')).fetchedAt || null;
 
   registerAppProtocol();

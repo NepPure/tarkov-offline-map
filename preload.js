@@ -41,6 +41,10 @@ contextBridge.exposeInMainWorld('api', {
   miniPing: () => ipcRenderer.invoke('mini:ping'),
   resizeMini: (scale) => ipcRenderer.send('mini:resize', scale),
   pickScreenshot: () => ipcRenderer.invoke('util:pick-screenshot'),
+  openExternal: (url) => ipcRenderer.invoke('util:open-external', url),
+  // 手动标注（世界坐标，按地图分开存）
+  getAnnotations: () => ipcRenderer.invoke('annotations:get'),
+  setAnnotations: (data) => ipcRenderer.invoke('annotations:set', data),
   togglePin: () => ipcRenderer.invoke('window:pin'),
   syncViewport: (viewport) => ipcRenderer.invoke('view:sync', viewport),
   onViewportSync: (cb) => {

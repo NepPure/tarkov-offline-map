@@ -70,7 +70,11 @@ function parseScreenshotFilename(name) {
 function parseLogLine(line) {
   if (typeof line !== 'string' || !line) return null;
   const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?)\|/);
-  const ts = tsMatch ? new Date(tsMatch[1].replace(' ', 'T') + 'Z').getTime() : null;
+  // 游戏日志写的是**本机本地时间**（与会话目录名/文件时间一致），所以按本地时区解析。
+  // 早先按 UTC 解析（末尾拼 'Z'），在 UTC+8 机器上会让时间戳比真实值大 8 小时，
+  // 于是"这次进图行是不是比当前定位更新"的判断永远为真 —— 启动/重连回放历史进图行
+  // 会把当前这一局的定位和轨迹误清掉。
+  const ts = tsMatch ? new Date(tsMatch[1].replace(' ', 'T')).getTime() : null;
 
   // 1) scene preset path:maps/factory_day_preset.bundle rcid:factory_day.scenespreset.asset
   //    （立交桥为 maps/shopping_mall.bundle，不带 _preset）

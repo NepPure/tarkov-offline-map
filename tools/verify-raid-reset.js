@@ -105,6 +105,7 @@ const appendPreset = (file, bundle, rcid, when) =>
 
   const cfg0 = await mapEval('window.api.getConfig()');
   if (!cfg0) throw new Error('拿不到配置');
+  const toggles0 = cfg0.markerToggles || null;
   console.log(`原配置: logsPath=${cfg0.logsPath}\n        screenshotsPath=${cfg0.screenshotsPath}`);
 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'raid-reset-'));
@@ -130,6 +131,9 @@ const appendPreset = (file, bundle, rcid, when) =>
   try {
     // --- 切到假目录 ---
     await mapEval(`window.api.setConfig({ logsPath: ${JSON.stringify(logsRoot)}, screenshotsPath: ${JSON.stringify(shots)} })`);
+    // 玩家/轨迹的图例开关可能被用户关掉（关了雷达就不画这两个图层，DOM 断言会误报）；
+    // 验收期间强制打开，结束时会连 markerToggles 一起还原。
+    await mapEval(`window.api.setConfig({ markerToggles: { player: true, trail: true } })`);
     await sleep(1600);
 
     const st1 = await mapEval('window.api.getState()');
@@ -178,6 +182,8 @@ const appendPreset = (file, bundle, rcid, when) =>
   } finally {
     // 原样写回配置（回放的是旧进图行，不会影响你当前这一局的定位）
     await mapEval(`window.api.setConfig({ logsPath: ${JSON.stringify(cfg0.logsPath)}, screenshotsPath: ${JSON.stringify(cfg0.screenshotsPath)} })`).catch(() => {});
+    // 图例开关也还原（上面为了验雷达把 player/trail 打开了）
+    if (toggles0) await mapEval(`window.api.setConfig({ markerToggles: ${JSON.stringify(toggles0)} })`).catch(() => {});
     await sleep(1200);
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
   }

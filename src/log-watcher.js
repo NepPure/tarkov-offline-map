@@ -111,6 +111,11 @@ class LogWatcher {
       this.sawMapEvent = false;
       this.onStatus({ state: 'watching', root: this.root, session: latest.name, version: latest.version });
     }
+    // 会话目录先建、application_*.log 晚几百毫秒才建（实测：20:33:06.788 建目录，
+    // 20:33:07.683 才建 application_000.log，而 700ms 轮询在 20:33:07.020 就看到了目录）。
+    // openSession 只在"切换会话"那一次调用，扑空的话这个会话就永远没有尾巴 ——
+    // 表现就是"进了图却不切图、定位也不动"。所以每次轮询都把新出现的日志文件补开。
+    this.openMissing(this.currentDir);
     this.readTails(fileChanged);
     // 回补窗口里没解析出任何地图行时才做回扫：
     // 窗口是文件尾部，只要窗口里有一条地图行，那它必然就是最后一条，不需要再扫。
@@ -146,6 +151,47 @@ class LogWatcher {
         this.onStatus({ state: 'error', message: `open ${full}: ${e.message}` });
       }
     }
+  }
+
+  /**
+   * 补开会话目录里"后出现"的 application_*.log。
+   * @param {object|null} dir 当前会话目录
+   * @returns {boolean} 是否补开了新文件
+   */
+  openMissing(dir) {
+    if (!dir) return false;
+    let files;
+    try {
+      files = fs.readdirSync(dir.full).filter((n) => / application_\d+\.log$/i.test(n));
+    } catch {
+      return false;
+    }
+    let added = false;
+    for (const name of files) {
+      if (this.tails.has(name)) continue;
+      const full = path.join(dir.full, name);
+      // 从**末尾**开始跟：这个文件是"刚出现"的，里面的历史进图行不该再重放一遍
+      // （重放会把地图抢回上一张图，还会和界面联动成死循环）。
+      // 当前在哪张图交给 syncLastMap 只报"最后一条地图行"。
+      let pos = 0;
+      try {
+        pos = fs.statSync(full).size;
+      } catch {}
+      try {
+        const fd = fs.openSync(full, 'r');
+        this.tails.set(name, { full, fd, pos });
+        this.buffers.set(name, '');
+        added = true;
+      } catch (e) {
+        this.onStatus({ state: 'error', message: `open ${full}: ${e.message}` });
+      }
+    }
+    if (added) {
+      // 补开的文件里可能已经有进图行了（轮到这次轮询时文件已经写了一截）：回扫兜底
+      this.needSync = dir.full;
+      this.sawMapEvent = false;
+    }
+    return added;
   }
 
   closeTails() {

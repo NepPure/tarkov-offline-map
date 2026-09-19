@@ -11,6 +11,24 @@ const mapsData = require('../src/maps-data');
 
 const DUMP = path.join(__dirname, '..', 'data', 'maps-dump.json');
 
+test('日志时间戳按本地时区解析（回归：曾按 UTC 解析，在 UTC+8 机器上偏 8 小时）', () => {
+  const line = (d) => {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.000|1.1.5.1.47473|Info|application|scene preset path:maps/woods_preset.bundle rcid:woods.scenespreset.asset`;
+  };
+  const fixed = new Date(2026, 8, 19, 18, 59, 15, 0);
+  const ev = parseLogLine(line(fixed));
+  assert.ok(ev && Number.isFinite(ev.ts));
+  assert.strictEqual(ev.ts, fixed.getTime(), '日志时间必须按本地时区解析');
+
+  // 这条不变式是"别把当前局的定位清掉"那个保护的前提：
+  // 一小时前的进图行必须真的早于现在，否则启动/重连回放历史日志会误清当前定位
+  const now = Date.now();
+  const old = parseLogLine(line(new Date(now - 3600 * 1000)));
+  assert.ok(old.ts < now, '一小时前的日志行不能比现在还新');
+  assert.ok(now - old.ts <= 3600 * 1000 + 10000, '一小时前的日志行不该偏出小时级');
+});
+
 test('截图文件名解析（真实样本）', () => {
   const name = '2026-09-07[23-05]_58.02, 1.75, 49.47_0.01518, 0.90924, -0.03197, 0.41476_15.47 (0).png';
   const r = parseScreenshotFilename(name);
