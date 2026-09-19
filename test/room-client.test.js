@@ -102,6 +102,18 @@ test('地址归一化：裸 IP / 带端口 / 带协议 / 带 /ws 都能认', () 
   assert.strictEqual(s.healthUrl, 'https://room.example.com:8787/healthz');
   // 默认端口可以被覆盖
   assert.strictEqual(RC.parseServer('host', 1234).port, 1234);
+  // 端口越界/手滑：一律回落到默认端口，不能拼出 ws://host:-1/ws 这种废 URL
+  assert.strictEqual(RC.parseServer('host', -1).port, 8787, '端口 -1 要回落默认值');
+  assert.strictEqual(RC.parseServer('host', 0).port, 8787, '端口 0 要回落默认值');
+  assert.strictEqual(RC.parseServer('host', 70000).port, 8787, '端口超上限要回落默认值');
+  assert.strictEqual(RC.parseServer('host:-1').port, 8787);
+  assert.strictEqual(RC.parseServer('host:0').port, 8787);
+  assert.strictEqual(RC.parseServer('host:70000').port, 8787);
+  assert.strictEqual(RC.parseServer('host:65535').port, 65535);
+  // 带路径的地址：只取 host[:port]（服务端固定挂在 /ws 上）
+  assert.strictEqual(RC.parseServer('wss://x/ws/ws').host, 'x');
+  assert.strictEqual(RC.parseServer('wss://x/some/path').host, 'x');
+  assert.strictEqual(RC.parseServer('host:9000/ws').port, 9000);
 });
 
 test('重连退避：1s 起步指数翻倍，封顶 30s', () => {
@@ -562,6 +574,108 @@ test('防御：没有 owner 的队友笔画一律丢弃（画出来却关不掉�
   assert.deepStrictEqual(RC.normalizeAnnos({ woods: [{ id: 'a1', kind: 'pen', owner: '有 空格', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] }), {});
   // 实时广播那条路也一样
   assert.deepStrictEqual(RC.applyAnno({}, { t: 'anno', op: 'add', map: 'woods', id: 'a1', kind: 'pen', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }), {});
+});
+
+test('模糊：随机垃圾喂给地址解析/配置归一化/入站标注，都不许抛异常且结果必须合法', () => {
+  const P = require('../server/protocol.js');
+  // 确定性随机：失败可复现
+  const mulberry32 = (seed) => {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  };
+  const rnd = mulberry32(4242);
+  const pick = (arr) => arr[Math.floor(rnd() * arr.length) % arr.length];
+  const JUNK = [
+    null, undefined, '', '   ', 'http://', 'ws://:8787', ':::', '[::1', ']', 'host:99999', 'host:-1',
+    'a'.repeat(500), '🤖:80', 123, {}, [], NaN, Infinity, true, false, '../../etc', '\u0000', 'wss://x/ws/ws',
+  ];
+
+  // 1) 地址解析：要么 null，要么是"能用的形状"
+  for (const v of JUNK) {
+    const p = RC.parseServer(v);
+    if (p !== null) {
+      assert.ok(typeof p.host === 'string' && p.host.length > 0, `parseServer(${JSON.stringify(v)}) 的 host 不合法: ${JSON.stringify(p)}`);
+      assert.ok(Number.isInteger(p.port) && p.port >= 1 && p.port <= 65535, `端口不合法: ${p.port}`);
+      assert.match(p.wsUrl, /^wss?:\/\/.+\/ws$/, `wsUrl 不合法: ${p.wsUrl}`);
+      assert.match(p.healthUrl, /^https?:\/\/.+\/healthz$/, `healthUrl 不合法: ${p.healthUrl}`);
+    }
+  }
+
+  // 2) 配置归一化 + 入站标注清洗：3000 组随机组合
+  for (let i = 0; i < 3000; i++) {
+    const cfg = RC.normalizeConfig({
+      enabled: rnd() < 0.5,
+      url: pick(JUNK),
+      port: pick([0, 1, 8787, 65535, 70000, -1, NaN, 'x', null]),
+      roomId: pick(JUNK),
+      pass: pick(JUNK),
+      nick: pick(JUNK),
+      peerId: pick(JUNK),
+      sharePos: rnd() < 0.5,
+      shareAnno: rnd() < 0.5,
+    });
+    assert.strictEqual(typeof cfg.enabled, 'boolean');
+    assert.ok(typeof cfg.nick === 'string' && cfg.nick.length > 0, '昵称必须兜底成非空');
+    assert.ok(Array.from(cfg.nick).length <= 16, `昵称超长: ${cfg.nick}`);
+    assert.match(cfg.peerId, /^[A-Za-z0-9_-]{4,40}$/, `peerId 不合法: ${cfg.peerId}`);
+    if (cfg.enabled) {
+      assert.ok(cfg.server && cfg.server.port >= 1, '开启时必须有一个可用的服务器地址');
+      assert.match(cfg.roomKey, /^[0-9a-f]{32}$/, `房间标识不合法: ${cfg.roomKey}`);
+    }
+
+    const mapId = pick(['woods', '', '..', 'a'.repeat(80), null, 'customs']);
+    const rawAnno = {
+      id: pick(['a1', '', '..', 'x'.repeat(60), 42, null]),
+      kind: pick([...P.KINDS, 'spray', '', null, 42]),
+      color: pick(['#ffffff', '#ABCDEF', 'red', '', null]),
+      width: pick([1, 4, 20, 0, 999, -3, 'abc', null]),
+      pts: pick([
+        [{ x: 1, z: 2 }, { x: 3, z: 4 }],
+        [{ x: 1, z: 2 }],
+        [],
+        [{ x: NaN, z: 1 }, { x: 2, z: 3 }],
+        null,
+        'nope',
+      ]),
+      owner: pick(['peerAAAA1', '', '有 空格', null, 42]),
+      at: pick([1, 0, NaN, 'x', null]),
+    };
+    const out = RC.normalizeAnnos({ [mapId]: [rawAnno, null, 'x', 42] });
+    for (const [m, list] of Object.entries(out)) {
+      assert.match(m, /^[A-Za-z0-9_-]{1,64}$/, `清洗后还剩非法地图 id: ${m}`);
+      assert.ok(!['__proto__', 'constructor', 'prototype'].includes(m), `危险键漏进来了: ${m}`);
+      for (const a of list) {
+        assert.ok(P.KINDS.has(a.kind), `清洗后还剩非法 kind: ${a.kind}`);
+        assert.match(a.owner, /^[A-Za-z0-9_-]{1,40}$/, `清洗后还剩非法 owner: ${a.owner}`);
+        assert.match(a.id, /^[A-Za-z0-9_-]{1,40}$/, `清洗后还剩非法 id: ${a.id}`);
+        assert.ok(Array.isArray(a.pts) && a.pts.length >= 2, '清洗后点数仍不足');
+        assert.ok(a.pts.every((p) => Number.isFinite(p.x) && Number.isFinite(p.z)), '清洗后仍有非法坐标');
+        assert.match(a.color, /^#[0-9a-f]{6}$/i);
+        assert.ok(a.width >= 1 && a.width <= 20);
+      }
+    }
+    // 实时广播那条路也不能抛
+    RC.applyAnno({}, { t: 'anno', op: pick(['add', 'del', 'x', null]), map: mapId, id: rawAnno.id, kind: rawAnno.kind, pts: rawAnno.pts, owner: rawAnno.owner });
+  }
+});
+
+test('原型污染：__proto__ / constructor 之类的地图 id 一律拒收', () => {
+  const evil = JSON.parse('{"__proto__":[{"id":"a1","kind":"pen","owner":"peerAAAA1","pts":[{"x":1,"z":1},{"x":2,"z":2}]}]}');
+  const out = RC.normalizeAnnos(evil);
+  assert.deepStrictEqual(Object.keys(out), [], '__proto__ 不能成为一张"地图"');
+  assert.strictEqual(Object.getPrototypeOf({}).polluted, undefined, 'Object.prototype 不能被污染');
+  // 实时广播那条路也一样
+  const after = RC.applyAnno({}, { t: 'anno', op: 'add', map: '__proto__', id: 'a1', kind: 'pen', owner: 'peerAAAA1', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] });
+  assert.deepStrictEqual(Object.keys(after), []);
+  assert.strictEqual(Object.getPrototypeOf({}).polluted, undefined);
+  // 正常的照旧
+  const ok = RC.normalizeAnnos({ customs: [{ id: 'a1', kind: 'pen', owner: 'peerAAAA1', pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] });
+  assert.strictEqual(ok.customs.length, 1);
 });
 
 test('重复 connect 不会因为"关旧连接"排一次假重连', async () => {

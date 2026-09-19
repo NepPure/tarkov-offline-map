@@ -31,6 +31,13 @@ function backoffDelay(attempt) {
   return Math.min(MAX_BACKOFF_MS, 1000 * 2 ** n);
 }
 
+/** 端口一律夹到合法范围：设置页里手打 -1 / 0 / 70000 时不能拼出 ws://host:-1/ws 这种废 URL */
+function clampPort(v, def = DEFAULT_PORT) {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 65535) return def;
+  return n;
+}
+
 /**
  * 把用户填的地址归一化成连接信息。
  * 允许的写法： `192.168.1.10` / `192.168.1.10:9000` / `ws://host:8787/ws` /
@@ -49,9 +56,10 @@ function parseServer(input, defaultPort = DEFAULT_PORT) {
   }
   rest = rest.replace(/\/+$/, '');
   rest = rest.replace(/\/ws$/i, '');
+  rest = rest.split('/')[0].trim(); // 只取 host[:port]：服务端固定挂在 /ws 上，路径不带
   if (!rest) return null;
   let host = rest;
-  let port = defaultPort;
+  let port = clampPort(defaultPort);
   // 端口 = 最后一个冒号后面那段，但**IPv6 的方括号里的冒号不算**：
   //   [::1]:8787 里的最后一个冒号在 ] 之后 -> 是端口分隔符
   //   [fe80::1]  里的最后一个冒号在 ] 之前 -> 不是，用默认端口
@@ -60,8 +68,11 @@ function parseServer(input, defaultPort = DEFAULT_PORT) {
   if (c > 0 && (bracketEnd === -1 || bracketEnd < c)) {
     const maybePort = rest.slice(c + 1);
     if (/^\d{1,5}$/.test(maybePort)) {
-      port = Math.max(1, Math.min(65535, Number(maybePort)));
-      host = rest.slice(0, c);
+      const n = Number(maybePort);
+      if (n >= 1 && n <= 65535) {
+        port = n;
+        host = rest.slice(0, c);
+      }
     }
   }
   if (!host) return null;
@@ -550,11 +561,26 @@ function pickPos(m) {
   return { map: m.map, x: m.x, y: m.y, z: m.z, hdg: m.hdg, ts: m.ts, trail: m.trail };
 }
 
+/** 服务端来的地图 id 与笔画 id 也必须能当键用（和 server/protocol.js 同一条规则） */
+const MAP_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+// 这几个键当对象键会把原型搞坏，一律不要
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function safeMapId(v) {
+  const s = String(v == null ? '' : v);
+  if (!MAP_RE.test(s) || DANGEROUS_KEYS.has(s)) return null;
+  return s;
+}
+
 function normalizeAnnos(raw) {
+  // 普通对象就够了：地图 id 已经过白名单正则 + 危险键黑名单，__proto__ 之类的进不来
+  // （不用 Object.create(null)，免得把无原型对象漏到 IPC / 渲染层去）
   const out = {};
   if (!raw || typeof raw !== 'object') return out;
-  for (const [mapId, list] of Object.entries(raw)) {
-    if (!Array.isArray(list)) continue;
+  for (const [rawMapId, list] of Object.entries(raw)) {
+    const mapId = safeMapId(rawMapId);
+    if (!mapId || !Array.isArray(list)) continue;
     const items = list
       .map((a) => sanitizeIncoming(a, a && a.owner))
       .filter(Boolean);
@@ -568,11 +594,13 @@ function sanitizeIncoming(a, owner) {
   // 必须带合法的 owner：界面上每个队友笔画都挂在一个"人的图例开关"下，
   // 没有 owner 的笔画会画出来却关不掉，等于破坏"地图上有什么，图例里就有什么"的硬约束。
   const ownerId = String(owner || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(ownerId)) return null;
+  if (!ID_RE.test(ownerId)) return null;
+  const id = String(a.id == null ? '' : a.id);
+  if (!ID_RE.test(id)) return null;
   const pts = Array.isArray(a.pts) ? a.pts.filter((p) => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.z))) : [];
   if (pts.length < 2) return null;
   return {
-    id: String(a.id || ''),
+    id,
     kind: a.kind,
     color: /^#[0-9a-f]{6}$/i.test(String(a.color)) ? String(a.color).toLowerCase() : '#f87171',
     width: P.clampWidth(a.width),
@@ -584,9 +612,9 @@ function sanitizeIncoming(a, owner) {
 
 /** 收到一条标注广播：add 覆盖同 id，del 删掉 */
 function applyAnno(annos, m) {
-  const out = { ...annos };
-  const mapId = String(m.map || '');
+  const mapId = safeMapId(m && m.map);
   if (!mapId) return annos;
+  const out = { ...annos };
   const list = Array.isArray(out[mapId]) ? [...out[mapId]] : [];
   const i = list.findIndex((a) => a.id === m.id);
   if (m.op === 'del') {
