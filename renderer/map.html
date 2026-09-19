@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' 'unsafe-inline'; img-src 'self' app: data:; connect-src 'self' app:" />
-  <title>塔可夫离线地图</title>
+  <title>塔可夫地图</title>
   <link rel="stylesheet" href="map.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="brand-dot"></span>
-      <h1>塔可夫离线地图</h1>
-      <span class="tag">纯本地</span>
+      <h1>塔可夫地图</h1>
     </div>
     <div class="controls">
       <label>地图
@@ -28,6 +27,7 @@
       <button id="btn-pin" class="toggle" title="图钉化地图：缩小主窗口并置顶">图钉化</button>
       <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
       <button id="btn-settings" title="高级设置">设置</button>
+      <button id="btn-about" title="关于：版本、开源地址与功能简介">关于</button>
     </div>
   </header>
 
@@ -182,8 +182,41 @@
         </section>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="settings-about" class="dialog-left">关于</button>
         <button value="cancel" formnovalidate>取消</button>
         <button value="ok" id="settings-ok">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="about-dialog">
+    <form method="dialog" class="about-form">
+      <h2>关于</h2>
+      <div class="about-title">
+        <span class="brand-dot"></span>
+        <b>塔可夫地图</b>
+        <span id="about-ver" class="about-ver">v-</span>
+      </div>
+      <p class="about-desc">《逃离塔科夫》的第三方地图辅助工具：读游戏日志识别你在哪张图，读截图文件名定位你的位置与朝向，
+        离线查阅撤离点、Boss、钥匙锁、物资箱、赛季文件刷点与任务目标，并可选地和队友开一个房间，
+        互相看到彼此的位置与标注。</p>
+      <ul class="about-feats">
+        <li><b>日志识图</b>：自动识别当前地图，进图 / 过图自动切换，认错了也能手动选图</li>
+        <li><b>截图定位</b>：游戏中按 <b>Print Screen</b>，地图上立刻标出位置、朝向与移动轨迹</li>
+        <li><b>悬浮小地图</b>：可拖动的圆形雷达置顶在游戏画面上，滚轮缩放、Ctrl 拖动平移、支持点击穿透</li>
+        <li><b>标记与图例</b>：撤离点 / 转移点 / Boss / 出生点 / 钥匙锁 / 物资箱 / 地名 / 赛季文件刷点，右侧图例逐项开关</li>
+        <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，点标记看商人、等级、阶段、任务物品与所需钥匙</li>
+        <li><b>手动标注</b>：画圈、规划路径、箭头、矩形，按地图保存（存世界坐标，缩放旋转都不跑位）</li>
+        <li><b>房间联机</b>（v2.0 新增，可选）：填自己的服务器地址，和队友互相看到位置、朝向与标注</li>
+      </ul>
+      <div class="about-row">
+        <span class="about-label">开源地址</span>
+        <a id="about-repo" href="https://github.com/NepPure/tarkov-offline-map">github.com/NepPure/tarkov-offline-map</a>
+      </div>
+      <p class="about-note">默认不联网：程序本身不发送任何请求，只有你在设置里填写了房间服务器地址后才会连接它。
+        本项目与 Battlestate Games 无关，地图与物品数据来自社区。</p>
+      <div class="dialog-actions">
+        <button value="ok" id="about-ok">知道了</button>
       </div>
     </form>
   </dialog>

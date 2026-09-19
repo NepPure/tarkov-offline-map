@@ -252,6 +252,29 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .settings-form input[type=checkbox] { accent-color: var(--accent); }
 .settings-form .hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.dialog-actions .dialog-left { margin-right: auto; }
+
+/* ---------- 关于 ---------- */
+#about-dialog { width: 560px; }
+.about-form h2 { font-size: 15px; margin-bottom: 10px; }
+.about-title { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 9px; }
+.about-ver { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 1px 7px; border-radius: 999px; }
+.about-desc { color: var(--muted); font-size: 12px; line-height: 1.7; margin-bottom: 11px; }
+.about-feats { list-style: none; display: grid; gap: 6px; margin-bottom: 12px; }
+.about-feats li { font-size: 12px; line-height: 1.55; padding-left: 14px; position: relative; }
+.about-feats li::before {
+  content: ''; position: absolute; left: 3px; top: 6px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+}
+.about-feats b { color: var(--accent); font-weight: 600; }
+.about-row {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+  padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+}
+.about-label { color: var(--muted); }
+.about-row a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.about-row a:hover { text-decoration: underline; }
+.about-note { font-size: 11px; color: var(--muted); line-height: 1.6; margin-top: 10px; }
 
 /* ---------- 任务侧边栏（左侧） ---------- */
 .quest-panel {

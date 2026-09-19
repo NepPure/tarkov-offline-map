@@ -85,6 +85,17 @@ async function init() {
     if (res && res.error) alert(res.error);
   });
   $('#btn-settings').addEventListener('click', openSettings);
+  $('#btn-about').addEventListener('click', openAbout);
+  // 设置弹窗里的"关于"：先关设置再开关于（两个 modal dialog 不能叠着）
+  $('#settings-about').addEventListener('click', () => {
+    $('#settings-dialog').close();
+    openAbout();
+  });
+  // 关于页里的开源地址：交给系统浏览器（渲染层不做任何跳转）
+  $('#about-repo').addEventListener('click', (e) => {
+    e.preventDefault();
+    api.openExternal(e.currentTarget.href);
+  });
 
   // 尺子测距
   onToggle('#btn-measure', (e) => {
@@ -223,6 +234,16 @@ function renderLegend() {
     sec.appendChild(itemsWrap);
     body.appendChild(sec);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 关于
+// ---------------------------------------------------------------------------
+function openAbout() {
+  const st = state.applyState || {};
+  const ver = st.appVersion || '';
+  $('#about-ver').textContent = ver ? `v${ver}` : '';
+  $('#about-dialog').showModal();
 }
 
 // ---------------------------------------------------------------------------

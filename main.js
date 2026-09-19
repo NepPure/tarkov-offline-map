@@ -25,7 +25,7 @@ const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry
 // 固定 userData 目录（保证开发环境与打包后共用同一份配置）
 app.setPath('userData', path.join(app.getPath('appData'), 'tarkov-offline-map'));
 
-const APP_TITLE = '塔可夫离线地图';
+const APP_TITLE = '塔可夫地图';
 const REPO_ROOT = __dirname;
 const DATA_DIR = path.join(REPO_ROOT, 'data');
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -163,6 +163,7 @@ const state = {
   lastMapSource: null, // 'logs' | 'manual' | 'screenshot-check'
   logSummary: null,   // {session, version, lastEvent}
   mapsVersion: null,
+  appVersion: null,   // 关于页面显示用（app.getVersion()）
 };
 
 let lastStateWrite = 0;
@@ -1476,6 +1477,7 @@ app.whenReady().then(() => {
   annotations.load(ANNOTATIONS_FILE);
   appLog(`annotations loaded: ${JSON.stringify(annotations.stats())}`);
   state.mapsVersion = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'maps-dump.json'), 'utf-8')).fetchedAt || null;
+  state.appVersion = app.getVersion();
 
   registerAppProtocol();
   Menu.setApplicationMenu(null);

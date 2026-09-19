@@ -1,0 +1,36 @@
+# 塔可夫地图 · 房间服务端（一条命令起服务）
+#
+#   docker compose up -d          起服务
+#   docker compose logs -f        看日志
+#   docker compose down           停服务
+#
+# 起好之后，随便找一台同网段的电脑开客户端：
+#   顶栏「设置 → 房间（联机）」里填
+#     服务器地址 = 这台机器的内网 IP 或域名（例如 192.168.1.10）
+#     端口       = 8787
+#     房间号     = 你们自己商量的暗号（口令可选）
+#     昵称       = 你自己的名字
+#   然后点「加入房间」。同一房间号 + 同一口令的人就在一起了。
+services:
+  room:
+    # 官方镜像（也可以自己 build：把 image 换成 tarkov-room:local 并打开下面 build 那行）
+    image: ghcr.io/neppure/tarkov-offline-map-server:2.0.0
+    # build: .
+    container_name: tarkov-map-room
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      MAX_ROOM_PEERS: "16"     # 单个房间人数上限
+      ROOM_TTL: "600"          # 房间空了以后在内存里保留多少秒
+      MAX_CONN_PER_IP: "8"     # 单 IP 并发连接上限
+      LOG_LEVEL: "info"        # error | warn | info | debug
+      PERSIST: "0"             # 1 = 房间标注落盘（重启不丢），需要打开下面的 volumes
+      # TRUST_PROXY: "1"       # 用 nginx/caddy 反代时打开，按 X-Forwarded-For 限流
+    # volumes:
+    #   - room-data:/data
+    # 资源占用：空载 40–80MB 内存（基本是 Node 自身的开销）；1 核 1G 的小机器挂几百人没问题。
+    # 注意：服务端只转发「位置点 / 标注 / 昵称」，不碰你的游戏日志与截图。
+
+# volumes:
+#   room-data:

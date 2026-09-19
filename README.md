@@ -1,17 +1,18 @@
-# 塔科夫离线实时地图 (tarkov-offline-map)
+# 塔可夫实时地图 (tarkov-offline-map)
 
 [![Build & Release (Windows)](https://github.com/NepPure/tarkov-offline-map/actions/workflows/build.yml/badge.svg)](https://github.com/NepPure/tarkov-offline-map/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/NepPure/tarkov-offline-map)](https://github.com/NepPure/tarkov-offline-map/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-纯本地的《逃离塔科夫》实时地图辅助工具：
+《逃离塔科夫》的第三方实时地图辅助工具：
 **监听游戏日志自动识别当前地图 + 监听截图目录自动定位玩家 + 悬浮小地图**。
-启动和运行完全不依赖任何服务器（无网络请求、无遥测）。
+默认完全本地运行：程序本身不发网络请求、无遥测。v2.0 起提供可选的**房间联机**
+（和队友互相看到位置与标注），需要你自己部署 `server/` 里的服务端并填写地址，不填就一行网络代码都不会跑。
 
 ## 下载（Windows 免安装）
 
 到 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
-`塔可夫离线地图-<版本>.exe`（portable 单文件，双击即用，约 145MB，内含离线地图数据与赛季文件参考截图），
+`塔可夫地图-<版本>.exe`（portable 单文件，双击即用，约 145MB，内含离线地图数据与赛季文件参考截图），
 校验值见同页 `SHA256SUMS.txt`。
 
 - 未做代码签名：SmartScreen 提示"未知发布者"时选择"仍要运行"
@@ -357,7 +358,7 @@ Boss 就是头像、钥匙就是钥匙、赛季文件就是文件图标），大
 ## 打包 Windows 一键运行 exe
 
 ```bash
-npm run dist      # electron-builder portable -> dist\塔可夫离线地图-<version>.exe
+npm run dist      # electron-builder portable -> dist\塔可夫地图-<version>.exe
 ```
 
 - 产物为 **免安装单文件 exe**（v1.2.0 起约 145MB，含 73MB 赛季文件参考截图），双击即用，自带图标与版本信息
@@ -450,6 +451,8 @@ node tools/diff-dump.js          # 与旧快照逐点 diff（撤离点/危险区
 ## 免责声明
 
 本项目仅读取玩家自己的游戏日志与截图文件，不注入进程、不读写游戏内存。
+默认不联网：只有你显式启用房间功能并填写服务器地址后，程序才会连接那一台服务器
+（房间服务器收不到你的游戏数据，只收到"位置点 / 标注 / 昵称"这几样，详见房间功能一节）。
 塔科夫官方禁止任何第三方辅助工具，仅供学习与离线/单人模式自用，风险自负。
 地图数据来源：tarkov.dev / the-hideout 开源底图 + kaedeori 站点的公开只读数据快照；
 任务与任务区域坐标来自 [tarkov.dev](https://tarkov.dev) 的公开数据快照（`json.tarkov.dev/regular/*`）；

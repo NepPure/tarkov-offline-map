@@ -1,0 +1,24 @@
+{
+  "name": "tarkov-offline-map-server",
+  "version": "2.0.0",
+  "private": true,
+  "description": "塔可夫地图 · 房间服务端（极轻量：单进程、纯内存、可选落盘，只有 ws 一个依赖）",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test --test-force-exit \"test/*.test.js\""
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NepPure/tarkov-offline-map.git",
+    "directory": "server"
+  }
+}
