@@ -326,6 +326,10 @@ async function applyMainState(s) {
       }
     }
     if (state.cfg.sound !== false) beep('pos');
+  } else if (view.player) {
+    // 新一局（进图日志清空了位置）：抹掉上一局的玩家点与轨迹，撤离指引也复位
+    view.clearPlayer();
+    $('#st-exfil').textContent = '最近撤离: -';
   }
 
   // 3) 楼层

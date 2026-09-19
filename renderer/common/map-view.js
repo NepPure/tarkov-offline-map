@@ -76,6 +76,21 @@ export function mapLabelStyle(fontSize) {
   };
 }
 
+/**
+ * 拖动平移后的视野中心。
+ * 屏幕位移 (dx,dy) -> 地图像素位移，含"随朝向旋转"时的逆变换；
+ * 手感与"抓住地图"一致：光标往右拖，地图跟着往右走，于是视野中心往左移。
+ * 主窗口的地图拖动与雷达的 Ctrl 拖动共用这一份换算。
+ */
+export function panCenterAfterDrag(cx, cy, scale, rot, dx, dy) {
+  const s = scale || 1;
+  const cos = Math.cos(rot || 0), sin = Math.sin(rot || 0);
+  return {
+    cx: cx - (dx * cos + dy * sin) / s,
+    cy: cy - (-dx * sin + dy * cos) / s,
+  };
+}
+
 export class MapView {
   constructor(container, { mini = false } = {}) {
     this.container = container;
@@ -159,10 +174,9 @@ export class MapView {
         if (!dragging) return;
         moved += Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy);
         // 空间平移 = 屏幕位移 / 缩放（含车头朝上旋转的逆变换）
-        const dx = e.clientX - sx, dy = e.clientY - sy;
-        const cos = Math.cos(this.view.rot), sin = Math.sin(this.view.rot);
-        this.view.cx = scx - (dx * cos + dy * sin) / this.view.scale;
-        this.view.cy = scy - (-dx * sin + dy * cos) / this.view.scale;
+        const next = panCenterAfterDrag(scx, scy, this.view.scale, this.view.rot, e.clientX - sx, e.clientY - sy);
+        this.view.cx = next.cx;
+        this.view.cy = next.cy;
         this.follow = false;
         this.#requestRender();
       });
@@ -413,6 +427,19 @@ export class MapView {
     if (this.onPlayerSettled) this.onPlayerSettled(this.player, this.heading);
   }
 
+  /**
+   * 清掉玩家点与轨迹（新一局开始 / 换图）。
+   * 上一局的轨迹投到新图上会是一条横穿地图的假路线，必须在进图那一刻就抹掉。
+   */
+  clearPlayer() {
+    this.player = null;
+    this.heading = null;
+    this.trail = [];
+    this.nearestExfil = null; // 上一局的"最近撤离点"高亮也要撤掉
+    this.#renderOverlay();
+    if (this.onPlayerSettled) this.onPlayerSettled(null, null);
+  }
+
   setTrail(trail) {
     this.trail = trail || [];
     this.#renderOverlay();
@@ -589,27 +616,33 @@ export class MapView {
   #renderOverlay() {
     if (!this.detail) return;
     // 玩家
-    if (this.playerEl && this.player && this.proj) {
-      const p = this.proj.project(this.player.x, this.player.z);
-      const s = this.#worldToScreen(p.x, p.y);
-      const size = this.mini ? 20 : 18;
-      const rot = this.heading ? this.heading.screenAngleDeg : 0;
-      this.playerEl.innerHTML = `
-        <g transform="translate(${s.x} ${s.y})">
-          <circle r="${size * 0.7}" fill="rgba(34,211,238,0.25)" class="player-pulse"></circle>
-          <g transform="rotate(${rot})">
-            <path d="M${size} 0 L${-size * 0.6} ${-size * 0.6} L${-size * 0.3} 0 L${-size * 0.6} ${size * 0.6} Z"
-                  fill="#22d3ee" stroke="#0b0e13" stroke-width="1.5"></path>
-          </g>
-        </g>`;
-      // 轨迹
-      const pts = this.trail.map((t) => {
-        const q = this.proj.project(t.x, t.z);
-        const s2 = this.#worldToScreen(q.x, q.y);
-        return `${s2.x},${s2.y}`;
-      });
-      this.trailEl.setAttribute('points', pts.join(' '));
-      this.trailEl.setAttribute('stroke-width', String(this.mini ? 3 : Math.max(2, 2.5 / this.view.scale * 2)));
+    if (this.playerEl) {
+      if (this.player && this.proj) {
+        const p = this.proj.project(this.player.x, this.player.z);
+        const s = this.#worldToScreen(p.x, p.y);
+        const size = this.mini ? 20 : 18;
+        const rot = this.heading ? this.heading.screenAngleDeg : 0;
+        this.playerEl.innerHTML = `
+          <g transform="translate(${s.x} ${s.y})">
+            <circle r="${size * 0.7}" fill="rgba(34,211,238,0.25)" class="player-pulse"></circle>
+            <g transform="rotate(${rot})">
+              <path d="M${size} 0 L${-size * 0.6} ${-size * 0.6} L${-size * 0.3} 0 L${-size * 0.6} ${size * 0.6} Z"
+                    fill="#22d3ee" stroke="#0b0e13" stroke-width="1.5"></path>
+            </g>
+          </g>`;
+        // 轨迹
+        const pts = this.trail.map((t) => {
+          const q = this.proj.project(t.x, t.z);
+          const s2 = this.#worldToScreen(q.x, q.y);
+          return `${s2.x},${s2.y}`;
+        });
+        this.trailEl.setAttribute('points', pts.join(' '));
+        this.trailEl.setAttribute('stroke-width', String(this.mini ? 3 : Math.max(2, 2.5 / this.view.scale * 2)));
+      } else {
+        // 没有玩家（新一局还没定位 / 刚清空）：连同轨迹一起抹掉，别留上一局的残影
+        this.playerEl.innerHTML = '';
+        this.trailEl.setAttribute('points', '');
+      }
     }
     // 标记（图标 + 中文名标签，复刻原站样式）
     const markers = this.#visibleMarkers();

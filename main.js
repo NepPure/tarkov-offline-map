@@ -139,6 +139,7 @@ const state = {
   position: null,     // {x, y(高度), z}
   quaternion: null,
   headingDeg: null,
+  positionAt: null,    // 最近一次截图定位的时间戳（用于判断轨迹是不是上一局的）
   trail: [],          // [{x, z, at, file}]
   lastMapSource: null, // 'logs' | 'manual' | 'screenshot-check'
   logSummary: null,   // {session, version, lastEvent}
@@ -217,9 +218,23 @@ function registerAppProtocol() {
 // ---------------------------------------------------------------------------
 function applyLogEvent(ev) {
   let raidCode = null;
-  if (ev.type === 'scene-preset') raidCode = ev.raidCode;
-  else if (ev.type === 'network-game-create') raidCode = ev.raidCode;
+  let newRaid = false;
+  if (ev.type === 'scene-preset') { raidCode = ev.raidCode; newRaid = true; }
+  else if (ev.type === 'network-game-create') { raidCode = ev.raidCode; newRaid = true; }
   else if (ev.type === 'transit') return; // 仅参考
+
+  // 进图行 = 新一局（或过图）：上一局的玩家位置与轨迹都不再适用，
+  // 否则新局一开始就会在图上留一条上一局的假路线，并且玩家箭头停在旧位置。
+  // 只在"轨迹比这次进图更旧"时才清：应用启动/重连日志时会回放历史进图行，
+  // 那种情况下不能把当前这一局的定位抹掉。
+  if (newRaid && (state.positionAt == null || !Number.isFinite(ev.ts) || state.positionAt < ev.ts)) {
+    const had = (state.trail && state.trail.length) || state.position;
+    if (had) appLog(`new raid (${ev.bundle || ev.raidCode || ev.type}): 清空轨迹 ${state.trail.length} 点 + 玩家位置`);
+    broadcast({
+      trail: [], position: null, quaternion: null, headingDeg: null,
+      positionAt: null, lastFile: null, floor: 'auto',
+    });
+  }
 
   if (raidCode) {
     const key = RAIDCODE_TO_MAPKEY[raidCode];
@@ -244,6 +259,7 @@ function applyPosition(pos) {
     quaternion: pos.quaternion,
     headingDeg,
     trail,
+    positionAt: pos.at || Date.now(),
     lastFile: pos.file,
   });
   // 自动删除截图文件（读取后删除）
@@ -432,6 +448,7 @@ function createMainWindow() {
   mainWin.on('closed', () => {
     mainWin = null;
     stopMiniDrag('main-closed');
+    stopMiniPan('main-closed');
     if (miniWin && !miniWin.isDestroyed()) miniWin.destroy();
     miniWin = null;
     if (process.platform !== 'darwin') app.quit();
@@ -533,6 +550,116 @@ function startMiniDrag() {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// 雷达"Ctrl + 拖动 = 平移圆盘里的地图"
+// 和拖动窗口一样由主进程按真实光标位置轮询，而不是让渲染层收 pointermove：
+//  - 透明无边框窗口上 setPointerCapture 不可靠，光标一离开 300px 圆盘事件就断了，
+//    表现为"按住 Ctrl 拖，地图只动一点点"；
+//  - 主进程轮询则光标移到哪、甚至移出屏幕都不会丢。
+// 主进程只负责报光标位置，真正的平移换算在渲染层（和主窗口地图拖动共用一份数学）。
+// ---------------------------------------------------------------------------
+let miniPan = null; // { timer, started, last:{x,y} }
+
+function stopMiniPan(reason = 'release') {
+  if (!miniPan) return;
+  clearInterval(miniPan.timer);
+  miniPan = null;
+  miniLog(`pan end (${reason})`);
+  if (miniAlive()) { try { miniWin.webContents.invalidate(); } catch {} }
+}
+
+function startMiniPan() {
+  if (!miniAlive() || miniWin.isDestroyed()) return null;
+  if (miniPan) stopMiniPan('restart');
+  const cursor = screen.getCursorScreenPoint();
+  const started = Date.now();
+  miniLog(`pan start cursor=${cursor.x},${cursor.y}`);
+  miniPan = {
+    started,
+    last: { x: cursor.x, y: cursor.y },
+    timer: setInterval(() => {
+      if (!miniAlive()) return stopMiniPan('window-gone');
+      if (Date.now() - started > 15000) return stopMiniPan('timeout');
+      try {
+        const c = screen.getCursorScreenPoint();
+        if (c.x === miniPan.last.x && c.y === miniPan.last.y) return;
+        miniPan.last = { x: c.x, y: c.y };
+        miniWin.webContents.send('mini:pan', { x: c.x, y: c.y });
+      } catch (e) { stopMiniPan('error: ' + e.message); }
+    }, 12),
+  };
+  return cursor; // 渲染层拿它当基准点
+}
+
+// ---------------------------------------------------------------------------
+// 真实按键状态助手（Windows）
+// 坑：雷达窗口 focusable:false（键盘焦点在游戏那边），实测渲染层 pointerdown 里的
+// e.ctrlKey 可能是 false —— 于是"按住 Ctrl 拖动"会被当成"拖动窗口"。
+// 解决办法：直接问系统。启动时拉一个常驻 PowerShell，问一次 Ctrl 是否按着（毫秒级往返），
+// 拿不到就返回 null，调用方退回 ctrlKey 判定。
+// ---------------------------------------------------------------------------
+let keyHelper = null; // { proc, queue: [], buf: '', dead: bool }
+
+const KEY_HELPER_PS = [
+  'Add-Type -AssemblyName System.Windows.Forms',
+  '$o = [Console]::Out',
+  '$i = [Console]::In',
+  'while ($true) {',
+  '  $line = $i.ReadLine()',
+  '  if ($line -eq $null) { break }',
+  '  if ([System.Windows.Forms.Control]::ModifierKeys -band [System.Windows.Forms.Keys]::Control) { $o.WriteLine("1") } else { $o.WriteLine("0") }',
+  '  $o.Flush()',
+  '}',
+].join('\n');
+
+function startKeyHelper() {
+  if (keyHelper) return;
+  try {
+    const proc = require('child_process').spawn('powershell', [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', KEY_HELPER_PS,
+    ], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
+    keyHelper = { proc, queue: [], buf: '', dead: false };
+    proc.stdout.setEncoding('utf8');
+    proc.stdout.on('data', (chunk) => {
+      keyHelper.buf += chunk;
+      let i;
+      while ((i = keyHelper.buf.indexOf('\n')) >= 0) {
+        const line = keyHelper.buf.slice(0, i).trim();
+        keyHelper.buf = keyHelper.buf.slice(i + 1);
+        const resolve = keyHelper.queue.shift();
+        if (resolve) resolve(line === '1' ? true : line === '0' ? false : null);
+      }
+    });
+    const fail = () => {
+      if (!keyHelper) return;
+      keyHelper.dead = true;
+      while (keyHelper.queue.length) keyHelper.queue.shift()(null);
+    };
+    proc.on('error', fail);
+    proc.on('exit', fail);
+  } catch { keyHelper = null; }
+}
+
+/** Ctrl 现在按着吗？拿不到返回 null */
+function ctrlKeyDown() {
+  if (!keyHelper || keyHelper.dead || !keyHelper.proc.stdin.writable) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    keyHelper.queue.push(resolve);
+    try { keyHelper.proc.stdin.write('?\n'); } catch { resolve(null); }
+    setTimeout(() => {
+      const i = keyHelper && keyHelper.queue.indexOf(resolve);
+      if (i >= 0) { keyHelper.queue.splice(i, 1); resolve(null); } // 超时兜底
+    }, 800);
+  });
+}
+
+function stopKeyHelper() {
+  if (!keyHelper) return;
+  try { keyHelper.proc.stdin.end(); } catch {}
+  try { keyHelper.proc.kill(); } catch {}
+  keyHelper = null;
+}
+
 function createMiniWindow(reason = 'startup') {
   if (miniWin && !miniWin.isDestroyed()) {
     miniHidden = false;
@@ -567,8 +694,8 @@ function createMiniWindow(reason = 'startup') {
   miniWin.loadURL('app://renderer/minimap.html');
   try { miniWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
 
-  miniWin.on('closed', () => { miniLog('closed'); stopMiniDrag('closed'); stopMiniUnlockWatch(); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
-  miniWin.on('hide', () => { miniHidden = true; stopMiniDrag('hide'); miniLog('hide'); broadcastMiniStatus(); });
+  miniWin.on('closed', () => { miniLog('closed'); stopMiniDrag('closed'); stopMiniPan('closed'); stopMiniUnlockWatch(); miniWin = null; miniHidden = false; broadcastMiniStatus(); });
+  miniWin.on('hide', () => { miniHidden = true; stopMiniDrag('hide'); stopMiniPan('hide'); miniLog('hide'); broadcastMiniStatus(); });
   miniWin.on('show', () => { miniHidden = false; miniLog('show'); miniReassert(); });
   miniWin.on('minimize', () => { miniLog('minimize -> restore'); try { miniWin.restore(); } catch {} });
   miniWin.on('moved', () => {
@@ -585,7 +712,7 @@ function createMiniWindow(reason = 'startup') {
     miniReassert();
   });
   miniWin.on('blur', () => { miniLog('blur'); stopMiniDrag('blur'); miniReassert(); });
-  miniWin.on('unresponsive', () => { miniLog('unresponsive'); stopMiniDrag('unresponsive'); });
+  miniWin.on('unresponsive', () => { miniLog('unresponsive'); stopMiniDrag('unresponsive'); stopMiniPan('unresponsive'); });
   miniWin.on('responsive', () => miniLog('responsive'));
   miniWin.webContents.on('did-finish-load', () => {
     miniLog('did-finish-load');
@@ -596,11 +723,13 @@ function createMiniWindow(reason = 'startup') {
   miniWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
     miniLog(`did-fail-load ${code} ${desc} ${url} -> reload`);
     stopMiniDrag('did-fail-load');
+    stopMiniPan('did-fail-load');
     setTimeout(() => { if (miniAlive()) miniWin.webContents.reload(); }, 800);
   });
   miniWin.webContents.on('render-process-gone', (_e, details) => {
     miniLog('render-process-gone ' + JSON.stringify(details));
     stopMiniDrag('render-gone');
+    stopMiniPan('render-gone');
     setTimeout(() => { if (miniAlive()) { miniLog('reload after crash'); miniWin.webContents.reload(); } }, 500);
   });
   broadcastMiniStatus();
@@ -624,7 +753,14 @@ function setupIpc() {
   ipcMain.handle('map:list', () => mapsData.listMaps());
   ipcMain.handle('map:select', (_e, { key, id }) => {
     const detail = key ? mapsData.getByKey(key) : mapsData.getById(id);
-    if (detail) broadcast({ mapId: detail.id, mapKey: detail.key, floor: 'auto', lastMapSource: 'manual' });
+    if (detail) {
+      // 手动换图：上一张图的定位/轨迹在新图上没有意义（否则会出现横穿地图的假路线）
+      const changed = detail.id !== state.mapId;
+      broadcast({
+        mapId: detail.id, mapKey: detail.key, floor: 'auto', lastMapSource: 'manual',
+        ...(changed ? { trail: [], position: null, quaternion: null, headingDeg: null, positionAt: null, lastFile: null } : {}),
+      });
+    }
     return state;
   });
   ipcMain.handle('floor:set', (_e, floor) => { broadcast({ floor }); return state; });
@@ -678,6 +814,27 @@ function setupIpc() {
   // 拖动小地图（移动窗口本身，不是平移地图）
   ipcMain.handle('mini:drag-start', () => startMiniDrag());
   ipcMain.handle('mini:drag-end', () => { stopMiniDrag('release'); return settings.miniPos || null; });
+  // Ctrl + 拖动：平移圆盘里的地图（不动窗口）；返回按下时的光标位置作为换算基准
+  ipcMain.handle('mini:pan-start', () => startMiniPan());
+  ipcMain.handle('mini:pan-end', () => { stopMiniPan('release'); return true; });
+  // 渲染层诊断（写进 userData/mini.log）：记按下时看到的修饰键状态，
+  // 万一"Ctrl 拖不动"能一眼看出是 ctrlKey 没送到、还是平移本身没生效
+  ipcMain.handle('mini:probe', (_e, msg) => { miniLog(`probe ${JSON.stringify(msg)}`); return true; });
+  // 诊断用：直接问 Windows"Ctrl 现在是不是按着的"（渲染层拿到的 ctrlKey 实测可能是 false）
+  ipcMain.handle('mini:ctrl-state', async () => {
+    const real = await ctrlKeyDown();
+    if (real !== null) return real;
+    // 助手不可用：退回一次性查询（慢，但只是个诊断/保底路径）
+    return new Promise((resolve) => {
+      try {
+        require('child_process').execFile('powershell', [
+          '-NoProfile', '-NonInteractive', '-Command',
+          'Add-Type -AssemblyName System.Windows.Forms; ' +
+          'if ([System.Windows.Forms.Control]::ModifierKeys -band [System.Windows.Forms.Keys]::Control) { "1" } else { "0" }',
+        ], { timeout: 4000 }, (err, stdout) => resolve(err ? null : String(stdout).trim() === '1'));
+      } catch { resolve(null); }
+    });
+  });
   ipcMain.handle('mini:status', () => miniStatus());
   // 点击穿透开关（写配置）；锁定期间由主进程轮询光标，悬停"解锁"小块时临时恢复交互
   ipcMain.handle('mini:click-through', (_e, on) => {
@@ -1275,6 +1432,7 @@ app.whenReady().then(() => {
 
   registerAppProtocol();
   Menu.setApplicationMenu(null);
+  startKeyHelper(); // 常驻"Ctrl 是否按着"助手（雷达的 Ctrl 拖动用它判定）
   setupIpc();
   createMainWindow();
   startWatchers();
@@ -1303,6 +1461,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (miniWatchdog) { clearInterval(miniWatchdog); miniWatchdog = null; }
   stopMiniDrag('quit');
+  stopMiniPan('quit');
+  stopKeyHelper();
   if (logWatcher) logWatcher.stop();
   if (shotWatcher) shotWatcher.stop();
 });

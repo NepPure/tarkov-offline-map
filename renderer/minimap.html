@@ -24,6 +24,9 @@
       box-shadow: inset 0 0 0 2px rgba(34,211,238,0.35), inset 0 0 24px rgba(0,0,0,0.55);
     }
     body.dragging #mini-root { box-shadow: inset 0 0 0 2px rgba(34,211,238,0.85), inset 0 0 24px rgba(0,0,0,0.55); }
+    /* Ctrl + 拖动 = 平移圆盘里的地图：用琥珀色圆环区分"这次动的是地图，不是窗口" */
+    body.panning #mini-root { box-shadow: inset 0 0 0 2px rgba(251,191,36,0.9), inset 0 0 24px rgba(0,0,0,0.55); }
+    body.panning, body.panning .mapstage, body.panning .map-marker { cursor: grabbing; }
     /* 与主窗口 map.css 一致的 mapstage 布局（迷你窗单独维护） */
     .mapstage { position: absolute; inset: 0; cursor: move; }
     .mapstage.dragging { cursor: move; }

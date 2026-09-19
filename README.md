@@ -141,6 +141,27 @@ npm run visual-test  # 可视化自检：自动注入工厂位置并截屏到 te
 | 点击穿透 | 关 | 开 = 雷达**看得到、点不着**（鼠标直接作用到游戏） |
 | 缩放跟随互动地图 | 关 | 关 = 按自己的显示半径 |
 
+**鼠标操作**（雷达上没有任何常驻按钮）：
+
+| 操作 | 效果 |
+|---|---|
+| 按住圆盘拖动 | 移动悬浮窗位置（位置自动记忆） |
+| 按住 **Ctrl** + 拖动圆盘 | **平移圆盘里面的地图**（窗口不动；玩家照旧跟随，只是不再固定在圆心，相当于往某侧多看一点） |
+| **Ctrl + 双击** | 视野偏移归零（回到以玩家为中心；换图/新一局时也会自动归零） |
+| 滚轮 | 缩放雷达（保持光标下的地图点不动） |
+
+平移量按 `屏幕位移 / 缩放` 换算（含"随角色朝向旋转"时的逆变换），与主窗口的地图拖动共用同一份数学。
+平移时圆盘边缘会变成**琥珀色圆环**，和 Cyan 色的"移动窗口"区分开。
+点击穿透状态下窗口收不到鼠标，要先点右下角「解锁」再拖。
+
+两种手势都由**主进程按 12ms 轮询真实光标**驱动（拖动窗口是 setBounds 搬窗口，平移是推送光标位置给渲染层）。
+渲染层的 `pointermove` / `setPointerCapture` 在这块透明无边框窗口上不可靠：光标一离开 300px 圆盘事件就断，
+表现为"按住 Ctrl 拖，地图只动一点点"。
+
+**上一局的轨迹不会带到新局**：日志里出现进图行（`scene preset path:` / `TRACE-NetworkGameCreate`）时清空玩家位置与轨迹，
+手动换图同样清空。只清"比这次进图更旧"的定位，所以应用重启/重连时回放历史进图行**不会**误清当前这一局
+（`app.log` 会记 `new raid (...): 清空轨迹 N 点 + 玩家位置`）。
+
 **点击穿透（看得到点不着）+「锁 / 解锁」小按钮**：两个按钮都在雷达右下角，**鼠标靠近才出现**（平时完全透明不挡地图）。
 
 - 未锁定：鼠标放在雷达上 -> 淡出显示「锁」，点它开启点击穿透（鼠标直接作用到游戏）
@@ -209,6 +230,9 @@ Boss 就是头像、钥匙就是钥匙、赛季文件就是文件图标），大
 | 被游戏窗口盖住 / Win+D 最小化 | 置顶层级丢失或被系统最小化 | 看门狗 + blur/focus 事件重新抬高到 `screen-saver` 级；被最小化立即 `restore()` |
 | 窗口真的被销毁 / 渲染进程崩溃 | 透明窗口 OOM、GPU 掉线 | `render-process-gone` / `did-fail-load` 自动 reload；窗口没了自动重建；按钮变黄提示 |
 | 按钮显示开着但其实没窗口 | 状态不同步 | 主进程广播 `miniStatus`，按钮反映真实状态；再点一次是"恢复"而不是"关闭" |
+| 按住 Ctrl 拖动却变成"移动窗口" | 雷达窗口 `focusable:false`（键盘焦点在游戏那边），渲染层 `pointerdown` 里的 `e.ctrlKey` 实测可能是 `false` | 按下时**直接问 Windows**（常驻 PowerShell 助手 `[System.Windows.Forms.Control]::ModifierKeys`，毫秒级往返），`e.ctrlKey` 只当快速路径；`mini.log` 里 `probe {"ev":"down","ctrl":...}` 会记下渲染层看到的值 |
+| 松手后雷达还跟着鼠标跑十几秒 | 只处理了"平移"的收尾，漏掉窗口拖动的 `pointerup` → 主进程轮询一直跑到 15s 超时（`mini.log` 记 `drag end (timeout)`） | `pointerup` / `pointercancel` / 失焦一律**两种手势都收尾**；两种手势互斥（开始一个先结束另一个） |
+| Ctrl + 双击没反应 | `pointerdown` 里 `preventDefault()` 之后 Chromium 不再派发兼容鼠标事件（含 `dblclick`） | 不依赖 `dblclick`：自己按"两次 Ctrl 按下（450ms / 8px 内）"判定双击 |
 
 ## 打包 Windows 一键运行 exe
 
@@ -247,18 +271,20 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm test                 # 单元测试（解析器/投影/映射 + 赛季数据完整性 + 地图几何/地名文字样式），27 个用例
+npm test                 # 单元测试（解析器/投影/映射 + 赛季数据完整性 + 地图几何/地名文字/拖动平移），37 个用例
 npm run simulate         # 用 samples 里的日志+截图跑完整管线
 node tools/diagnose.js   # 诊断真实游戏日志：会话选择/文件匹配/事件解析
 npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距/图钉/赛季文件/小地图拖动与焦点，截屏到 test-artifacts/
 powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截屏 -> 读状态 -> 关主窗口确认零残留
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
 node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
+node tools/verify-mini-pan.js              # 雷达 Ctrl+拖动平移地图验收（CDP 合成输入，不动系统鼠标，游戏在前台也能跑）
 node tools/scan-privacy.js                 # 开源前扫描样例里的账号ID/邮箱/token
 ```
 
 `tools/verify-mini-input.js` 用 `SetCursorPos` + `mouse_event`（真实输入，不是合成事件）验收小地图，
 检测到游戏在前台时会自动跳过，避免把点击送进游戏。
+`tools/verify-mini-pan.js` 只用 CDP 合成带 Ctrl 修饰键的鼠标事件（不碰系统光标），随时可跑。
 
 ## 数据更新（游戏大版本更新后）
 

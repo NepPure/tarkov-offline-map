@@ -105,9 +105,11 @@
           <label class="row"><input type="checkbox" id="set-mini-auto-floor" /> 按玩家高度自动切换楼层（默认开）</label>
           <label class="row"><input type="checkbox" id="set-mini-click-through" /> 点击穿透：雷达看得到但点不着（鼠标直接作用到游戏）</label>
           <label class="row"><input type="checkbox" id="set-mini-follow" /> 缩放跟随互动地图（默认关：按自己的显示半径）</label>
-          <div class="hint">雷达默认没有任何按钮：<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆），<b>滚轮缩放</b>；
+          <div class="hint">雷达默认没有任何按钮：<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆），<b>滚轮缩放</b>，
+            <b>Ctrl + 拖动 = 平移圆盘里的地图</b>（窗口不动；玩家照旧跟随，只是不再固定在圆心），
+            <b>Ctrl + 双击</b> 把视野偏移归零（换图时会自动归零）；
             方向/居中/楼层/点击穿透/透明度都在这里调。开了点击穿透后，雷达右下角会出现一个小"解锁"块，
-            鼠标悬停到它上面时会临时恢复交互，点一下就关掉穿透。</div>
+            鼠标悬停到它上面时会临时恢复交互，点一下就关掉穿透（穿透状态下收不到鼠标，所以要先解锁才能拖动）。</div>
         </section>
       </div>
       <div class="dialog-actions">

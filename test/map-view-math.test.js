@@ -58,3 +58,37 @@ test('小地图标准视野：55 米半径铺满 300px 圆盘', async () => {
     assert.ok(scale > 0.5 && scale < 60, `${key} 缩放 ${scale} 不应撞到钳位`);
   }
 });
+
+/**
+ * 拖动平移（主窗口的地图拖动 与 雷达的 Ctrl 拖动 共用同一份换算）：
+ * 光标往右拖 -> 地图跟着往右走 -> 视野中心往左移，位移量 = 屏幕位移 / 缩放。
+ */
+test('拖动平移：屏幕位移按缩放折算到地图像素，方向与"抓住地图"一致', async () => {
+  const { panCenterAfterDrag } = await import('../renderer/common/map-view.js');
+  const right = panCenterAfterDrag(1000, 2000, 2, 0, 100, 0);
+  assert.strictEqual(right.cx, 950); // 往右拖 100px，scale=2 -> 中心左移 50
+  assert.strictEqual(right.cy, 2000);
+  const down = panCenterAfterDrag(1000, 2000, 2, 0, 0, 100);
+  assert.strictEqual(down.cx, 1000);
+  assert.strictEqual(down.cy, 1950);
+  // 缩小到 scale=0.5 时，同样的屏幕位移对应更大的地图位移
+  assert.strictEqual(panCenterAfterDrag(0, 0, 0.5, 0, 100, 0).cx, -200);
+});
+
+test('拖动平移：随朝向旋转时按逆变换走（90° 下横拖变纵移）', async () => {
+  const { panCenterAfterDrag } = await import('../renderer/common/map-view.js');
+  const rot90 = Math.PI / 2;
+  const p = panCenterAfterDrag(0, 0, 1, rot90, 100, 0);
+  assert.ok(Math.abs(p.cx) < 1e-9, `cx 应约为 0，实际 ${p.cx}`);
+  assert.ok(Math.abs(p.cy - 100) < 1e-9, `cy 应为 100，实际 ${p.cy}`);
+  // 与不旋转时（横拖改 cx）不同：90° 下横拖只改 cy，证明走的是逆变换而不是直接加减
+  assert.notStrictEqual(Math.sign(panCenterAfterDrag(0, 0, 1, 0, 100, 0).cx), 0);
+});
+
+test('拖动平移：拖出去再拖回来回到原位（可逆、无累积漂移）', async () => {
+  const { panCenterAfterDrag } = await import('../renderer/common/map-view.js');
+  const scale = 3.7, rot = 0.9;
+  const a = panCenterAfterDrag(500, -300, scale, rot, 137, -49);
+  const b = panCenterAfterDrag(a.cx, a.cy, scale, rot, -137, 49);
+  assert.ok(Math.abs(b.cx - 500) < 1e-9 && Math.abs(b.cy + 300) < 1e-9, `应回到起点，得到 ${b.cx},${b.cy}`);
+});
