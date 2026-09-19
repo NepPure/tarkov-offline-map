@@ -513,6 +513,31 @@ test('地址归一化：IPv6 也要能填', () => {
   assert.strictEqual(v6c.secure, true);
 });
 
+test('队友换图：他之前那张图上的定位要作废（不能留个假点）', () => {
+  const c = newClient();
+  c.applyConfig(CFG);
+  const ws = FakeWS.instances[0];
+  ws.doOpen();
+  ws.doMsg({ t: 'welcome', self: { id: 'me' }, peers: [], annos: {} });
+  ws.doMsg({ t: 'peer-join', peer: { id: 'p2', nick: '小红', map: 'woods' } });
+  ws.doMsg({ t: 'peer-pos', id: 'p2', map: 'woods', x: 1, z: 2, hdg: 0, ts: 1, trail: [{ x: 0, z: 0 }, { x: 1, z: 2 }] });
+  let p = c.snapshot().peers.find((x) => x.id === 'p2');
+  assert.ok(p.pos && p.pos.trail.length === 2, '先得有定位');
+
+  // 他换到海关
+  ws.doMsg({ t: 'peer-map', id: 'p2', map: 'customs', pos: null });
+  p = c.snapshot().peers.find((x) => x.id === 'p2');
+  assert.strictEqual(p.map, 'customs');
+  assert.strictEqual(p.pos, null, '换图后旧定位必须清掉');
+
+  // 他在新图给了定位 -> 又能画出来
+  ws.doMsg({ t: 'peer-pos', id: 'p2', map: 'customs', x: 5, z: 6, hdg: 90, ts: 2 });
+  p = c.snapshot().peers.find((x) => x.id === 'p2');
+  assert.strictEqual(p.pos.x, 5);
+  assert.strictEqual(p.pos.map, 'customs');
+  c.destroy();
+});
+
 test('重复 connect 不会因为"关旧连接"排一次假重连', async () => {
   const c = newClient();
   c.applyConfig(CFG);

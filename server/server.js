@@ -314,8 +314,11 @@ function createRoomServer(opts = {}) {
     const map = P.normMap(m.map);
     if (!map || map === peer.map) return;
     peer.map = map;
-    // 和位置一样不回给本人：peer-* 系列消息只在"别人的状态变了"时才发
-    broadcast(peer.room, { t: 'peer-map', id: peer.id, map }, peer.id);
+    // 换图 = 上一张图上的定位作废。客户端进新局时本来就把自己的位置/轨迹清掉了，
+    // 这里不跟着清的话，队友图上会一直停着一个"旧图上的假点"，图例还会说他在那张图上。
+    peer.pos = null;
+    // 和位置一样不回给本人；pos:null 明确告诉其他人"把他之前的点抹掉"
+    broadcast(peer.room, { t: 'peer-map', id: peer.id, map, pos: null }, peer.id);
   }
 
   function onPos(peer, m) {

@@ -93,6 +93,12 @@ test('图例指纹：成员/昵称/是否在本图/本图标注数变了才重�
   assert.notStrictEqual(base, R.peersSignature(peers, 'customs', {}), '换图后"在不在本图"会变，要重建');
   const annos = { woods: [{ id: 'a1', owner: 'p1', kind: 'pen' }] };
   assert.notStrictEqual(base, R.peersSignature(peers, 'woods', annos), '他画了一笔，计数要变');
+
+  // 还没定位的人换图：图例里那行会从"（在森林）"变成"（在海关）"，所以指纹必须跟着变
+  const noPos = [{ id: 'p1', nick: '甲', map: 'woods', mapName: '森林', pos: null }];
+  const moved = [{ id: 'p1', nick: '甲', map: 'customs', mapName: '海关', pos: null }];
+  assert.notStrictEqual(R.peersSignature(noPos, 'customs', {}), R.peersSignature(moved, 'customs', {}),
+    '没定位的人换了图，图例文字会变，指纹必须变（否则图例一直显示他在旧图）');
 });
 
 test('雷达边缘钳位：圆外的队友按同样方位贴到圆边上', async () => {

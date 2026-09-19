@@ -125,7 +125,9 @@ export function peersSignature(peers, mapId, annosByMap = {}) {
     .map((p) => {
       const annos = (annosByMap && annosByMap[mapId]) || [];
       const mine = annos.filter((a) => a && a.owner === p.id).length;
-      return `${p.id}:${p.nick}:${peerOnMap(p, mapId) ? 1 : 0}:${mine}:${p.pos ? 1 : 0}`;
+      // 带上 p.map / mapName：还没定位的人换了图，图例那行会从"（在森林）"变成"（在海关）"，
+      // 指纹不带上就会一直显示他在旧图。
+      return `${p.id}:${p.nick}:${p.map || ''}:${p.mapName || ''}:${peerOnMap(p, mapId) ? 1 : 0}:${mine}:${p.pos ? 1 : 0}`;
     })
     .join('|');
 }

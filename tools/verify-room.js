@@ -351,6 +351,37 @@ function check(name, ok, detail) {
         await sleep(150);
       }
       check('雷达：队友回到范围内后不再钳位', !!backIn && backIn.marks === 1 && backIn.off === 0, JSON.stringify(backIn));
+
+      // 6b-4) 队友换图：他在这张图上的点必须消失，图例改成"他在哪张图"
+      const woodsId = await ev(`window.api.listMaps().then((ms) => (ms.find((m) => m.key === 'woods') || {}).id || null)`);
+      peer.setMap(woodsId);
+      let moved = null;
+      for (let i = 0; i < 40; i++) {
+        moved = await ev(`(() => {
+          const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+          const row = sec && sec.querySelector('.legend-item');
+          return {
+            marks: document.querySelectorAll('.peer-mark').length,
+            name: row ? row.querySelector('.legend-name').textContent.trim() : '',
+            count: row ? Number(row.querySelector('.legend-count').textContent) : -1,
+          };
+        })()`);
+        if (moved && moved.marks === 0) break;
+        await sleep(150);
+      }
+      check('队友换图后：他在这张图上的标记消失', !!moved && moved.marks === 0, JSON.stringify(moved));
+      check('队友换图后：图例改成"他在哪张图"（不再显示虚假的计数）',
+        !!moved && /在森林/.test(moved.name) && moved.count === 0, moved ? `${moved.name} / count=${moved.count}` : '-');
+      // 换回来 + 重新定位 -> 标记回来
+      peer.setMap(useMap);
+      peer.setPosition({ map: useMap, x: 100, y: 1, z: 200, hdg: 90, ts: Date.now(), trail: [{ x: 95, z: 198 }, { x: 100, z: 200 }] });
+      let backAgain = null;
+      for (let i = 0; i < 40; i++) {
+        backAgain = await ev(`({ marks: document.querySelectorAll('.peer-mark').length })`);
+        if (backAgain && backAgain.marks === 1) break;
+        await sleep(150);
+      }
+      check('队友换回本图并重新定位后，标记又出现了', !!backAgain && backAgain.marks === 1, JSON.stringify(backAgain));
       // 把队友放回原来那个点（后面的用例还按 (100,200) 算）
       peer.setPosition({
         map: useMap, x: 100, y: 1, z: 200, hdg: 90, ts: Date.now(),

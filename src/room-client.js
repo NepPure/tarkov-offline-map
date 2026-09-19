@@ -415,7 +415,9 @@ class RoomClient {
         return;
       }
       case 'peer-map': {
-        this.patchPeer(m.id, { map: m.map || null });
+        // 他换图了：之前那张图上的定位作废（服务端也不再把旧 pos 发出来）。
+        // 不清的话，队友图上会停着一个"旧图上的假点"，而且越放越旧。
+        this.patchPeer(m.id, { map: m.map || null, pos: null, at: this.now() });
         this.emit();
         return;
       }

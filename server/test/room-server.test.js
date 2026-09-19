@@ -275,6 +275,42 @@ test('标注：add 广播给所有人（含自己）、后来的人从 welcome �
   assert.deepStrictEqual(w2.annos, {}, '删掉之后新进房的人看不到');
 });
 
+test('队友换图后：旧图上的定位不再对外发布（别人图上不会留一个假点）', async (t) => {
+  const { srv, url } = await start();
+  t.after(() => srv.close());
+
+  const { p: a } = await join(url, { nick: 'A', pid: 'peerAAAA1' });
+  const { p: b } = await join(url, { nick: 'B', pid: 'peerBBBB2' });
+  t.after(() => {
+    a.close();
+    b.close();
+  });
+  await a.next('peer-join');
+
+  // B 在森林给了定位
+  b.send({ t: 'pos', map: 'woods', x: 1, z: 2, hdg: 0, ts: Date.now() });
+  const pos1 = await a.next('peer-pos');
+  assert.strictEqual(pos1.map, 'woods');
+
+  // B 换到海关（新一局）：客户端那边已经清掉自己的定位，所以只发 map
+  b.send({ t: 'map', map: 'customs' });
+  const pm = await a.next('peer-map');
+  assert.deepStrictEqual([pm.id, pm.map], ['peerBBBB2', 'customs']);
+
+  // 后来进房的人看到的 B：在海关、没有定位（而不是"还在森林的那个旧点"）
+  const { p: c, w } = await join(url, { nick: 'C', pid: 'peerCCCC3' });
+  t.after(() => c.close());
+  const peerB = w.peers.find((x) => x.id === 'peerBBBB2');
+  assert.strictEqual(peerB.map, 'customs');
+  assert.strictEqual(peerB.pos, undefined, '换图后旧的定位必须作废，否则队友图上会停着一个假点');
+
+  // 换回森林再定位：位置照旧能同步（等服务端的位置限速窗口过去，否则这条会被丢掉）
+  await sleep(250);
+  b.send({ t: 'pos', map: 'woods', x: 9, z: 9, hdg: 0, ts: Date.now() });
+  const pos2 = await a.next('peer-pos');
+  assert.strictEqual(pos2.x, 9);
+});
+
 test('协议版本不一致：明确报错并断开，不做半吊子兼容', async (t) => {
   const { srv, url } = await start();
   t.after(() => srv.close());
