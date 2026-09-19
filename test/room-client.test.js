@@ -416,6 +416,30 @@ test('集成：不同房间号互不串门；口令不同也进不去', async (t
   assert.strictEqual(c.snapshot().peers[0].nick, '甲');
 });
 
+test('默认不联机：关着的时候一行网络代码都不跑（离线优先是硬承诺）', async () => {
+  const c = newClient();
+  // 关着 + 地址/房间号都填好了：也不该建连接
+  c.applyConfig({ enabled: false, url: '127.0.0.1', port: 8787, roomId: '随便', nick: '我' });
+  assert.strictEqual(FakeWS.instances.length, 0, '开关关着就不该建连接');
+  assert.strictEqual(c.snapshot().status, 'off');
+  // 关着的时候上报地图/位置/标注，也一条都不该发出去
+  c.setMap('woods');
+  c.setPosition({ map: 'woods', x: 1, z: 2 });
+  c.sendAnnoAdd({ map: 'woods', id: 'a1', kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] });
+  await sleep(300);
+  assert.strictEqual(FakeWS.instances.length, 0, '关着时上报位置/标注也不该建连接');
+  c.destroy();
+
+  // 开了但没填全（缺地址 / 缺房间号）：同样不联机
+  const c2 = newClient();
+  c2.applyConfig({ enabled: true, url: '', roomId: '有房间号' });
+  c2.applyConfig({ enabled: true, url: '1.2.3.4', roomId: '' });
+  await sleep(200);
+  assert.strictEqual(FakeWS.instances.length, 0, '缺地址或缺房间号时不该联机');
+  assert.strictEqual(c2.snapshot().status, 'off');
+  c2.destroy();
+});
+
 test('重复 connect 不会因为"关旧连接"排一次假重连', async () => {
   const c = newClient();
   c.applyConfig(CFG);

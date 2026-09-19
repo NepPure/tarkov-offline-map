@@ -154,7 +154,7 @@ room.example.com {
 
 ```bash
 cd server
-npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 WebSocket 客户端）
+npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 WebSocket 客户端）+ 5 个 Dockerfile/compose 一致性用例
 ```
 
 根目录下等价的一条命令：
@@ -162,6 +162,7 @@ npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 
 ```bash
 npm run test:server     # 只跑服务端
 npm run test:all        # 客户端 + 服务端
+node tools/verify-server-image.js   # 不用 Docker 也能验镜像内容（照 Dockerfile 复刻文件集 + 跑健康检查原命令）
 ```
 
 ## 目录

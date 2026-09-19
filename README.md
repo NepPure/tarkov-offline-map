@@ -96,6 +96,10 @@ tarkov-offline-map/
 │  ├─ verify-exe-cdp.js      打包版深检（标记/赛季文件/截图查看器/小地图）
 │  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
 │  ├─ verify-about.js        关于页面验收（标题改名/纯本地徽标移除/版本号/GitHub 地址/设置里的入口）
+│  ├─ verify-room.js         房间联机界面验收（46 项，含雷达出范围贴边方位指示）
+│  ├─ verify-room-2clients.js 真·多客户端验收（18 项：自起服务端 + 两个真客户端 + 截图->定位真链路）
+│  ├─ verify-server-image.js 不用 Docker 验证镜像内容（文件集/npm ci/HEALTHCHECK/真客户端进房）
+│  ├─ fake-peer.js           假队友脚本（一台电脑也能看联机效果）
 │  ├─ input.ps1              系统级鼠标输入助手（SetCursorPos / mouse_event）
 │  └─ simulate.js            用 samples 跑完整管线验证
 ├─ server/                   房间服务端（v2.0，可选功能，见 server/README.md）
@@ -501,7 +505,9 @@ git tag v1.2.1 && git push origin main --tags
 ```bash
 npm run test:all         # 客户端 + 服务端全部单测/集成测试（下面两条的合并）
 npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页 + 房间连接层与成员显示），91 个用例
-npm run test:server      # 房间服务端：协议纯函数 8 项 + 真起服务的集成测试 12 项（真 WebSocket 客户端）
+npm run test:server      # 房间服务端：协议纯函数 8 项 + 真起服务的集成测试 12 项 + Dockerfile/compose 一致性 5 项
+node tools/verify-server-image.js          # 不用 Docker 也能验镜像内容：照 Dockerfile 复刻文件集 -> npm ci --omit=dev ->
+                                           # 起服务 -> 跑 HEALTHCHECK 原命令（含"端口没人时必须报故障"）-> 真客户端进房画一笔
 npm run simulate         # 用 samples 里的日志+截图跑完整管线
 node tools/diagnose.js   # 诊断真实游戏日志：会话选择/文件匹配/事件解析
 npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距/图钉/赛季文件/小地图拖动与焦点，截屏到 test-artifacts/
