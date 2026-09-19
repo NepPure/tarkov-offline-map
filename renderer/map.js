@@ -12,6 +12,7 @@ const state = {
   applyState: null,
   cfg: null,
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
+  room: null,          // 房间联机状态（主进程广播过来的快照）
   lastMapId: null,
   lastPosFile: null,
 };
@@ -272,7 +273,61 @@ function openSettings() {
   $('#set-label-scale').value = c.labelScale ?? 1;
   $('#set-quest-opacity').value = quest.ui.opacity;
   $('#set-quest-auto-open').checked = quest.ui.autoOpen !== false;
+  // 房间（联机）
+  const r = (c.room || {});
+  $('#set-room-enabled').checked = !!r.enabled;
+  $('#set-room-url').value = r.url || '';
+  $('#set-room-port').value = r.port || 8787;
+  $('#set-room-id').value = r.roomId || '';
+  $('#set-room-pass').value = r.pass || '';
+  $('#set-room-nick').value = r.nick || '';
+  $('#set-room-pos').checked = r.sharePos !== false;
+  $('#set-room-anno').checked = r.shareAnno !== false;
+  $('#room-hint').textContent = '';
+  $('#room-hint').className = 'room-hint';
+  renderRoomStatus(state.room);
   $('#settings-dialog').showModal();
+}
+
+/** 从表单读房间配置（供"加入房间"/保存用） */
+function roomFormPatch() {
+  return {
+    enabled: $('#set-room-enabled').checked,
+    url: $('#set-room-url').value.trim(),
+    port: Number($('#set-room-port').value) || 8787,
+    roomId: $('#set-room-id').value.trim(),
+    pass: $('#set-room-pass').value,
+    nick: $('#set-room-nick').value.trim(),
+    sharePos: $('#set-room-pos').checked,
+    shareAnno: $('#set-room-anno').checked,
+  };
+}
+
+/**
+ * 房间状态显示（顶栏胶囊 + 设置卡片里的状态标签）。
+ * 顶栏那个位置原来挂的是"纯本地"徽标：没联机时干脆不显示，联机了才出现。
+ */
+function renderRoomStatus(room) {
+  const chip = $('#room-chip');
+  const label = $('#room-state');
+  const st = (room && room.status) || 'off';
+  const peers = room && Array.isArray(room.peers) ? room.peers.length : 0;
+  const cfgOn = !!(state.cfg && state.cfg.room && state.cfg.room.enabled);
+  let text = '未联机';
+  let cls = 'off';
+  if (st === 'connecting') { text = '连接中…'; cls = 'connecting'; }
+  else if (st === 'reconnecting') { text = `重连中…(${room.attempts || 1})`; cls = 'connecting'; }
+  else if (st === 'online') { text = `房间 ${peers + 1} 人`; cls = 'online'; }
+  else if (st === 'error') { text = '连接失败'; cls = 'error'; }
+
+  chip.textContent = st === 'online' ? `在线 · ${peers + 1} 人` : text;
+  chip.className = `room-chip ${cls === 'off' ? 'hidden' : cls}`;
+  chip.title = st === 'error' && room && room.error ? `房间错误：${room.error}` : '房间联机状态（点击打开设置）';
+  if (label) {
+    label.textContent = cfgOn ? text : '未联机';
+    label.className = `room-state ${cls}`;
+    if (room && room.error && st === 'error') label.textContent = `连接失败：${room.error}`;
+  }
 }
 
 async function saveSettings() {
@@ -296,6 +351,7 @@ async function saveSettings() {
     miniClickThrough: $('#set-mini-click-through').checked,
     markerScale: Number($('#set-marker-scale').value),
     labelScale: Number($('#set-label-scale').value),
+    room: roomFormPatch(),
   };
   state.cfg = { ...state.cfg, ...patch };
   await api.setConfig(patch);
@@ -326,6 +382,10 @@ function applyAutoZoom(v) { autoZoom = v !== false; }
 async function applyMainState(s) {
   if (!s) return;
   const wantedId = s.mapId;
+
+  // 0) 房间状态（顶栏胶囊 + 设置卡片；队友标记在 M3 画到地图上）
+  state.room = s.room || null;
+  renderRoomStatus(state.room);
 
   // 1) 地图切换
   if (wantedId && (!state.detail || state.detail.id !== wantedId)) {
@@ -692,6 +752,53 @@ function beep(kind) {
 
 // 设置面板保存
 $('#settings-ok').addEventListener('click', () => saveSettings());
+
+// ---------------------------------------------------------------------------
+// 房间（联机）
+// ---------------------------------------------------------------------------
+$('#room-test').addEventListener('click', async () => {
+  const hint = $('#room-hint');
+  const cfg = roomFormPatch();
+  hint.className = 'room-hint';
+  hint.textContent = '正在探测 /healthz …';
+  const res = await api.roomTest({ url: cfg.url, port: cfg.port });
+  if (res && res.ok && res.protoOk) {
+    hint.className = 'room-hint ok';
+    hint.textContent = `连接成功：服务端 v${res.ver}（协议 v${res.proto}），单房间上限 ${res.maxRoomPeers} 人${res.persist ? '，标注会落盘' : ''}`;
+  } else {
+    hint.className = 'room-hint bad';
+    hint.textContent = `失败：${(res && res.error) || '未知错误'}`;
+  }
+});
+
+$('#room-connect').addEventListener('click', async () => {
+  const hint = $('#room-hint');
+  const patch = roomFormPatch();
+  if (!patch.url || !patch.roomId) {
+    hint.className = 'room-hint bad';
+    hint.textContent = '至少要填「服务器地址」和「房间号」';
+    return;
+  }
+  patch.enabled = true;
+  $('#set-room-enabled').checked = true;
+  state.cfg = { ...state.cfg, room: { ...(state.cfg.room || {}), ...patch } };
+  hint.className = 'room-hint';
+  hint.textContent = '正在加入…';
+  await api.setConfig({ room: patch });
+  await api.roomReconnect();
+});
+
+$('#room-disconnect').addEventListener('click', async () => {
+  $('#set-room-enabled').checked = false;
+  state.cfg = { ...state.cfg, room: { ...(state.cfg.room || {}), enabled: false } };
+  const hint = $('#room-hint');
+  hint.className = 'room-hint';
+  hint.textContent = '已离开房间';
+  await api.roomLeave();
+});
+
+// 顶栏胶囊：点一下打开设置（就在房间卡片里改）
+$('#room-chip').addEventListener('click', () => openSettings());
 
 /** 图例里没有现成素材的类别（任务区域/刷新点/玩家/轨迹/标注）用内联小图 */
 function legendSwatch(kind, color) {

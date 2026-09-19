@@ -40,23 +40,39 @@
   "build": {
     "appId": "com.neppure.tarkov-offline-map",
     "productName": "塔可夫地图",
-    "directories": { "output": "dist", "buildResources": "build" },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
     "files": [
       "main.js",
       "preload.js",
       "src/**/*",
       "renderer/**/*",
       "data/**/*",
-      "package.json"
+      "package.json",
+      "server/protocol.js"
     ],
-    "asarUnpack": ["data/**"],
+    "asarUnpack": [
+      "data/**"
+    ],
     "win": {
-      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.png"
     },
     "portable": {
       "artifactName": "塔可夫地图-${version}.exe",
       "requestExecutionLevel": "user"
     }
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

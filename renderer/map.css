@@ -276,6 +276,33 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .about-row a:hover { text-decoration: underline; }
 .about-note { font-size: 11px; color: var(--muted); line-height: 1.6; margin-top: 10px; }
 
+/* ---------- 房间联机（v2.0） ---------- */
+.room-chip {
+  font-size: 11px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+  background: rgba(148, 163, 184, 0.12); color: var(--muted);
+  border: 1px solid var(--line);
+}
+.room-chip.hidden { display: none; }
+.room-chip.online { color: #34d399; border-color: rgba(52, 211, 153, 0.45); background: rgba(52, 211, 153, 0.12); }
+.room-chip.connecting { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.12); }
+.room-chip.error { color: #f87171; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.12); }
+.room-chip:hover { filter: brightness(1.15); }
+
+.room-card { grid-column: 1 / -1; }
+.room-state {
+  margin-left: 8px; font-size: 11px; font-weight: 400; padding: 1px 7px;
+  border-radius: 999px; border: 1px solid var(--line); color: var(--muted);
+}
+.room-state.online { color: #34d399; border-color: rgba(52, 211, 153, 0.45); }
+.room-state.connecting { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); }
+.room-state.error { color: #f87171; border-color: rgba(248, 113, 113, 0.45); }
+.room-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.room-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.room-hint { font-size: 11px; color: var(--muted); }
+.room-hint.ok { color: #34d399; }
+.room-hint.bad { color: #f87171; }
+.room-card code { background: rgba(148, 163, 184, 0.14); padding: 0 4px; border-radius: 4px; }
+
 /* ---------- 任务侧边栏（左侧） ---------- */
 .quest-panel {
   position: absolute; top: 58px; left: 0; bottom: 34px;

@@ -53,4 +53,9 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('viewport:sync', h);
   },
   getStateForMini: () => ipcRenderer.invoke('state:sync-mini'),
+  // 房间联机（v2.0，默认关）
+  roomTest: (cfg) => ipcRenderer.invoke('room:test', cfg),
+  roomStatus: () => ipcRenderer.invoke('room:status'),
+  roomReconnect: () => ipcRenderer.invoke('room:reconnect'),
+  roomLeave: () => ipcRenderer.invoke('room:leave'),
 });

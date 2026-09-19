@@ -11,6 +11,7 @@
     <div class="brand">
       <span class="brand-dot"></span>
       <h1>塔可夫地图</h1>
+      <button id="room-chip" class="room-chip hidden" title="房间联机状态（点击打开设置）">房间: 未联机</button>
     </div>
     <div class="controls">
       <label>地图
@@ -134,6 +135,29 @@
     <form method="dialog" class="settings-form">
       <h2>高级设置</h2>
       <div class="settings-grid">
+        <section class="settings-card room-card">
+          <h3>房间（联机）<span id="room-state" class="room-state off">未联机</span></h3>
+          <label class="row"><input type="checkbox" id="set-room-enabled" /> 启用房间：和队友互相看到位置与标注（<b>默认关</b>，不填地址就一行网络代码都不跑）</label>
+          <label>服务器地址 <input id="set-room-url" type="text" placeholder="例如 192.168.1.10 或 wss://room.example.com" /></label>
+          <div class="room-row">
+            <label>端口 <input id="set-room-port" type="number" min="1" max="65535" /></label>
+            <label>房间号 <input id="set-room-id" type="text" placeholder="你们商量的暗号，知道的人就能进" /></label>
+          </div>
+          <div class="room-row">
+            <label>口令 <input id="set-room-pass" type="text" placeholder="可留空" /></label>
+            <label>昵称 <input id="set-room-nick" type="text" maxlength="16" placeholder="地图上显示第一个字 + 朝向" /></label>
+          </div>
+          <label class="row"><input type="checkbox" id="set-room-pos" /> 共享我的定位（按截图键时更新，带轨迹）</label>
+          <label class="row"><input type="checkbox" id="set-room-anno" /> 共享我画的标注</label>
+          <div class="room-actions">
+            <button type="button" id="room-test">测试连接</button>
+            <button type="button" id="room-connect">加入房间</button>
+            <button type="button" id="room-disconnect">离开房间</button>
+            <span id="room-hint" class="room-hint"></span>
+          </div>
+          <div class="hint">服务端是自建的（仓库 <code>server/</code> 目录，一条 docker compose 起服务）。
+            位置是"你按 Print Screen 那一刻"的定位，所以队友看到的是你最近一次截图的位置与去向。</div>
+        </section>
         <section class="settings-card">
           <h3>目录</h3>
           <label>游戏日志目录 <input id="set-logs" type="text" /></label>

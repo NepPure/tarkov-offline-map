@@ -19,6 +19,8 @@ const mapsData = require('./src/maps-data');
 const annotations = require('./src/annotations');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
+const roomClientModule = require('./src/room-client');
+const { RoomClient, probeServer, randomPeerId } = roomClientModule;
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
 const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry');
 
@@ -122,12 +124,33 @@ function loadSettings() {
       levelMax: 0,              // 等级上限（0 = 不限）
       opacity: 0.25,            // 区域填充透明度
     },
+    // 房间联机（v2.0）：默认**不联机**，什么都不填时一行网络代码都不会执行
+    room: {
+      enabled: false,           // 总开关
+      url: '',                  // 服务器地址（IP 或域名，可带端口/协议）
+      port: 8787,
+      roomId: '',               // 房间号（你们自己商量的暗号）
+      pass: '',                 // 口令（可空）
+      nick: '',                 // 昵称（地图上用第一个字 + 箭头）
+      peerId: '',               // 身份标识（自动生成，用来固定颜色与图例开关）
+      sharePos: true,           // 共享我的定位
+      shareAnno: true,          // 共享我的标注
+    },
   };
   let merged = defaults;
   try {
     const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
-    merged = { ...defaults, ...raw, markerToggles: { ...defaults.markerToggles, ...(raw.markerToggles || {}) } };
+    merged = {
+      ...defaults,
+      ...raw,
+      markerToggles: { ...defaults.markerToggles, ...(raw.markerToggles || {}) },
+      room: { ...defaults.room, ...(raw.room || {}) },
+    };
   } catch {}
+  // 身份标识第一次用的时候生成一次就固定下来：换房间/重连/重启后颜色和图例勾选不会跳
+  if (!/^[A-Za-z0-9_-]{4,40}$/.test(String(merged.room.peerId || ''))) {
+    merged.room.peerId = randomPeerId();
+  }
   // 一次性迁移：0.18 是"每个任务一个颜色 + 实心圆点"时代的老默认值，现在任务标记
   // 统一成图例的橘色半透明样式（默认 0.25）。只搬"恰好还是老默认"的存档，
   // 用户自己调过的数值（0.20/0.30…）不动。
@@ -170,7 +193,9 @@ let lastStateWrite = 0;
 
 function broadcast(patch) {
   Object.assign(state, patch);
-  const payload = { ...state, config: settings };
+  // 换图（日志识别 / 手动选图 / 楼层）顺手上报给房间：队友能看到"他在哪张图"
+  if (room && Object.prototype.hasOwnProperty.call(patch, 'mapId')) room.setMap(state.mapId);
+  const payload = { ...state, config: settings, room: room ? room.snapshot() : null };
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('state', payload);
   }
@@ -282,6 +307,7 @@ function applyPosition(pos) {
     positionAt: pos.at || Date.now(),
     lastFile: pos.file,
   });
+  pushPosition(); // 房间里的队友也要看到这次定位（截图定位是事件式的，有就发）
   // 自动删除截图文件（读取后删除）
   if (settings.autoDeleteScreenshots && pos.file) {
     const full = path.join(settings.screenshotsPath, pos.file);
@@ -763,12 +789,47 @@ function setupIpc() {
   ipcMain.handle('state:get', () => state);
   ipcMain.handle('config:get', () => settings);
   ipcMain.handle('config:set', (_e, patch) => {
-    settings = { ...settings, ...patch, markerToggles: { ...settings.markerToggles, ...(patch.markerToggles || {}) } };
+    const roomChanged = patch && Object.prototype.hasOwnProperty.call(patch, 'room');
+    settings = {
+      ...settings,
+      ...patch,
+      markerToggles: { ...settings.markerToggles, ...(patch.markerToggles || {}) },
+      room: { ...settings.room, ...((patch && patch.room) || {}) },
+    };
     saveSettings();
     syncWatchers();
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniClickThrough')) applyMiniClickThrough();
+    // 房间配置变了（开关/地址/房间号/昵称/共享项）才重新握手
+    if (roomChanged) syncRoom();
     broadcast({}); // 立刻把新配置推给所有窗口（雷达的透明度/方向/楼层/穿透等）
     return settings;
+  });
+  // 房间：探活（设置页"测试连接"）
+  ipcMain.handle('room:test', async (_e, cfg) => {
+    const target = cfg && cfg.url ? cfg : settings.room;
+    const res = await probeServer(target.url, Number(target.port) || undefined);
+    appLog(`[room] 测试连接 ${target.url}:${target.port} -> ${res.ok ? `OK ver=${res.ver} proto=${res.proto}` : `失败 ${res.error}`}`);
+    return res;
+  });
+  ipcMain.handle('room:status', () => (room ? room.snapshot() : null));
+  ipcMain.handle('room:reconnect', () => {
+    // 已经在连/已连上就不要重来一遍（"加入房间"会先写配置触发连接，再调这里兜底）
+    const st = room ? room.snapshot().status : 'off';
+    if (st === 'online' || st === 'connecting') return room.snapshot();
+    appLog('[room] 手动重连');
+    if (room) {
+      room.fatal = null;
+      room.connect();
+    }
+    return room ? room.snapshot() : null;
+  });
+  ipcMain.handle('room:leave', () => {
+    appLog('[room] 手动离开房间');
+    settings = { ...settings, room: { ...settings.room, enabled: false } };
+    saveSettings();
+    if (room) room.applyConfig({ ...settings.room, ver: app.getVersion() });
+    broadcast({});
+    return room ? room.snapshot() : null;
   });
   ipcMain.handle('map:list', () => mapsData.listMaps());
   ipcMain.handle('map:select', (_e, { key, id }) => {
@@ -951,6 +1012,44 @@ function startWatchers() {
   });
   logWatcher.start();
   shotWatcher.start();
+}
+
+// ---------------------------------------------------------------------------
+// 房间联机（v2.0，默认关）
+// ---------------------------------------------------------------------------
+let room = null;
+
+/** 房间配置变了才动手：没开就不连；开了且地址/房间号/昵称变了才重连 */
+function syncRoom() {
+  if (!room) {
+    room = new RoomClient({
+      onState: () => broadcast({ roomAt: Date.now() }),
+      onLog: (msg) => appLog(`[room] ${msg}`),
+      onOnline: () => {
+        // 刚进房：把"我在哪张图"和最近一次定位补一遍，队友不用等下一次换图/截图
+        room.setMap(state.mapId);
+        pushPosition();
+      },
+    });
+  }
+  const on = room.applyConfig({ ...settings.room, ver: app.getVersion() });
+  appLog(`[room] ${on ? `联机中 -> ${settings.room.url}:${settings.room.port}` : '未联机（房间功能关闭）'}`);
+  broadcast({ roomAt: Date.now() });
+  return on;
+}
+
+/** 把当前定位（含轨迹尾巴）推给房间；没有定位时什么也不做 */
+function pushPosition() {
+  if (!room || !state.mapId || !state.position) return;
+  room.setPosition({
+    map: state.mapId,
+    x: state.position.x,
+    y: state.position.y,
+    z: state.position.z,
+    hdg: state.headingDeg,
+    ts: state.positionAt || Date.now(),
+    trail: (state.trail || []).map((p) => ({ x: p.x, z: p.z })),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1485,6 +1584,7 @@ app.whenReady().then(() => {
   setupIpc();
   createMainWindow();
   startWatchers();
+  syncRoom(); // 房间功能（默认关：settings.room.enabled = false 时这里什么都不做）
   if (settings.miniVisible) createMiniWindow('startup');
   startMiniWatchdog();
 
@@ -1514,4 +1614,5 @@ app.on('before-quit', () => {
   stopKeyHelper();
   if (logWatcher) logWatcher.stop();
   if (shotWatcher) shotWatcher.stop();
+  if (room) room.destroy();
 });
