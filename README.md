@@ -464,7 +464,8 @@ node tools/verify-room-2clients.js        # 18 项：互看/真定位同步/轨�
 npm run test:all                       # 客户端 98 项 + 服务端 34 项
 node tools/verify-room.js              # 界面验收 52 项：进房（保存/加入房间两条路）/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
                                        # 雷达上也有队友 + 出范围贴边方位指示/队友换图后旧点消失/我的标注同步（含离线补发）/删除同步 + 收尾还原用户配置
-node tools/verify-room-2clients.js     # 真·多客户端：自起服务端 + 两个真客户端 + 截图->定位->房间->对方地图真链路
+node tools/verify-room-2clients.js     # 真·多客户端：自起服务端 + 两个真客户端 + 截图->定位->房间->对方地图真链路，
+                                       # 含"队友换图后旧点消失/图例改口/回来又出现"（21 项）
 node tools/verify-server-image.js      # 不用 Docker 也能验镜像内容（文件集 / npm ci / HEALTHCHECK / 真客户端进房）
 node tools/verify-asar.js dist\win-unpacked\resources\app.asar   # 打包产物里到底有没有这个版本的代码
 ```

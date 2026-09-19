@@ -234,8 +234,10 @@ function makeClient(port, label) {
     );
     const shotName = `2clients-verify_${Math.round(Date.now() / 1000)}_123.5, 4.5, -67.25_0, 0.90924, 0, 0.41476_15.47.png`;
     const shotName2 = `2clients-verify_${Math.round(Date.now() / 1000)}b_128.5, 4.5, -62.25_0, 0.90924, 0, 0.41476_15.47.png`;
+    const shotName3 = `2clients-verify_${Math.round(Date.now() / 1000)}c_118.5, 4.5, -58.25_0, 0.90924, 0, 0.41476_15.47.png`;
     const shotPath = path.join(shotsDir, shotName);
     const shotPath2 = path.join(shotsDir, shotName2);
+    const shotPath3 = path.join(shotsDir, shotName3);
     let shotDropped = false;
     try {
       fs.mkdirSync(shotsDir, { recursive: true });
@@ -340,6 +342,41 @@ function makeClient(port, label) {
     })()`);
     await sleep(400);
 
+    // 7) 甲换图（相当于进新局）：乙这边"他在这张图的点"必须消失，图例改成"他在哪张图"
+    await A.ev(`window.api.selectMap({ key: 'woods' })`);
+    let bMoved = null;
+    for (let i = 0; i < 60; i++) {
+      bMoved = await B.ev(`(() => {
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+        const row = sec && sec.querySelector('.legend-item');
+        return {
+          marks: document.querySelectorAll('.peer-mark').length,
+          name: row ? row.querySelector('.legend-name').textContent.trim() : '',
+          count: row ? Number(row.querySelector('.legend-count').textContent) : -1,
+        };
+      })()`);
+      if (bMoved && bMoved.marks === 0) break;
+      await sleep(250);
+    }
+    check('甲换到森林后：乙图上他的标记消失（不留旧图上的假点）', !!bMoved && bMoved.marks === 0, JSON.stringify(bMoved));
+    check('甲换到森林后：乙的图例显示"他在森林"且计数为 0',
+      !!bMoved && /在森林/.test(bMoved.name) && bMoved.count === 0, bMoved ? `${bMoved.name} / count=${bMoved.count}` : '-');
+
+    // 甲回到海关 + 再来一张截图 -> 乙图上重新出现他的标记
+    await A.ev(`window.api.selectMap({ key: 'customs' })`);
+    for (let i = 0; i < 40; i++) {
+      if (await A.ev(`!!(window.__view && window.__view.detail && window.__view.detail.key === 'customs')`)) break;
+      await sleep(200);
+    }
+    fs.writeFileSync(shotPath3, png1x1);
+    let bBack = null;
+    for (let i = 0; i < 60; i++) {
+      bBack = await B.ev(`({ marks: document.querySelectorAll('.peer-mark').length })`);
+      if (bBack && bBack.marks === 1) break;
+      await sleep(250);
+    }
+    check('甲回到海关并重新定位后：乙图上又出现他的标记', !!bBack && bBack.marks === 1, JSON.stringify(bBack));
+
     // 8) 甲离开 -> 乙那边立刻少一个人
     await A.ev(`document.querySelector('#room-disconnect').click()`);
     let bPeers = null;
@@ -378,12 +415,12 @@ function makeClient(port, label) {
     check('收尾：甲的标注已还原', JSON.stringify(annoAfter) === JSON.stringify(origCfg.annos || {}), JSON.stringify(Object.keys(annoAfter || {})));
 
     if (shotDropped) {
-      for (const f of [shotPath, shotPath2]) {
+      for (const f of [shotPath, shotPath2, shotPath3]) {
         try {
           fs.unlinkSync(f);
         } catch {}
       }
-      console.log('      已删除两张测试用截图');
+      console.log('      已删除三张测试用截图');
     }
   } finally {
     if (KEEP) {
