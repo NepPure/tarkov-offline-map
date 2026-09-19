@@ -471,6 +471,48 @@ test('默认不联机：关着的时候一行网络代码都不跑（离线优�
   c2.destroy();
 });
 
+test('开关从关到开：即使地址/房间号一个没改，也必须真的连上去', async () => {
+  const c = newClient();
+  // 真实形态：peerId 是持久化下来的（设置里存着），不会每次重新生成
+  const fixed = { ...CFG, peerId: 'peerFIXED01' };
+  c.applyConfig({ ...fixed, enabled: false });
+  await sleep(30);
+  assert.strictEqual(FakeWS.instances.length, 0, '关着时不该连');
+
+  // 设置页里把"启用房间"勾上（其它字段没动）—— 这一步必须触发连接
+  c.applyConfig({ ...fixed, enabled: true });
+  assert.strictEqual(FakeWS.instances.length, 1, '只打开开关也必须建立连接');
+  const ws = FakeWS.instances[0];
+  ws.doOpen();
+  ws.doMsg({ t: 'welcome', self: { id: 'peerFIXED01' }, peers: [], annos: {} });
+  assert.strictEqual(c.snapshot().status, 'online');
+  c.destroy();
+});
+
+test('身份不能被悄悄换掉：配置里没带 peerId 时沿用上一次的', () => {
+  const c = newClient();
+  c.applyConfig({ ...CFG, peerId: 'peerKEEP01' });
+  assert.strictEqual(c.cfg.peerId, 'peerKEEP01');
+  // 再喂一份"忘了带 peerId"的配置（比如某个调用方漏了字段）：不能变成另一个人
+  c.applyConfig({ ...CFG, enabled: true });
+  assert.strictEqual(c.cfg.peerId, 'peerKEEP01', '缺 peerId 时应沿用旧的，而不是随机生成');
+  c.destroy();
+});
+
+test('地址归一化：IPv6 也要能填', () => {
+  const v6 = RC.parseServer('[::1]:8787');
+  assert.strictEqual(v6.host, '[::1]');
+  assert.strictEqual(v6.port, 8787, 'IPv6 里的冒号不能被当成端口分隔符');
+  assert.strictEqual(v6.wsUrl, 'ws://[::1]:8787/ws');
+  const v6b = RC.parseServer('[fe80::1]');
+  assert.strictEqual(v6b.host, '[fe80::1]');
+  assert.strictEqual(v6b.port, 8787, '没写端口就用默认');
+  const v6c = RC.parseServer('wss://[2001:db8::1]:9443/ws');
+  assert.strictEqual(v6c.host, '[2001:db8::1]');
+  assert.strictEqual(v6c.port, 9443);
+  assert.strictEqual(v6c.secure, true);
+});
+
 test('重复 connect 不会因为"关旧连接"排一次假重连', async () => {
   const c = newClient();
   c.applyConfig(CFG);

@@ -461,8 +461,8 @@ node tools/verify-room-2clients.js        # 18 项：互看/真定位同步/轨�
 ### 验收
 
 ```bash
-npm run test:all                       # 客户端 94 项 + 服务端 33 项
-node tools/verify-room.js              # 界面验收 46 项：进房/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
+npm run test:all                       # 客户端 97 项 + 服务端 33 项
+node tools/verify-room.js              # 界面验收 47 项：进房（保存/加入房间两条路）/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
                                        # 雷达上也有队友 + 出范围贴边方位指示/我的标注同步给队友/删除同步 + 收尾还原用户配置
 node tools/verify-room-2clients.js     # 真·多客户端：自起服务端 + 两个真客户端 + 截图->定位->房间->对方地图真链路
 node tools/verify-server-image.js      # 不用 Docker 也能验镜像内容（文件集 / npm ci / HEALTHCHECK / 真客户端进房）
@@ -506,8 +506,8 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm run test:all         # 客户端 94 项 + 服务端 33 项
-npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页 + 房间连接层/探活/成员显示 + 雷达贴边钳位），94 个用例
+npm run test:all         # 客户端 97 项 + 服务端 33 项
+npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页 + 房间连接层/探活/身份保持/地址归一化/成员显示 + 雷达贴边钳位），97 个用例
 npm run test:server      # 房间服务端：协议纯函数 8 项 + 真起服务的集成测试 12 项 + 守卫行为 8 项 + Dockerfile/compose 一致性 5 项
 node tools/verify-server-image.js          # 不用 Docker 也能验镜像内容：照 Dockerfile 复刻文件集 -> npm ci --omit=dev ->
                                            # 起服务 -> 跑 HEALTHCHECK 原命令（含"端口没人时必须报故障"）-> 真客户端进房画一笔

@@ -147,8 +147,9 @@ function check(name, ok, detail) {
     check('「测试连接」探活成功（/healthz）', /连接成功/.test(hint), hint);
     await shot('room-settings.png');
 
-    // 3) 加入房间
-    await ev(`document.querySelector('#room-connect').click()`);
+    // 3a) 用设置页的「保存」开通（不是只有"加入房间"按钮管用）
+    //     回归：以前 sameTarget 判定会把这条路径吞掉 —— 开关打开、字段没动 -> 认为"没变化" -> 一直不连
+    await ev(`document.querySelector('#settings-ok').click()`);
     let chip = '';
     for (let i = 0; i < 40; i++) {
       chip = await ev(`document.querySelector('#room-chip').textContent`);
@@ -156,9 +157,23 @@ function check(name, ok, detail) {
       await sleep(150);
     }
     joined = true;
-    check('「加入房间」后顶栏显示在线', /在线/.test(chip), chip);
+    check('设置里勾「启用房间」+ 点保存就能连上（不用非得点"加入房间"）', /在线/.test(chip), chip);
     const st1 = await ev(`window.api.roomStatus()`);
     check('主进程房间状态是 online', st1 && st1.status === 'online', JSON.stringify({ status: st1 && st1.status, self: st1 && st1.self }));
+
+    // 3b) 「加入房间」按钮这条路也要通（先离开再重新加入）
+    await ev(`document.querySelector('#btn-settings').click()`);
+    await sleep(300);
+    await ev(`document.querySelector('#room-disconnect').click()`);
+    await sleep(400);
+    await ev(`document.querySelector('#room-connect').click()`);
+    let chip2 = '';
+    for (let i = 0; i < 40; i++) {
+      chip2 = await ev(`document.querySelector('#room-chip').textContent`);
+      if (/在线/.test(chip2)) break;
+      await sleep(150);
+    }
+    check('「加入房间」按钮也能连上', /在线/.test(chip2), chip2);
     // 关掉设置弹窗：后面要在地图上点队友标记（modal 会挡住鼠标命中）
     await ev(`document.querySelector('#settings-dialog').open && document.querySelector('#settings-dialog').close()`);
     await sleep(200);

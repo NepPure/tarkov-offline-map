@@ -52,8 +52,12 @@ function parseServer(input, defaultPort = DEFAULT_PORT) {
   if (!rest) return null;
   let host = rest;
   let port = defaultPort;
+  // 端口 = 最后一个冒号后面那段，但**IPv6 的方括号里的冒号不算**：
+  //   [::1]:8787 里的最后一个冒号在 ] 之后 -> 是端口分隔符
+  //   [fe80::1]  里的最后一个冒号在 ] 之前 -> 不是，用默认端口
   const c = rest.lastIndexOf(':');
-  if (c > 0 && !rest.includes(']')) {
+  const bracketEnd = rest.indexOf(']');
+  if (c > 0 && (bracketEnd === -1 || bracketEnd < c)) {
     const maybePort = rest.slice(c + 1);
     if (/^\d{1,5}$/.test(maybePort)) {
       port = Math.max(1, Math.min(65535, Number(maybePort)));
@@ -156,7 +160,11 @@ class RoomClient {
    * 返回 true 表示"现在应该在房间里"。
    */
   applyConfig(roomCfg) {
-    const next = normalizeConfig(roomCfg);
+    // 配置里没带 peerId（某个调用方漏了字段）时沿用上一次的身份：
+    // 身份一换，队友那边的颜色、图例开关、以及"我画过的标注归谁"就全乱了。
+    const incoming = roomCfg && typeof roomCfg === 'object' ? { ...roomCfg } : {};
+    if (!incoming.peerId && this.cfg && this.cfg.peerId) incoming.peerId = this.cfg.peerId;
+    const next = normalizeConfig(incoming);
     const prev = this.cfg;
     this.cfg = next;
     this.state.enabled = next.enabled;
@@ -164,8 +172,14 @@ class RoomClient {
       this.disconnect('已关闭房间功能');
       return false;
     }
-    const changed = !prev || !sameTarget(prev, next);
+    // 什么时候要重新握手：
+    //   地址/房间号/昵称/身份变了 —— 或者**刚从关切成开**。
+    //   第三条以前漏了：设置页里把"启用房间"勾上、其它字段没动时，sameTarget 会说"没变"，
+    //   于是开关打开却一直不连（GUI 里走"加入房间"按钮能兜住，走"保存"就哑了）。
+    const wasEnabled = !!(prev && prev.enabled);
+    const changed = !prev || !sameTarget(prev, next) || !wasEnabled;
     if (changed) {
+      this.fatal = null; // 重新开启时清掉上一次的致命错误（房间满/版本不符），给用户一次重试机会
       this.onLog(`房间配置变化 -> ${next.server.host}:${next.server.port} 昵称=${next.nick}`);
       this.connect();
     }
