@@ -11,14 +11,22 @@
  * 免得一个坏文件把渲染层拖死。
  */
 const fs = require('fs');
+const crypto = require('crypto');
 
 const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'circle', 'rect']);
 const MAX_STROKES_PER_MAP = 400;   // 每张图最多多少笔
 const MAX_POINTS_PER_STROKE = 3000; // 单笔最多多少点（自由画笔会很长）
 const MAX_MAPS = 200;
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
+// 笔画 id：房间联机（v2.0）靠它做增删同步，所以字符集要和 server/protocol.js 一致
+const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
 let DATA = {};
+
+/** 老数据没有 id（id 是 v2.0 房间联机时加的）：补一个并固定下来 */
+function newId() {
+  return `${Date.now().toString(36)}${crypto.randomBytes(3).toString('hex')}`;
+}
 
 function clampWidth(v) {
   const n = Number(v);
@@ -40,6 +48,7 @@ function sanitizeStroke(s) {
   const pts = Array.isArray(s.pts) ? s.pts.map(sanitizePoint).filter(Boolean) : [];
   if (pts.length < 2) return null;
   return {
+    id: ID_RE.test(String(s.id || '')) ? String(s.id) : newId(),
     kind: s.kind,
     color: COLOR_RE.test(String(s.color)) ? String(s.color).toLowerCase() : '#f87171',
     width: clampWidth(s.width),
@@ -99,4 +108,4 @@ function stats() {
   return { maps: Object.keys(DATA).length, strokes, points };
 }
 
-module.exports = { load, get, set, save, sanitize, stats, KINDS, MAX_STROKES_PER_MAP, MAX_POINTS_PER_STROKE };
+module.exports = { load, get, set, save, sanitize, stats, KINDS, ID_RE, newId, MAX_STROKES_PER_MAP, MAX_POINTS_PER_STROKE };

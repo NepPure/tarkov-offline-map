@@ -105,7 +105,11 @@ function check(name, ok, detail) {
   } return false; })()`);
 
   const origRoom = await ev(`window.api.getConfig().then((c) => c.room || null)`);
+  const origToggles = await ev(`window.api.getConfig().then((c) => c.markerToggles || null)`);
+  const origAnnos = await ev(`window.api.getAnnotations()`);
   console.log(`原房间配置: ${JSON.stringify(origRoom)}`);
+  console.log(`原图例开关: ${Object.keys(origToggles || {}).length} 个（结束会还原）`);
+  console.log(`原标注: ${JSON.stringify(Object.keys(origAnnos || {}))}（结束会还原）`);
   let peer = null;
   let joined = false;
 
@@ -154,6 +158,9 @@ function check(name, ok, detail) {
     check('「加入房间」后顶栏显示在线', /在线/.test(chip), chip);
     const st1 = await ev(`window.api.roomStatus()`);
     check('主进程房间状态是 online', st1 && st1.status === 'online', JSON.stringify({ status: st1 && st1.status, self: st1 && st1.self }));
+    // 关掉设置弹窗：后面要在地图上点队友标记（modal 会挡住鼠标命中）
+    await ev(`document.querySelector('#settings-dialog').open && document.querySelector('#settings-dialog').close()`);
+    await sleep(200);
 
     // 4) 队友进房（真客户端，真 WebSocket）
     peer = new RoomClient({ onLog: () => {} });
@@ -175,8 +182,15 @@ function check(name, ok, detail) {
     await shot('room-online.png');
 
     // 5) 队友上报地图 + 定位 + 轨迹
-    const mapId = await ev(`window.api.getState().then((s) => s.mapId)`);
-    const useMap = mapId || '5704e554d2720bac5b8b456e';
+    // 先把界面切到海关（只改运行状态，不写设置），这样"画在地图上"才可验收
+    await ev(`window.api.selectMap({ key: 'customs' })`);
+    for (let i = 0; i < 40; i++) {
+      if (await ev(`!!(window.__view && window.__view.detail && window.__view.detail.key === 'customs')`)) break;
+      await sleep(150);
+    }
+    const mapId = await ev(`window.__view.detail.id`);
+    const useMap = mapId;
+    check('界面已切到海关（后续"画在地图上"的验收基准）', !!useMap, String(useMap));
     peer.setMap(useMap);
     peer.setPosition({
       map: useMap,
@@ -211,6 +225,137 @@ function check(name, ok, detail) {
     check('客户端收到队友的标注', !!got && got.kind === 'pen', JSON.stringify(got && got.kind));
     check('标注带 owner（右侧按人开关图例要用）', !!got && got.owner === peer.cfg.peerId, got ? String(got.owner) : '-');
 
+    // 6b) 真的画在地图上了：圆底 + 昵称首字 + 朝向箭头 + 虚线轨迹 + 名字/时间
+    let mark = null;
+    for (let i = 0; i < 40; i++) {
+      mark = await ev(`(() => {
+        const m = document.querySelector('.peer-mark');
+        if (!m) return null;
+        const arrow = m.querySelector('.peer-arrow');
+        return {
+          count: document.querySelectorAll('.peer-mark').length,
+          initial: (m.querySelector('text') || {}).textContent || '',
+          hasArrow: !!arrow,
+          arrowTransform: arrow ? arrow.getAttribute('transform') : null,
+          caption: [...m.querySelectorAll('text')].map((t) => t.textContent).join('|'),
+          trails: document.querySelectorAll('.peer-trail').length,
+          color: (m.querySelector('circle') || {}).getAttribute ? m.querySelector('circle').getAttribute('stroke') : null,
+        };
+      })()`);
+      if (mark) break;
+      await sleep(150);
+    }
+    check('地图上出现队友标记', !!mark && mark.count === 1, mark ? `count=${mark.count}` : 'none');
+    check('标记里是昵称第一个字', !!mark && mark.initial === '假', mark && mark.initial);
+    check('标记带朝向箭头', !!mark && mark.hasArrow && /rotate/.test(String(mark.arrowTransform)), mark && String(mark.arrowTransform));
+    check('队友轨迹画成虚线', !!mark && mark.trails === 1, mark ? `trails=${mark.trails}` : '-');
+    check('标记下面写了"昵称 · 多久以前"', !!mark && /假队友 · /.test(mark.caption), mark && mark.caption);
+    check('队友标注也画在地图上（别人的笔画）', (await ev(`document.querySelectorAll('.peer-anno').length`)) >= 1);
+    await shot('room-peer-on-map.png');
+
+    // 6c) 右侧图例：一人一行（地图上画了谁，图例里就有谁）
+    const legend = await ev(`(() => {
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+      if (!sec) return null;
+      const row = sec.querySelector('.legend-item');
+      if (!row) return null;
+      return {
+        group: (sec.querySelector('.legend-group-name') || {}).textContent || '',
+        name: (row.querySelector('.legend-name') || {}).textContent || '',
+        count: Number((row.querySelector('.legend-count') || {}).textContent || 0),
+        swatchText: (row.querySelector('svg.legend-swatch text') || {}).textContent || '',
+        checked: row.querySelector('input').checked,
+        id: row.querySelector('input').dataset.group,
+      };
+    })()`);
+    check('右侧图例出现「房间成员」分组', !!legend && legend.group === '房间成员', legend && legend.group);
+    check('图例图标也是昵称第一个字（不是圆点）', !!legend && legend.swatchText === '假', legend && legend.swatchText);
+    check('图例计数 = 位置 + 标注数', !!legend && legend.count >= 2, legend ? String(legend.count) : '-');
+    check('图例行 id = peer:<队友id>', !!legend && legend.id === `peer:${peer.cfg.peerId}`, legend && legend.id);
+
+    // 6d) 按人开关：关掉这个人 -> 标记/轨迹/标注一起消失；再打开 -> 回来
+    const toggle = (on) => ev(`(() => {
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+      const box = sec.querySelector('.legend-item input');
+      if (box.checked !== ${on}) box.click();
+      return box.checked;
+    })()`);
+    await toggle(false);
+    await sleep(400);
+    const off = await ev(`({ marks: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
+    check('取消勾选"某个人" -> 他的标记/轨迹/标注一起隐藏', off.marks === 0 && off.trails === 0 && off.annos === 0, JSON.stringify(off));
+    await toggle(true);
+    await sleep(400);
+    const on = await ev(`({ marks: document.querySelectorAll('.peer-mark').length, annos: document.querySelectorAll('.peer-anno').length })`);
+    check('重新勾选 -> 全部回来', on.marks === 1 && on.annos >= 1, JSON.stringify(on));
+
+    // 6e) 点队友标记 -> 视野跳到他那儿
+    const focus = await ev(`(() => {
+      const m = document.querySelector('.peer-mark');
+      if (!m) return null;
+      // 必须点在圆心上：标记的 bbox 把下面的名字药丸也算进去了，点 bbox 中心会落进空隙
+      const c = m.querySelector('circle');
+      const r = c.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const el = document.elementFromPoint(x, y) || c;
+      const stage = document.querySelector('.mapstage');
+      stage.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x, clientY: y, button: 0 }));
+      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x, clientY: y, button: 0 }));
+      const after = window.__view.getViewport();
+      const want = window.__view.getProjection().project(100, 200);
+      return { hit: el.tagName, dist: Math.hypot(after.cx - want.x, after.cy - want.y) };
+    })()`);
+    check('点队友标记会跳到他的位置', !!focus && focus.dist < 30, focus ? `命中 ${focus.hit}，偏差 ${Math.round(focus.dist)}px` : '-');
+
+    // 6f) 反向：我画的标注要能同步给队友（带稳定 id）
+    const selfId = (await ev(`window.api.roomStatus()`)).self.id;
+    await ev(`document.querySelector('#btn-anno').click()`);
+    await sleep(300);
+    const drawn = await ev(`(() => {
+      const stage = document.querySelector('.mapstage');
+      const r = stage.getBoundingClientRect();
+      const x1 = r.left + r.width * 0.3, y1 = r.top + r.height * 0.3;
+      const x2 = r.left + r.width * 0.5, y2 = r.top + r.height * 0.5;
+      stage.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x1, clientY: y1, button: 0 }));
+      for (let i = 1; i <= 8; i++) {
+        const t = i / 8;
+        window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x1 + (x2 - x1) * t, clientY: y1 + (y2 - y1) * t }));
+      }
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x2, clientY: y2, button: 0 }));
+      const list = window.__view.annos;
+      return { count: list.length, lastId: list.length ? list[list.length - 1].id : null };
+    })()`);
+    await ev(`document.querySelector('#anno-exit').click()`);
+    check('画完一笔后本地有了稳定 id', !!drawn.lastId && /^[A-Za-z0-9_-]{1,40}$/.test(drawn.lastId), String(drawn.lastId));
+    let mine = null;
+    for (let i = 0; i < 40; i++) {
+      const got = peer.snapshot().annos[useMap] || [];
+      mine = got.find((a) => a.owner === selfId) || null;
+      if (mine) break;
+      await sleep(150);
+    }
+    check('我画的标注同步给了队友（owner = 我）', !!mine && mine.id === drawn.lastId, mine ? `id=${mine.id}` : '没收到');
+
+    // 撤销/删掉这一笔 -> 队友那边也要消失
+    await ev(`window.api.roomAnno({ op: 'del', map: ${JSON.stringify(useMap)}, id: ${JSON.stringify(drawn.lastId)} })`);
+    let gone = false;
+    for (let i = 0; i < 30; i++) {
+      const got = peer.snapshot().annos[useMap] || [];
+      if (!got.some((a) => a.id === drawn.lastId)) {
+        gone = true;
+        break;
+      }
+      await sleep(150);
+    }
+    check('删掉那一笔后队友那边也消失', gone);
+    // 收尾：把这一笔从本地标注里删掉（用户原来的标注文件要原样还原）
+    await ev(`(async () => {
+      const all = await window.api.getAnnotations();
+      delete all[${JSON.stringify(useMap)}];
+      await window.api.setAnnotations(all);
+      return true;
+    })()`);
+
     // 7) 离开房间
     await ev(`document.querySelector('#room-disconnect').click()`);
     let st2 = null;
@@ -230,12 +375,28 @@ function check(name, ok, detail) {
       if (origRoom) {
         await ev(`window.api.setConfig({ room: ${JSON.stringify(origRoom)} })`);
       }
+      if (origToggles) {
+        // 房间成员的开关是动态长出来的，光"覆盖回去"删不掉，得显式传 null 清掉
+        const cur = (await ev(`window.api.getConfig().then((c) => c.markerToggles || {})`)) || {};
+        const restore = { ...origToggles };
+        for (const k of Object.keys(cur)) if (!(k in origToggles)) restore[k] = null;
+        await ev(`window.api.setConfig({ markerToggles: ${JSON.stringify(restore)} })`);
+      }
+      if (origAnnos) {
+        await ev(`window.api.setAnnotations(${JSON.stringify(origAnnos)})`);
+      }
       if (joined) await ev(`window.api.roomLeave()`);
       await ev(`document.querySelector('#settings-dialog').open && document.querySelector('#settings-dialog').close()`);
       const after = await ev(`window.api.getConfig().then((c) => c.room || null)`);
       check('收尾：房间配置已还原成用户原来的样子',
         JSON.stringify({ ...after, peerId: undefined }) === JSON.stringify({ ...origRoom, peerId: undefined }),
         JSON.stringify(after));
+      const togAfter = await ev(`window.api.getConfig().then((c) => c.markerToggles || null)`);
+      check('收尾：图例开关已还原', JSON.stringify(togAfter) === JSON.stringify(origToggles),
+        `${Object.keys(togAfter || {}).length} 个开关`);
+      const annoAfter = await ev(`window.api.getAnnotations()`);
+      check('收尾：标注已还原', JSON.stringify(annoAfter) === JSON.stringify(origAnnos),
+        JSON.stringify(Object.keys(annoAfter || {})));
     } catch (e) {
       console.log(`收尾时出错（请手工检查设置里的房间配置）：${e.message}`);
     }

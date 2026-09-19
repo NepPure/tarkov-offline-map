@@ -55,14 +55,31 @@ test('标注存储：单笔点数与每图笔数有上限', () => {
   assert.strictEqual(clean2.customs[0].pts.length, ann.MAX_POINTS_PER_STROKE);
 });
 
-test('标注存储：写盘 / 读回一致', () => {
+test('标注存储：写盘 / 读回一致（含每笔的 id）', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'anno-')), 'annotations.json');
   const data = { customs: [{ kind: 'rect', color: '#38bdf8', width: 6, pts: [{ x: 10, z: 20 }, { x: 30, z: 40 }] }] };
   ann.set(data);
+  const assigned = ann.get();
+  // v2.0：每笔都会拿到一个稳定 id（房间联机靠它做增删同步与 owner 校验）
+  assert.match(assigned.customs[0].id, ann.ID_RE);
   assert.ok(ann.save(file));
   ann.load(file);
-  assert.deepStrictEqual(ann.get(), data);
+  assert.deepStrictEqual(ann.get(), assigned, '读回来的 id 必须一模一样');
   assert.deepStrictEqual(ann.stats(), { maps: 1, strokes: 1, points: 2 });
+
+  // 文件里已经带 id 的不能被换掉
+  const keep = ann.sanitize({ customs: [{ id: 'abc123', kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] });
+  assert.strictEqual(keep.customs[0].id, 'abc123');
+  // 非法 id（会被当成键用过）要重新分配
+  const fixed = ann.sanitize({ customs: [{ id: '../../etc', kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }] });
+  assert.match(fixed.customs[0].id, ann.ID_RE);
+  // 同一张图里两笔不能撞 id（不然删一笔会把另一笔也删了）
+  const two = ann.sanitize({ customs: [
+    { kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] },
+    { kind: 'pen', color: '#ffffff', width: 2, pts: [{ x: 3, z: 3 }, { x: 4, z: 4 }] },
+  ] });
+  assert.notStrictEqual(two.customs[0].id, two.customs[1].id);
+
   // 文件坏掉时不能抛，退化成空
   fs.writeFileSync(file, '{ 这不是 json');
   ann.load(file);

@@ -58,4 +58,5 @@ contextBridge.exposeInMainWorld('api', {
   roomStatus: () => ipcRenderer.invoke('room:status'),
   roomReconnect: () => ipcRenderer.invoke('room:reconnect'),
   roomLeave: () => ipcRenderer.invoke('room:leave'),
+  roomAnno: (msg) => ipcRenderer.invoke('room:anno', msg),
 });

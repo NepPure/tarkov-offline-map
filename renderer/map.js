@@ -2,6 +2,7 @@
 
 import { MapView, MARKER_GROUPS, makeProjection } from './common/map-view.js';
 import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation } from './common/quest-filter.js';
+import { peersSignature, peerInitial } from './common/room.js';
 
 const $ = (sel) => document.querySelector(sel);
 const api = window.api;
@@ -13,6 +14,7 @@ const state = {
   cfg: null,
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
   room: null,          // 房间联机状态（主进程广播过来的快照）
+  peersSig: null,      // 房间成员的图例指纹（变了才重建图例）
   lastMapId: null,
   lastPosFile: null,
 };
@@ -86,6 +88,15 @@ async function init() {
     if (res && res.error) alert(res.error);
   });
   $('#btn-settings').addEventListener('click', openSettings);
+  // 点地图上的队友标记：同图就跳到他那儿，别的图先切过去（他在地图上的位置由截图决定，可能有点旧）
+  view.onPeerClick = (peer) => {
+    const m = (peer.pos && peer.pos.map) || peer.map;
+    if (m && state.detail && m !== state.detail.id) {
+      api.selectMap({ id: m });
+      return;
+    }
+    if (peer.pos) focusWorld(peer.pos.x, peer.pos.z);
+  };
   $('#btn-about').addEventListener('click', openAbout);
   // 设置弹窗里的"关于"：先关设置再开关于（两个 modal dialog 不能叠着）
   $('#settings-about').addEventListener('click', () => {
@@ -211,16 +222,19 @@ function renderLegend() {
       // 图例图标 = 该组在地图上实际会出现的图标（最多 3 个），这样"地图上看到的图标图例里一定有"
       const iconList = (it.icons && it.icons.length ? it.icons : it.icon ? [it.icon] : []).slice(0, 3);
       const iconHtml = it.swatch
-        ? legendSwatch(it.swatch, it.color)
+        ? legendSwatch(it.swatch, it.color, it.initial)
         : iconList.length
           ? `<span class="legend-icons">${iconList.map((f) => `<img class="legend-icon" src="app://data/icons/${f}" alt="">`).join('')}</span>`
           : it.id === 'label'
             ? '<span class="legend-glyph" title="地图上的地名文字">Aa</span>'
             : `<span class="legend-dot" style="background:${it.color}"></span>`;
+      // 队友昵称是**网络来的字符串**，一律转义再进 innerHTML（不然能被注入 HTML）
+      const safeLabel = escapeHtml(it.label);
+      const whenHtml = it.when ? ` <span class="legend-when">· ${escapeHtml(it.when)}</span>` : '';
       row.innerHTML = `
         <input type="checkbox" ${checked ? 'checked' : ''} data-group="${it.id}">
         ${iconHtml}
-        <span class="legend-name" title="${it.label}">${it.label}</span>
+        <span class="legend-name" title="${safeLabel}">${safeLabel}${whenHtml}</span>
         <span class="legend-count">${it.count}</span>`;
       row.querySelector('input').addEventListener('change', (e) => {
         const gid = e.target.dataset.group;
@@ -383,9 +397,10 @@ async function applyMainState(s) {
   if (!s) return;
   const wantedId = s.mapId;
 
-  // 0) 房间状态（顶栏胶囊 + 设置卡片；队友标记在 M3 画到地图上）
+  // 0) 房间状态与队友（顶栏胶囊 + 地图上的队友标记 + 右侧"房间成员"图例）
   state.room = s.room || null;
   renderRoomStatus(state.room);
+  applyRoomView(state.room);
 
   // 1) 地图切换
   if (wantedId && (!state.detail || state.detail.id !== wantedId)) {
@@ -503,7 +518,10 @@ async function loadMapDetail(entry, mapKey) {
     // 赛季文件刷点按当前地图 id 注入（无刷点的地图自动为空）
     view.setSeasonDocuments(state.season, detail.id);
     // 手动标注也按地图分开注入（换图不会串味）
-    view.setAnnotations(anno.store[detail.id] || []);
+    const annos = anno.store[detail.id] || [];
+    view.setAnnotations(annos);
+    // 房间同步的基准 = 这张图"当前已有的"标注：之后新增/删除都是相对它算 diff
+    anno.sent = { mapId: detail.id, byId: new Map(annos.filter((s) => s && s.id).map((s) => [s.id, s])) };
     return detail;
   } catch (e) {
     console.error('loadMapDetail failed', e);
@@ -800,9 +818,14 @@ $('#room-disconnect').addEventListener('click', async () => {
 // 顶栏胶囊：点一下打开设置（就在房间卡片里改）
 $('#room-chip').addEventListener('click', () => openSettings());
 
-/** 图例里没有现成素材的类别（任务区域/刷新点/玩家/轨迹/标注）用内联小图 */
-function legendSwatch(kind, color) {
+/** 图例里没有现成素材的类别（任务区域/刷新点/玩家/轨迹/标注/队友）用内联小图 */
+function legendSwatch(kind, color, initial) {
   const c = color || '#f59e0b';
+  if (kind === 'peer') {
+    // 和大图上的队友标记同一个样子：圆底 + 昵称第一个字
+    return `<svg class="legend-swatch" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="rgba(9,12,18,0.85)" stroke="${c}" stroke-width="2"/>` +
+      `<text x="10" y="13.6" text-anchor="middle" font-size="9.5" font-weight="700" fill="${c}">${escapeHtml(initial || '?')}</text></svg>`;
+  }
   if (kind === 'zone') return `<svg class="legend-swatch" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="1" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="1.6"/></svg>`;
   if (kind === 'spot') return `<svg class="legend-swatch" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5.5" fill="${c}" fill-opacity="0.18" stroke="${c}" stroke-width="1.6" stroke-dasharray="3 2"/></svg>`;
   if (kind === 'player') return `<svg class="legend-swatch" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" fill="${c}" fill-opacity="0.25"/><path d="M16.5 10 L5.5 5.2 L8.4 10 L5.5 14.8 Z" fill="${c}" stroke="#0b0e13" stroke-width="1"/></svg>`;
@@ -830,6 +853,7 @@ const anno = {
   active: false,
   style: { ...ANNO_DEFAULT },
   saveTimer: null,
+  sent: null,                // 房间同步基准 { mapId, byId: Map(id -> stroke) }
 };
 window.__anno = anno; // 可视化自检用（tools/verify-annotations.js）
 
@@ -890,11 +914,12 @@ async function initAnnos() {
     });
   }
 
-  // 标注变化 -> 记到当前地图 + 防抖落盘；顺手更新图例里的笔数
+  // 标注变化 -> 记到当前地图 + 防抖落盘 + 同步给房间；顺手更新图例里的笔数
   view.onAnnoChange = (list) => {
     const id = currentMapId();
     if (id) anno.store[id] = list;
     scheduleAnnoSave();
+    syncAnnosToRoom(id, list);
     renderLegend();
   };
   view.onDrawModeChange = (mode) => {
@@ -930,6 +955,30 @@ function scheduleAnnoSave() {
   anno.saveTimer = setTimeout(() => {
     api.setAnnotations(anno.store).catch(() => {});
   }, 600);
+}
+
+/**
+ * 标注增删同步给房间（只发"变了的那一笔"，不做全量）。
+ *
+ * 换图时不动：`anno.sent.mapId` 变了就只重置基准，不然每切一次图都会把
+ * 那张图上我画过的几十笔全当作"新增"糊给队友。进房时的补发由主进程负责
+ * （见 main.js 的 pushAnnotations）。
+ */
+function syncAnnosToRoom(mapId, list) {
+  if (!mapId) return;
+  const cur = new Map((list || []).filter((s) => s && s.id).map((s) => [s.id, s]));
+  const before = anno.sent && anno.sent.mapId === mapId ? anno.sent.byId : null;
+  if (!before) {
+    anno.sent = { mapId, byId: cur };
+    return;
+  }
+  for (const [id, s] of cur) {
+    if (!before.has(id)) api.roomAnno({ op: 'add', map: mapId, anno: { ...s, map: mapId } });
+  }
+  for (const id of before.keys()) {
+    if (!cur.has(id)) api.roomAnno({ op: 'del', map: mapId, id });
+  }
+  anno.sent = { mapId, byId: cur };
 }
 
 // ---------------------------------------------------------------------------
@@ -1451,6 +1500,28 @@ function focusQuest(taskId) {
     row.scrollIntoView({ block: 'center' });
     row.classList.add('hot');
     setTimeout(() => row.classList.remove('hot'), 2200);
+  }
+}
+
+/**
+ * 队友 -> 地图：把房间快照里的成员喂给渲染层，并维护右侧「房间成员」图例。
+ * 图例只在"成员集合/是否在本图/他的标注数"变化时重建 —— 位置每秒都在更新，
+ * 跟着重建会把用户展开的分组一直打断。
+ */
+function applyRoomView(roomState) {
+  const mapId = (state.detail && state.detail.id) || state.applyState?.mapId || null;
+  const peers = roomState && Array.isArray(roomState.peers)
+    ? roomState.peers.map((p) => ({ ...p, mapName: mapNameOf((p.pos && p.pos.map) || p.map) }))
+    : [];
+  const annosByMap = (roomState && roomState.annos) || {};
+  const myId = roomState && roomState.self ? roomState.self.id : null;
+  const mine = (annosByMap[mapId] || []).filter((a) => a && a.owner !== myId);
+  view.setPeers(peers);
+  view.setPeerAnnos(mine);
+  const sig = peersSignature(peers, mapId, annosByMap);
+  if (sig !== state.peersSig) {
+    state.peersSig = sig;
+    renderLegend();
   }
 }
 

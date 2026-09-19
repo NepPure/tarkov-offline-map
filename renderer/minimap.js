@@ -125,6 +125,12 @@ async function applyState(s) {
   // 楼层：默认按玩家高度自动切层；关掉后固定在地图基础层
   if (miniAutoFloor) view.setFloor('auto');
   else view.setFloor((detail && detail.svgLayer) || 'auto');
+  // 房间成员：雷达上也画队友（离得近的时候比主窗口更有用）
+  if (s.room) {
+    const myId = s.room.self ? s.room.self.id : null;
+    view.setPeers(Array.isArray(s.room.peers) ? s.room.peers : []);
+    view.setPeerAnnos(((s.room.annos || {})[s.mapId] || []).filter((a) => a && a.owner !== myId));
+  }
 }
 
 api.onState((s) => applyState(s));

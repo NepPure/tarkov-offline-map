@@ -6,8 +6,10 @@
  * - 标记层（撤离点/转移点/boss/刷新点/钥匙锁/开关/危险/物资/固定武器/标签）
  * - 玩家标记 + 朝向扇形 + 轨迹
  * - 平移/缩放/跟随玩家/车头朝上
+ * - 房间成员（v2.0）：队友的位置/朝向/轨迹 + 他们画的标注
  * 纯渲染层，无 NodeAPI（通过 preload 暴露的 window.api 通信）
  */
+import { peerColor, peerInitial, peerLabel, relTime, staleLevel, peerLegendLabel } from './room.js';
 
 export const MARKER_COLORS = {
   extract: '#4ade80',
@@ -174,6 +176,12 @@ export class MapView {
     this._annoDraft = null;      // 正在画的草稿（不落盘）
     this._annoActive = false;
     this._annoDown = null;
+    // 房间成员（房间联机）：队友的位置/朝向/轨迹 + 他们画的标注
+    this.peers = [];             // [{id, nick, map, mapName, pos, at, dup}]
+    this.peerAnnos = [];         // 当前地图上别人的标注 [{...,owner}]
+    this.peerLayer = null;
+    this.peerTrailLayer = null;
+    this.onPeerClick = null;     // 点队友标记 -> 定位到他那里
     this.#buildDom();
     this.#bindEvents();
   }
@@ -234,8 +242,10 @@ export class MapView {
         if (!dragging) return;
         dragging = false;
         this.el.classList.remove('dragging');
-        // 单击（非拖拽、且非标记点）：尺子取点
+        // 单击（非拖拽、且非标记点）：队友标记点了就跳过去，标记点/空白处交给尺子
         const onMarker = e.target instanceof Element && e.target.closest('.map-marker');
+        const peerEl = e.target instanceof Element ? e.target.closest('.peer-mark') : null;
+        if (moved < 5 && peerEl) { this.#peerClick(peerEl.getAttribute('data-peer')); return; }
         if (moved < 5 && !onMarker) this.#mapClick(e.clientX, e.clientY);
       });
       // 双击放大（以光标为中心）；标注的"路径"工具下调成"结束这条路径"
@@ -527,9 +537,30 @@ export class MapView {
 
   /** 载入某张图的标注（世界坐标） */
   setAnnotations(list) {
-    this.annos = Array.isArray(list) ? list : [];
+    // 老数据可能没有 id（id 是房间联机时加的）：这里补上，之后就能同步/删除
+    this.annos = (Array.isArray(list) ? list : []).map((s) => (s && s.id ? s : { ...s, id: makeAnnoId() }));
     this._annoDraft = null;
     this.#renderOverlay();
+  }
+
+  // ------------------------------------------------------------------ 房间成员
+  /** 房间里的队友 [{id,nick,map,mapName,pos,at}]（只有同图且有定位的会画出来） */
+  setPeers(list) {
+    this.peers = Array.isArray(list) ? list : [];
+    this.#renderOverlay();
+  }
+
+  /** 当前地图上**别人**画的标注（带 owner，用来按人开关） */
+  setPeerAnnos(list) {
+    this.peerAnnos = Array.isArray(list) ? list : [];
+    this.#renderOverlay();
+  }
+
+  /** 点队友标记：把视野挪到他那儿（由 map.js 决定要不要顺便切图） */
+  #peerClick(id) {
+    if (!this.onPeerClick || !id) return;
+    const peer = this.peers.find((p) => p.id === id);
+    if (peer) this.onPeerClick(peer);
   }
 
   undoAnno() {
@@ -562,7 +593,9 @@ export class MapView {
 
   /** 画完一笔：入库 + 通知持久化 */
   #commit(stroke) {
-    this.annos = [...this.annos, stroke];
+    // 每笔都要有稳定 id：房间联机要靠它做增删同步与服务端 owner 校验
+    const withId = stroke && stroke.id ? stroke : { ...stroke, id: makeAnnoId() };
+    this.annos = [...this.annos, withId];
     this._annoDraft = null;
     this.#renderOverlay();
     if (this.onAnnoChange) this.onAnnoChange(this.annos);
@@ -687,6 +720,119 @@ export class MapView {
     return best;
   }
 
+  // ---------------------------------------------------------------- 队友（房间）
+  /**
+   * 画同房间的队友：圆底 + **昵称第一个字** + 朝向箭头，外加他最近一段轨迹（虚线）。
+   *
+   * 位置是"他最后一次按 Print Screen 那一刻"的定位，不是实时的，所以：
+   *   - 超过 2 分钟算旧（淡一点）、超过 10 分钟算很旧（更淡），标签里写清"多久以前"；
+   *   - 还没定位过的人不画点，只在他的图例行里写"在别的图/还没定位"。
+   */
+  #renderPeers() {
+    if (!this.overlaySvg) return;
+    // 覆盖层被重建过（换图）时把两个层补回来
+    if (!this.peerTrailLayer || !this.peerTrailLayer.isConnected) {
+      this.peerTrailLayer = document.createElementNS(ns(), 'g');
+      this.peerTrailLayer.setAttribute('class', 'peer-trail-layer');
+      this.overlaySvg.insertBefore(this.peerTrailLayer, this.trailEl || null);
+    }
+    if (!this.peerLayer || !this.peerLayer.isConnected) {
+      this.peerLayer = document.createElementNS(ns(), 'g');
+      this.peerLayer.setAttribute('class', 'peer-layer');
+      this.overlaySvg.insertBefore(this.peerLayer, this.playerEl || null);
+    }
+    this.peerLayer.innerHTML = '';
+    this.peerTrailLayer.innerHTML = '';
+    if (!this.proj || !this.peers.length) return;
+
+    const now = Date.now();
+    const trailFrag = document.createDocumentFragment();
+    const frag = document.createDocumentFragment();
+    const uiScale = Math.max(0.6, Math.min(1.8, this.markerScale || 1));
+    const scaleFactor = this.mini ? 1 : Math.max(0.7, Math.min(1.5, Math.pow(this.view.scale / (this.refScale || this.view.scale || 1), 0.15)));
+
+    for (const peer of this.peers) {
+      if (!peer || !peer.pos) continue;
+      if (peer.pos.map && this.detail && peer.pos.map !== this.detail.id) continue; // 别的图不画
+      if (this.#off(`peer:${peer.id}`)) continue;
+      const color = peerColor(peer.id);
+      const pr = this.proj.project(peer.pos.x, peer.pos.z);
+      const s = this.#worldToScreen(pr.x, pr.y);
+      const level = staleLevel(peer.at || peer.pos.ts, now);
+      const dim = level === 'old' ? 0.4 : level === 'stale' ? 0.72 : 1;
+
+      // 轨迹（虚线；只画能连成线的）
+      const trail = Array.isArray(peer.pos.trail) ? peer.pos.trail : [];
+      if (trail.length >= 2) {
+        const pts = trail.map((t) => {
+          const q = this.proj.project(t.x, t.z);
+          const s2 = this.#worldToScreen(q.x, q.y);
+          return `${s2.x.toFixed(1)},${s2.y.toFixed(1)}`;
+        }).join(' ');
+        const line = document.createElementNS(ns(), 'polyline');
+        line.setAttribute('points', pts);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', String(this.mini ? 2 : 2.2));
+        line.setAttribute('stroke-dasharray', '5 4');
+        line.setAttribute('stroke-linejoin', 'round');
+        line.setAttribute('opacity', String(0.45 * dim));
+        line.setAttribute('class', 'peer-trail');
+        trailFrag.appendChild(line);
+      }
+
+      // 标记本体
+      const r = (this.mini ? 10 : 14) * uiScale * scaleFactor;
+      const g = document.createElementNS(ns(), 'g');
+      g.setAttribute('class', 'peer-mark');
+      g.setAttribute('data-peer', peer.id);
+      g.setAttribute('transform', `translate(${s.x} ${s.y})`);
+      g.setAttribute('opacity', String(dim));
+
+      const hdg = Number(peer.pos.hdg);
+      if (Number.isFinite(hdg)) {
+        const ang = headingScreenAngle(this.detail, hdg, this.proj);
+        const tip = r + 11;
+        const arrow = document.createElementNS(ns(), 'path');
+        arrow.setAttribute('d', `M${tip} 0 L${r * 0.15} ${-r * 0.6} L${r * 0.15} ${r * 0.6} Z`);
+        arrow.setAttribute('transform', `rotate(${ang})`);
+        arrow.setAttribute('fill', color);
+        arrow.setAttribute('stroke', '#0b0e13');
+        arrow.setAttribute('stroke-width', '1');
+        arrow.setAttribute('class', 'peer-arrow');
+        g.appendChild(arrow);
+      }
+
+      const circle = document.createElementNS(ns(), 'circle');
+      circle.setAttribute('r', String(r));
+      circle.setAttribute('fill', 'rgba(9,12,18,0.85)');
+      circle.setAttribute('stroke', color);
+      circle.setAttribute('stroke-width', '2.5');
+      g.appendChild(circle);
+
+      const text = document.createElementNS(ns(), 'text');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('y', String(r * 0.42));
+      text.setAttribute('font-size', String(r * 1.3));
+      text.setAttribute('font-weight', '700');
+      text.setAttribute('font-family', '"Microsoft YaHei", "Segoe UI", sans-serif');
+      text.setAttribute('fill', color);
+      text.textContent = peerInitial(peer.nick);
+      g.appendChild(text);
+
+      // 名字 + "多久以前"（雷达上不放，太挤）
+      if (!this.mini) {
+        const when = relTime(peer.at || peer.pos.ts, now);
+        const caption = when ? `${peerLabel(peer, this.peers)} · ${when}` : peerLabel(peer, this.peers);
+        g.appendChild(labelPill(shortText(caption, 16), r * 2, 11));
+      }
+      g.appendChild(titleNode(`${peerLabel(peer, this.peers)}｜${relTime(peer.at || peer.pos.ts, now) || '刚刚'}｜点一下跳到他那里`));
+      frag.appendChild(g);
+    }
+    this.peerTrailLayer.appendChild(trailFrag);
+    this.peerLayer.appendChild(frag);
+  }
+
   #renderAnnos() {
     if (!this.overlaySvg) return;
     if (!this.annoLayer || !this.annoLayer.isConnected) {
@@ -695,15 +841,22 @@ export class MapView {
       this.overlaySvg.appendChild(this.annoLayer);
     }
     this.annoLayer.innerHTML = '';
-    if (!this.proj || this.#off('anno')) return;
+    if (!this.proj) return;
     const frag = document.createDocumentFragment();
-    for (const s of this.annos) frag.appendChild(this.#annoNode(s, false));
-    if (this._annoDraft) frag.appendChild(this.#annoNode(this._annoDraft, true));
+    if (!this.#off('anno')) {
+      for (const s of this.annos) frag.appendChild(this.#annoNode(s, false));
+      if (this._annoDraft) frag.appendChild(this.#annoNode(this._annoDraft, true));
+    }
+    // 队友画的标注：颜色统一用"那个人的颜色"，这样一眼能看出是谁画的
+    for (const s of this.peerAnnos) {
+      if (!s || !s.owner || this.#off(`peer:${s.owner}`)) continue;
+      frag.appendChild(this.#annoNode({ ...s, color: peerColor(s.owner) }, false, 'peer-anno'));
+    }
     this.annoLayer.appendChild(frag);
   }
 
   /** 一笔 -> SVG 节点（圆/矩形用多边形，其余用折线） */
-  #annoNode(stroke, draft) {
+  #annoNode(stroke, draft, cls) {
     const sp = this.#annoScreenPts(stroke);
     const closed = stroke.kind === 'circle' || stroke.kind === 'rect';
     const el = document.createElementNS(ns(), closed ? 'polygon' : 'polyline');
@@ -716,7 +869,7 @@ export class MapView {
     el.setAttribute('stroke-linejoin', 'round');
     el.setAttribute('pointer-events', 'none');
     if (draft) el.setAttribute('stroke-dasharray', '6 4');
-    el.setAttribute('class', draft ? 'anno-draft' : 'anno-item');
+    el.setAttribute('class', draft ? 'anno-draft' : (cls || 'anno-item'));
     if (stroke.kind === 'arrow' && sp.length >= 2) {
       // 箭头：在末端补一个三角（屏幕坐标里算方向，缩放/旋转都对）
       const a = sp[sp.length - 2];
@@ -1070,12 +1223,20 @@ export class MapView {
     this.annoLayer = document.createElementNS(ns, 'g');
     this.annoLayer.setAttribute('class', 'anno-layer');
     this.overlaySvg.appendChild(this.annoLayer);
+    // 队友轨迹：压在自己的轨迹下面（自己的路线最显眼）
+    this.peerTrailLayer = document.createElementNS(ns, 'g');
+    this.peerTrailLayer.setAttribute('class', 'peer-trail-layer');
+    this.overlaySvg.appendChild(this.peerTrailLayer);
     this.trailEl = document.createElementNS(ns, 'polyline');
     this.trailEl.setAttribute('fill', 'none');
     this.trailEl.setAttribute('stroke', '#22d3ee');
     this.trailEl.setAttribute('stroke-width', '2');
     this.trailEl.setAttribute('opacity', '0.7');
     this.overlaySvg.appendChild(this.trailEl);
+    // 队友标记在玩家箭头之下、其它标记之上
+    this.peerLayer = document.createElementNS(ns, 'g');
+    this.peerLayer.setAttribute('class', 'peer-layer');
+    this.overlaySvg.appendChild(this.peerLayer);
     this.playerEl = document.createElementNS(ns, 'g');
     this.overlaySvg.appendChild(this.playerEl);
   }
@@ -1084,6 +1245,7 @@ export class MapView {
     if (!this.detail) return;
     this.#renderQuests();
     this.#renderAnnos();
+    this.#renderPeers();
     // 玩家
     if (this.playerEl) {
       if (this.player && this.proj && !this.#off('player')) {
@@ -1515,6 +1677,28 @@ export class MapView {
       items: [{ id: 'anno', label: '我的标注', count: (this.annos || []).length, swatch: 'pen', color: '#f87171' }],
     });
 
+    // 0d) 房间成员：一人一行（**地图上画了谁，这里就有谁**），可单独关掉某个人
+    if (this.peers && this.peers.length) {
+      const annos = this.peerAnnos || [];
+      groups.push({
+        id: 'g-room',
+        label: '房间成员',
+        items: this.peers.map((p) => {
+          const mine = annos.filter((a) => a && a.owner === p.id).length;
+          const onMap = !!(p.pos && (!p.pos.map || !this.detail || p.pos.map === this.detail.id));
+          return {
+            id: `peer:${p.id}`,
+            label: peerLegendLabel(p, this.peers),
+            color: peerColor(p.id),
+            count: onMap ? 1 + mine : 0,
+            swatch: 'peer',
+            initial: peerInitial(p.nick),
+            when: p.pos ? relTime(p.at || p.pos.ts) : '',
+          };
+        }),
+      });
+    }
+
     // 1) 撤离 · 转移 · 交通（BTR 站点也是载具上下车点）
     groups.push({
       id: 'g-extract', label: '撤离 · 转移 · 交通',
@@ -1621,6 +1805,15 @@ export class MapView {
 function ns() { return 'http://www.w3.org/2000/svg'; }
 
 /** 标注线宽钳制（1~20） */
+/**
+ * 一笔标注的 id：时间戳(36 进制) + 随机尾巴。
+ * 房间联机靠它做增删同步与服务端的 owner 校验，所以必须稳定、且字符集安全
+ * （服务端的 id 正则只放行 [A-Za-z0-9_-]，长度 ≤40）。
+ */
+export function makeAnnoId() {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function clampAnnoWidth(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 4;
@@ -1761,10 +1954,20 @@ function headingAngle(detail, quat, proj) {
   if (!detail || !quat || quat.length < 4) return null;
   const [q0, q1, q2, q3] = quat; // x,y,z,w
   const yawDeg = (Math.atan2(2 * (q3 * q1 + q0 * q2), 1 - 2 * (q2 * q2 + q1 * q1)) * 180) / Math.PI;
-  const rad = (yawDeg * Math.PI) / 180;
+  return { yawDeg, screenAngleDeg: headingScreenAngle(detail, yawDeg, proj) };
+}
+
+/**
+ * 朝向角（度）-> 屏幕上的箭头角度。
+ * 地图有 coordinateRotation 和 y 轴翻转，所以必须拿"一个单位向量投影后的方向"来算，
+ * 不能直接把角度拿来用（否则工厂/立交桥这种图箭头会转错）。
+ * 队友的朝向是主进程按同一套四元数公式算出来的角度，所以两者共用这一个函数。
+ */
+function headingScreenAngle(detail, yawDeg, proj) {
+  if (!detail || !Number.isFinite(Number(yawDeg))) return 0;
+  const rad = (Number(yawDeg) * Math.PI) / 180;
   const dx = Math.sin(rad), dz = Math.cos(rad);
   const p = proj || makeProjection(detail);
   const a = p.project(0, 0), b = p.project(dx, dz);
-  const screenAngleDeg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
-  return { yawDeg, screenAngleDeg };
+  return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 }

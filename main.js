@@ -790,10 +790,21 @@ function setupIpc() {
   ipcMain.handle('config:get', () => settings);
   ipcMain.handle('config:set', (_e, patch) => {
     const roomChanged = patch && Object.prototype.hasOwnProperty.call(patch, 'room');
+    // markerToggles 是"增量合并"：只传变的那些开关。
+    // 例外：值是 null 表示**删掉这个开关**（房间成员的开关会随人来人走，需要能清干净）。
+    const togglePatch = (patch && patch.markerToggles) || null;
+    let markerToggles = settings.markerToggles;
+    if (togglePatch) {
+      markerToggles = { ...markerToggles };
+      for (const [k, v] of Object.entries(togglePatch)) {
+        if (v === null) delete markerToggles[k];
+        else markerToggles[k] = v;
+      }
+    }
     settings = {
       ...settings,
       ...patch,
-      markerToggles: { ...settings.markerToggles, ...(patch.markerToggles || {}) },
+      markerToggles,
       room: { ...settings.room, ...((patch && patch.room) || {}) },
     };
     saveSettings();
@@ -830,6 +841,13 @@ function setupIpc() {
     if (room) room.applyConfig({ ...settings.room, ver: app.getVersion() });
     broadcast({});
     return room ? room.snapshot() : null;
+  });
+  // 我画的标注 -> 房间（渲染层只在"增/删"时发一条，不做全量同步）
+  ipcMain.handle('room:anno', (_e, msg) => {
+    if (!room || !msg || !msg.op) return false;
+    if (msg.op === 'add' && msg.anno) return room.sendAnnoAdd(msg.anno);
+    if (msg.op === 'del' && msg.id) return room.sendAnnoDel(msg.map, msg.id);
+    return false;
   });
   ipcMain.handle('map:list', () => mapsData.listMaps());
   ipcMain.handle('map:select', (_e, { key, id }) => {
@@ -1029,6 +1047,7 @@ function syncRoom() {
         // 刚进房：把"我在哪张图"和最近一次定位补一遍，队友不用等下一次换图/截图
         room.setMap(state.mapId);
         pushPosition();
+        pushAnnotations();
       },
     });
   }
@@ -1049,6 +1068,20 @@ function pushPosition() {
     hdg: state.headingDeg,
     ts: state.positionAt || Date.now(),
     trail: (state.trail || []).map((p) => ({ x: p.x, z: p.z })),
+  });
+}
+
+/**
+ * 进房时把当前这张图上"我已经画过的"补发一次，队友立刻就能看到。
+ * 上限 100 笔、15ms 一笔地发：一次性糊 400 笔过去会把队友的图例顶爆，也没必要。
+ */
+function pushAnnotations() {
+  if (!room || !state.mapId || !settings.room.shareAnno) return;
+  const list = (annotations.get()[state.mapId] || []).slice(-100);
+  if (!list.length) return;
+  appLog(`[room] 补发当前地图的 ${list.length} 笔标注`);
+  list.forEach((s, i) => {
+    setTimeout(() => room && room.sendAnnoAdd({ ...s, map: state.mapId }), i * 15);
   });
 }
 
