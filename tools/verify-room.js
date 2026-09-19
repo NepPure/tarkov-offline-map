@@ -268,6 +268,80 @@ function check(name, ok, detail) {
         await sleep(150);
       }
       check('雷达上也画了队友（圆底 + 首字）', !!miniOk && miniOk.marks === 1 && miniOk.initials === '假', JSON.stringify(miniOk));
+
+      // 6b-3) 队友跑出雷达显示范围：应该贴到圆边上，且方位和他真实所在的方位一致
+      const bounds = await ev(`window.__view.detail.bounds`);
+      const bx = (bounds[0][0] + bounds[1][0]) / 2;
+      const bz = (bounds[0][1] + bounds[1][1]) / 2;
+      peer.setPosition({ map: useMap, x: bx + 400, y: 0, z: bz + 400, hdg: 90, ts: Date.now() });
+      let geom = null;
+      for (let i = 0; i < 40; i++) {
+        geom = await miniEv(`(() => {
+          const v = window.__view;
+          const el = document.querySelector('.mapstage');
+          const rect = el.getBoundingClientRect();
+          const cx = rect.width / 2, cy = rect.height / 2;
+          const mark = document.querySelector('.peer-mark[data-off-range="1"]');
+          if (!mark) return { found: false };
+          const peer = v.peers[0];
+          const p = v.getProjection().project(peer.pos.x, peer.pos.z);
+          const vp = v.getViewport();
+          const dx = p.x - vp.cx, dy = p.y - vp.cy;
+          const cos = Math.cos(vp.rot), sin = Math.sin(vp.rot);
+          const sx = (dx * cos - dy * sin) * vp.scale + rect.width / 2;
+          const sy = (dx * sin + dy * cos) * vp.scale + rect.height / 2;
+          const wantBearing = (Math.atan2(sy - cy, sx - cx) * 180) / Math.PI;
+          const circle = mark.querySelector('circle');
+          const b = circle.getBoundingClientRect();
+          const mx = b.left + b.width / 2 - rect.left;
+          const my = b.top + b.height / 2 - rect.top;
+          return {
+            found: true,
+            wantBearing,
+            gotBearing: Number(mark.getAttribute('data-bearing')),
+            radarR: Number(mark.getAttribute('data-radar-r')),
+            dist: Math.hypot(mx - cx, my - cy),
+            unclampedDist: Math.hypot(sx - cx, sy - cy),
+            hasChevron: !!mark.querySelector('.peer-offrange-chevron'),
+            dashed: circle.getAttribute('stroke-dasharray'),
+            radius: circle.getAttribute('r'),
+          };
+        })()`);
+        if (geom && geom.found) break;
+        await sleep(150);
+      }
+      check('雷达：队友出范围后被钳到圆边（不再画到窗口外）',
+        !!geom && geom.found && Math.abs(geom.dist - geom.radarR) < 2 && geom.unclampedDist > geom.radarR + 30,
+        geom && geom.found ? `贴边距圆心 ${Math.round(geom.dist)}px（圆边 ${geom.radarR}px，真实位置 ${Math.round(geom.unclampedDist)}px）` : '没找到出范围标记');
+      const dBearing = geom && geom.found ? Math.abs(((geom.gotBearing - geom.wantBearing + 540) % 360) - 180) : 999;
+      check('雷达：钳位后的方位与他真实方向一致', dBearing < 2,
+        geom && geom.found ? `期望 ${Math.round(geom.wantBearing)}°，实际 ${geom.gotBearing}°` : '-');
+      check('雷达：出范围标记带朝外箭头 + 虚线边框（一眼看出他在外面）',
+        !!geom && geom.found && geom.hasChevron && !!geom.dashed, geom && geom.found ? `chevron=${geom.hasChevron} dash=${geom.dashed}` : '-');
+      {
+        const data = await cdp(miniWs, [['Page.captureScreenshot', { format: 'png' }]]);
+        if (typeof data[0] === 'string') {
+          fs.mkdirSync(ART, { recursive: true });
+          fs.writeFileSync(path.join(ART, 'room-radar-offrange.png'), Buffer.from(data[0], 'base64'));
+          console.log('      截图 -> test-artifacts/room-radar-offrange.png');
+        }
+      }
+
+      // 回到范围内：不该再有出范围标记
+      peer.setPosition({ map: useMap, x: bx, y: 0, z: bz, hdg: 0, ts: Date.now() });
+      let backIn = null;
+      for (let i = 0; i < 40; i++) {
+        backIn = await miniEv(`({ marks: document.querySelectorAll('.peer-mark').length, off: document.querySelectorAll('.peer-mark[data-off-range="1"]').length })`);
+        if (backIn && backIn.marks === 1 && backIn.off === 0) break;
+        await sleep(150);
+      }
+      check('雷达：队友回到范围内后不再钳位', !!backIn && backIn.marks === 1 && backIn.off === 0, JSON.stringify(backIn));
+      // 把队友放回原来那个点（后面的用例还按 (100,200) 算）
+      peer.setPosition({
+        map: useMap, x: 100, y: 1, z: 200, hdg: 90, ts: Date.now(),
+        trail: [{ x: 95, z: 198 }, { x: 100, z: 200 }],
+      });
+      await sleep(400);
     }
 
     // 6c) 右侧图例：一人一行（地图上画了谁，图例里就有谁）

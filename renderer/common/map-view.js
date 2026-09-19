@@ -757,9 +757,26 @@ export class MapView {
       if (this.#off(`peer:${peer.id}`)) continue;
       const color = peerColor(peer.id);
       const pr = this.proj.project(peer.pos.x, peer.pos.z);
-      const s = this.#worldToScreen(pr.x, pr.y);
+      let s = this.#worldToScreen(pr.x, pr.y);
       const level = staleLevel(peer.at || peer.pos.ts, now);
       const dim = level === 'old' ? 0.4 : level === 'stale' ? 0.72 : 1;
+
+      // 雷达是固定显示半径的圆：队友出了范围就按**同样的方位**贴到圆边上，
+      // 否则标记直接跑到窗口外，等于"队友消失了"。
+      let clamped = false;
+      let bearing = 0;
+      let radarR = 0;
+      const iconR = (this.mini ? 10 : 14) * uiScale * scaleFactor;
+      if (this.mini) {
+        const rect = this.el.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        radarR = Math.max(20, Math.min(cx, cy) - iconR - 12); // 留出图标与朝外箭头的余量
+        const c = clampToRadar(s.x, s.y, cx, cy, radarR);
+        s = { x: c.x, y: c.y };
+        clamped = c.clamped;
+        bearing = c.bearing;
+      }
 
       // 轨迹（虚线；只画能连成线的）
       const trail = Array.isArray(peer.pos.trail) ? peer.pos.trail : [];
@@ -782,12 +799,17 @@ export class MapView {
       }
 
       // 标记本体
-      const r = (this.mini ? 10 : 14) * uiScale * scaleFactor;
+      const r = clamped ? iconR * 0.82 : iconR; // 出范围的画小一点，一眼能看出"他在更外面"
       const g = document.createElementNS(ns(), 'g');
-      g.setAttribute('class', 'peer-mark');
+      g.setAttribute('class', clamped ? 'peer-mark off-range' : 'peer-mark');
       g.setAttribute('data-peer', peer.id);
       g.setAttribute('transform', `translate(${s.x} ${s.y})`);
-      g.setAttribute('opacity', String(dim));
+      g.setAttribute('opacity', String(dim * (clamped ? 0.9 : 1)));
+      if (clamped) {
+        g.setAttribute('data-off-range', '1');
+        g.setAttribute('data-bearing', String(Math.round(bearing)));
+        g.setAttribute('data-radar-r', String(Math.round(radarR)));
+      }
 
       const hdg = Number(peer.pos.hdg);
       if (Number.isFinite(hdg)) {
@@ -803,11 +825,24 @@ export class MapView {
         g.appendChild(arrow);
       }
 
+      // 出范围：在图标外侧再补一个朝外的小箭头，明确"他还在这个方向的外面"
+      if (clamped) {
+        const tip = r + 9;
+        const chevron = document.createElementNS(ns(), 'path');
+        chevron.setAttribute('d', `M${tip} 0 L${r + 2} ${-r * 0.5} L${r + 2} ${r * 0.5} Z`);
+        chevron.setAttribute('transform', `rotate(${bearing})`);
+        chevron.setAttribute('fill', color);
+        chevron.setAttribute('opacity', '0.9');
+        chevron.setAttribute('class', 'peer-offrange-chevron');
+        g.appendChild(chevron);
+      }
+
       const circle = document.createElementNS(ns(), 'circle');
       circle.setAttribute('r', String(r));
       circle.setAttribute('fill', 'rgba(9,12,18,0.85)');
       circle.setAttribute('stroke', color);
-      circle.setAttribute('stroke-width', '2.5');
+      circle.setAttribute('stroke-width', clamped ? '2' : '2.5');
+      if (clamped) circle.setAttribute('stroke-dasharray', '4 3'); // 虚线 = 位置被钳到边缘了
       g.appendChild(circle);
 
       const text = document.createElementNS(ns(), 'text');
@@ -826,7 +861,12 @@ export class MapView {
         const caption = when ? `${peerLabel(peer, this.peers)} · ${when}` : peerLabel(peer, this.peers);
         g.appendChild(labelPill(shortText(caption, 16), r * 2, 11));
       }
-      g.appendChild(titleNode(`${peerLabel(peer, this.peers)}｜${relTime(peer.at || peer.pos.ts, now) || '刚刚'}｜点一下跳到他那里`));
+      const dist = this.player ? Math.round(Math.hypot(peer.pos.x - this.player.x, peer.pos.z - this.player.z)) : null;
+      const bits = [peerLabel(peer, this.peers), relTime(peer.at || peer.pos.ts, now) || '刚刚'];
+      if (dist !== null) bits.push(`${dist} 米`);
+      if (clamped) bits.push('在雷达范围外（箭头指方向）');
+      bits.push('点一下跳到他那里');
+      g.appendChild(titleNode(bits.join('｜')));
       frag.appendChild(g);
     }
     this.peerTrailLayer.appendChild(trailFrag);
@@ -1810,6 +1850,23 @@ function ns() { return 'http://www.w3.org/2000/svg'; }
  * 房间联机靠它做增删同步与服务端的 owner 校验，所以必须稳定、且字符集安全
  * （服务端的 id 正则只放行 [A-Za-z0-9_-]，长度 ≤40）。
  */
+/**
+ * 雷达边缘指示：把圆外的点按**同样的方位**拉到半径 R 的圆边上。
+ *
+ * 雷达（圆形小地图）是固定显示半径的，队友跑出范围后如果照原样画，
+ * 标记就直接跑到窗口外面看不见了 —— 拉到边上并标出方位，才知道"人在哪个方向"。
+ * 返回 {x, y, clamped, bearing}，bearing 是屏幕坐标系下的方位角（度）。
+ */
+export function clampToRadar(sx, sy, cx, cy, R) {
+  const dx = sx - cx;
+  const dy = sy - cy;
+  const d = Math.hypot(dx, dy);
+  const bearing = (Math.atan2(dy, dx) * 180) / Math.PI;
+  if (!Number.isFinite(d) || d <= R || d === 0) return { x: sx, y: sy, clamped: false, bearing };
+  const k = R / d;
+  return { x: cx + dx * k, y: cy + dy * k, clamped: true, bearing };
+}
+
 export function makeAnnoId() {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }

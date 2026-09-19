@@ -95,6 +95,32 @@ test('图例指纹：成员/昵称/是否在本图/本图标注数变了才重�
   assert.notStrictEqual(base, R.peersSignature(peers, 'woods', annos), '他画了一笔，计数要变');
 });
 
+test('雷达边缘钳位：圆外的队友按同样方位贴到圆边上', async () => {
+  const { clampToRadar } = await import('../renderer/common/map-view.js');
+  const cx = 150, cy = 150, R = 131;
+  // 圆内：原样不动
+  const inside = clampToRadar(cx + 50, cy, cx, cy, R);
+  assert.deepStrictEqual({ x: inside.x, y: inside.y, clamped: inside.clamped }, { x: cx + 50, y: cy, clamped: false });
+  assert.strictEqual(inside.bearing, 0);
+  // 正右方很远：拉到 (cx+R, cy)，方位 0
+  const right = clampToRadar(cx + 900, cy, cx, cy, R);
+  assert.strictEqual(right.clamped, true);
+  assert.ok(Math.abs(right.x - (cx + R)) < 1e-6 && Math.abs(right.y - cy) < 1e-6);
+  assert.strictEqual(Math.round(right.bearing), 0);
+  // 正下方（屏幕 y 向下）：方位 +90
+  const down = clampToRadar(cx, cy + 500, cx, cy, R);
+  assert.ok(Math.abs(down.y - (cy + R)) < 1e-6);
+  assert.strictEqual(Math.round(down.bearing), 90);
+  // 左上 45°：方位 -135，且到圆心的距离正好是 R
+  const upleft = clampToRadar(cx - 400, cy - 400, cx, cy, R);
+  assert.strictEqual(upleft.clamped, true);
+  assert.ok(Math.abs(upleft.bearing + 135) < 1e-6);
+  assert.ok(Math.abs(Math.hypot(upleft.x - cx, upleft.y - cy) - R) < 1e-6);
+  // 边界与退化
+  assert.strictEqual(clampToRadar(cx + R, cy, cx, cy, R).clamped, false, '正好在圆边上不算出界');
+  assert.strictEqual(clampToRadar(cx, cy, cx, cy, R).clamped, false, '正好在圆心不能算出界');
+});
+
 test('渲染层接线：队友图层、图例分组、点击、雷达同步都在', () => {
   const mv = read('renderer/common/map-view.js');
   assert.ok(mv.includes("import { peerColor, peerInitial, peerLabel, relTime, staleLevel, peerLegendLabel } from './room.js';"));
@@ -117,4 +143,8 @@ test('渲染层接线：队友图层、图例分组、点击、雷达同步都�
 
   const mm = read('renderer/minimap.js');
   assert.ok(mm.includes('view.setPeers(') && mm.includes('view.setPeerAnnos('), '雷达也要画队友');
+  // 雷达是固定半径的圆：出范围的队友必须钳到边上（否则标记跑到窗口外，等于"队友消失了"）
+  assert.ok(mv.includes('clampToRadar(s.x, s.y, cx, cy, radarR)'), '雷达上要调用 clampToRadar');
+  assert.ok(mv.includes("g.setAttribute('data-off-range', '1')"), '出范围的标记要能看出来（验收脚本靠它断言）');
+  assert.ok(mv.includes('peer-offrange-chevron'), '出范围时要有朝外的箭头指明方位');
 });
