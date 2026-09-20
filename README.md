@@ -383,7 +383,7 @@ Boss 就是头像、钥匙就是钥匙、赛季文件就是文件图标），大
 ```bash
 # 1) 起服务端（任一方式）
 cd server && docker compose up -d            # 推荐
-# 或者：docker run -d -p 8787:8787 --restart unless-stopped ghcr.io/neppure/tarkov-offline-map-server:2.0.0
+# 或者：docker run -d -p 8787:8787 --restart unless-stopped ghcr.io/neppure/tarkov-offline-map-server:2.0.1
 # 或者：cd server && npm ci --omit=dev && PORT=8787 node server.js
 ```
 

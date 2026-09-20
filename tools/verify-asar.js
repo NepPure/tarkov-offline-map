@@ -49,6 +49,8 @@ const need = [
   'clampToRadar', 'data-off-range', 'peer-offrange-chevron',
   // 2.0.0 界面：改名 + 关于页
   '塔可夫地图', 'about-dialog', 'about-repo',
+  // 2.0.1：状态提示行只说真话（由状态推导）+ 握手看门狗
+  'roomHint', '已加入房间', 'handshakeTimeoutMs', 'roomHintManual',
 ];
 for (const n of need) ok(has(n), `含 ${n}`);
 
