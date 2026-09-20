@@ -306,6 +306,47 @@ test('心跳：发 ping 收不到 pong 就判定连接已死', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// 握手看门狗（连上了但对面不回 welcome）
+// ---------------------------------------------------------------------------
+test('握手看门狗：TCP 连上了但服务端不回 welcome，不能一直卡在"连接中"', async () => {
+  const c = newClient({ handshakeTimeoutMs: 30 });
+  c.applyConfig(CFG);
+  const ws = FakeWS.instances[0];
+  ws.doOpen(); // TCP 通了，hello 也发了，但对面一个字节都不回
+  assert.strictEqual(c.snapshot().status, 'connecting');
+  assert.strictEqual(ws.last.t, 'hello');
+  let killed = false;
+  ws.terminate = () => {
+    killed = true;
+    ws.close();
+  };
+  await sleep(90);
+  assert.ok(killed, '超时后必须主动掐掉这条半死不活的连接');
+  const st = c.snapshot();
+  assert.strictEqual(st.status, 'reconnecting', '状态要往前走（界面才不会一直显示"正在加入…"）');
+  assert.strictEqual(st.attempts, 1, '要排一次重连');
+  c.destroy();
+});
+
+test('握手看门狗：正常收到 welcome 就不该被误杀', async () => {
+  const c = newClient({ handshakeTimeoutMs: 40 });
+  c.applyConfig(CFG);
+  const ws = FakeWS.instances[0];
+  let killed = false;
+  ws.terminate = () => {
+    killed = true;
+    ws.close();
+  };
+  ws.doOpen();
+  ws.doMsg({ t: 'welcome', self: { id: 'me' }, peers: [], annos: {} });
+  assert.strictEqual(c.snapshot().status, 'online');
+  await sleep(110);
+  assert.ok(!killed, '握完手了还掐连接 = 每次进房 8 秒后必掉线');
+  assert.strictEqual(c.snapshot().status, 'online', '连接要一直好好活着');
+  c.destroy();
+});
+
+// ---------------------------------------------------------------------------
 // 真服务端 + 真 WebSocket：两个客户端互相看见
 // ---------------------------------------------------------------------------
 async function startServer(opts = {}) {

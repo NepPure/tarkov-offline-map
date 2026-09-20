@@ -789,7 +789,10 @@ function createMiniWindow(reason = 'startup') {
 // IPC
 // ---------------------------------------------------------------------------
 function setupIpc() {
-  ipcMain.handle('state:get', () => state);
+  // 初次加载也要带上房间快照（broadcast 里就带着它）。
+  // 少这一口的话，窗口刚打开/刷新时如果已经在房间里，顶栏胶囊和设置页的提示行
+  // 要等到"下一个状态事件"才会出现 —— 队友不动、你也不按截图键，那就一直空着。
+  ipcMain.handle('state:get', () => ({ ...state, room: room ? room.snapshot() : null }));
   ipcMain.handle('config:get', () => settings);
   ipcMain.handle('config:set', (_e, patch) => {
     const roomChanged = patch && Object.prototype.hasOwnProperty.call(patch, 'room');

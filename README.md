@@ -96,8 +96,8 @@ tarkov-offline-map/
 │  ├─ verify-exe-cdp.js      打包版深检（标记/赛季文件/截图查看器/小地图）
 │  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
 │  ├─ verify-about.js        关于页面验收（标题改名/纯本地徽标移除/版本号/GitHub 地址/设置里的入口）
-│  ├─ verify-room.js         房间联机界面验收（46 项，含雷达出范围贴边方位指示）
-│  ├─ verify-room-2clients.js 真·多客户端验收（18 项：自起服务端 + 两个真客户端 + 截图->定位真链路）
+│  ├─ verify-room.js         房间联机界面验收（57 项，含雷达出范围贴边方位指示、状态提示行不说假话）
+│  ├─ verify-room-2clients.js 真·多客户端验收（21 项：自起服务端 + 两个真客户端 + 截图->定位真链路）
 │  ├─ verify-server-image.js 不用 Docker 验证镜像内容（文件集/npm ci/HEALTHCHECK/真客户端进房）
 │  ├─ preflight.js           发布前闸门（版本一致性/tag/测试/打包产物是否过期/镜像内容）
 │  ├─ fake-peer.js           假队友脚本（一台电脑也能看联机效果）
@@ -424,7 +424,7 @@ $env:TAKOV_USER_DATA="$env:TEMP\takov-alt"; npm start     # 第二个实例（�
 顺手往截图目录扔两张带坐标的假截图验证"定位 -> 房间 -> 对方地图"这条链路，跑完全收掉并还原配置）：
 
 ```bash
-node tools/verify-room-2clients.js        # 18 项：互看/真定位同步/轨迹/标注同步/按人开关/离开
+node tools/verify-room-2clients.js        # 21 项：互看/真定位同步/轨迹/标注同步/按人开关/离开
 ```
 
 ### 会共享什么
@@ -458,13 +458,19 @@ node tools/verify-room-2clients.js        # 18 项：互看/真定位同步/轨�
   空载 40–80MB 内存；房间空了 10 分钟自动回收
 - 房间里的人默认最多 16 人（`MAX_ROOM_PEERS` 可调），位置消息服务端限速 200ms 一条
 - 公网建议套反代上 `wss://`（客户端填 `https://`/`wss://` 会自动加密）；详见 [`server/README.md`](server/README.md)
+- **状态提示行只说真话**：「加入房间」旁边那行字（`正在加入… / 已加入房间 / 连不上服务端，正在自动重试…`）
+  每次都由房间的**真实状态**重算。配置没改时再点一次「加入房间」主进程会直接 no-op（不想白折腾一条连接），
+  这时提示行会立刻回到"已加入房间"，不会挂着过时的"正在加入…"误导你（探活结果这类临时话术也只是短暂停留）。
+- **握手有超时**：TCP 连上了、`hello` 也发了，但服务端 8 秒内不回 `welcome`（进程假死/端口后面不是本服务），
+  客户端会主动掐掉重连，而不是让界面一直停在"正在加入…"
 
 ### 验收
 
 ```bash
-npm run test:all                       # 客户端 102 项 + 服务端 36 项
-node tools/verify-room.js              # 界面验收 52 项：进房（保存/加入房间两条路）/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
-                                       # 雷达上也有队友 + 出范围贴边方位指示/队友换图后旧点消失/我的标注同步（含离线补发）/删除同步 + 收尾还原用户配置
+npm run test:all                       # 客户端 106 项 + 服务端 36 项
+node tools/verify-room.js              # 界面验收 57 项：进房（保存/加入房间两条路）/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
+                                       # 雷达上也有队友 + 出范围贴边方位指示/队友换图后旧点消失/我的标注同步（含离线补发）/删除同步
+                                       # + 状态提示行不说假话（重复点"加入房间"不会卡在"正在加入…"）+ 收尾还原用户配置
 node tools/verify-room-2clients.js     # 真·多客户端：自起服务端 + 两个真客户端 + 截图->定位->房间->对方地图真链路，
                                        # 含"队友换图后旧点消失/图例改口/回来又出现"（21 项）
 node tools/verify-server-image.js      # 不用 Docker 也能验镜像内容（文件集 / npm ci / HEALTHCHECK / 真客户端进房）
@@ -508,8 +514,8 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm run test:all         # 客户端 102 项 + 服务端 36 项
-npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页 + 房间连接层/探活/身份保持/地址归一化/换图清点/入站数据防御与模糊测试 + 成员显示 + 雷达贴边钳位），102 个用例
+npm run test:all         # 客户端 106 项 + 服务端 36 项
+npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 + 标注清洗与命中判定 + 转移点文字 + 关于页 + 房间连接层/探活/身份保持/地址归一化/换图清点/入站数据防御与模糊测试 + 握手超时看门狗 + 成员显示 + 状态提示行 + 雷达贴边钳位），106 个用例
 npm run test:server      # 房间服务端：协议纯函数 8 项 + 真起服务的集成测试 13 项 + 守卫行为 8 项 + 模糊测试 2 项 + Dockerfile/compose 一致性 5 项
 node tools/preflight.js                 # 发布前闸门：工作区/版本三处一致/tag 是否已存在/测试/打包产物是否过期/asar 内容
                                         # （加 --with-image 还会验一次服务端镜像内容；全绿才会打印推送命令）
@@ -521,8 +527,8 @@ npm run visual-test      # 真实输入事件自检：滚轮缩放/拖拽/测距
 powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截屏 -> 读状态 -> 关主窗口确认零残留
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
 node tools/verify-about.js                 # 关于页面验收（15 项：标题改名/纯本地徽标移除/版本号/GitHub 地址/设置入口）
-node tools/verify-room.js                  # 房间联机界面验收（42 项，脚本自起真服务端 + 一个真队友客户端 + 假队友脚本）
-node tools/verify-room-2clients.js         # 真·多客户端联机验收（18 项：自起服务端 + 两个真客户端，含截图->定位->房间->对方地图真链路）
+node tools/verify-room.js                  # 房间联机界面验收（57 项，脚本自起真服务端 + 一个真队友客户端 + 假队友脚本）
+node tools/verify-room-2clients.js         # 真·多客户端联机验收（21 项：自起服务端 + 两个真客户端，含截图->定位->房间->对方地图真链路）
 node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
 node tools/verify-mini-pan.js              # 雷达 Ctrl+拖动平移地图验收（CDP 合成输入，不动系统鼠标，游戏在前台也能跑）
 node tools/verify-quests.js                # 任务侧边栏验收（39 项：搜索/分组/勾选/图层/图例覆盖/详情卡 + "位置在别的图"提示与一键切图，CDP 合成点击，不动系统鼠标）

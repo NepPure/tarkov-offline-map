@@ -117,6 +117,35 @@ export function peerItemCount(peer, peerAnnosForMap = 0) {
 }
 
 /**
+ * 设置页里那一行提示文字 —— 由**真实状态**推出来，不是一个"点按钮时写一次就没人管"的字符串。
+ *
+ * 这里踩过一个真坑：点「加入房间」时先在提示行写"正在加入…"，之后没有任何地方更新它。
+ * 如果房间配置一个字段都没改，主进程的 room:reconnect 会直接 no-op（已经在线/正在连，
+ * 不想白折腾一条连接），于是那句"正在加入…"就永远留在那儿 —— 旁边却已经写着"房间 2 人"，
+ * 自己跟自己打架。现在提示行每次刷新都由状态重算，谁也没法把它写死。
+ *
+ * @returns {{text: string, cls: string}|null} null = 不写提示（未联机时留空）
+ */
+export function roomHint(room) {
+  const st = (room && room.status) || 'off';
+  const peers = room && Array.isArray(room.peers) ? room.peers.length : 0;
+  if (st === 'connecting') return { text: '正在加入…', cls: 'room-hint' };
+  if (st === 'reconnecting') {
+    const n = Number(room && room.attempts) || 1;
+    // 从没在线过 -> 是"连不上"；在线过再断 -> 是"断了重连"（两种情况用户要做的事不一样）
+    const ever = !!(room && room.onlineSince);
+    return { text: `${ever ? '连接断了' : '连不上服务端'}，正在自动重试…（第 ${n} 次）`, cls: 'room-hint' };
+  }
+  if (st === 'online') {
+    return peers
+      ? { text: `已加入房间：当前 ${peers + 1} 人（含你，另有 ${peers} 位队友）`, cls: 'room-hint ok' }
+      : { text: '已加入房间：当前就你 1 个人（队友进来会自己出现）', cls: 'room-hint ok' };
+  }
+  if (st === 'error') return { text: `加入失败：${(room && room.error) || '未知错误'}`, cls: 'room-hint bad' };
+  return null;
+}
+
+/**
  * 图例是否需要重建的指纹：成员、昵称、是否在当前图、他在本图有几笔标注。
  * 位置每秒都在更新，不需要跟着重排图例（否则用户展开的分组会一直被打断）。
  */

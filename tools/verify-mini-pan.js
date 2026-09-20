@@ -23,7 +23,10 @@ const arg = (n, d) => {
 };
 const PORT = Number(arg('port', 9222));
 const CTRL = 2; // CDP modifiers: Alt=1, Ctrl=2, Meta=4, Shift=8
-const MINI_LOG = path.join(process.env.APPDATA || '', 'tarkov-offline-map', 'mini.log');
+// 配置目录和 main.js 保持一致：跑隔离实例（TAKOV_USER_DATA）时要读那份 mini.log，
+// 写死 %APPDATA% 的话主进程那几项断言永远读到 0 条，看起来像功能坏了。
+const USER_DATA = process.env.TAKOV_USER_DATA || path.join(process.env.APPDATA || '', 'tarkov-offline-map');
+const MINI_LOG = path.join(USER_DATA, 'mini.log');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

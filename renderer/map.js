@@ -2,7 +2,7 @@
 
 import { MapView, MARKER_GROUPS, makeProjection } from './common/map-view.js';
 import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation } from './common/quest-filter.js';
-import { peersSignature, peerInitial } from './common/room.js';
+import { peersSignature, peerInitial, roomHint as roomHintFor } from './common/room.js';
 
 const $ = (sel) => document.querySelector(sel);
 const api = window.api;
@@ -15,6 +15,8 @@ const state = {
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
   room: null,          // 房间联机状态（主进程广播过来的快照）
   roomStatusPrev: null, // 上一次的房间状态（用来抓"刚变成 online"这个时刻）
+  roomHintManual: null, // 手动写进提示行的那句（探测结果/表单校验），会被状态刷新让位
+  roomHintTimer: null,  // 上面那句的到期定时器（到点自动回到"当前状态"该说的话）
   peersSig: null,      // 房间成员的图例指纹（变了才重建图例）
   lastMapId: null,
   lastPosFile: null,
@@ -298,8 +300,8 @@ function openSettings() {
   $('#set-room-nick').value = r.nick || '';
   $('#set-room-pos').checked = r.sharePos !== false;
   $('#set-room-anno').checked = r.shareAnno !== false;
-  $('#room-hint').textContent = '';
-  $('#room-hint').className = 'room-hint';
+  // 提示行不留旧话：打开设置时按当前状态重新说一遍（探活结果之类的临时话术不再残留）
+  state.roomHintManual = null;
   renderRoomStatus(state.room);
   $('#settings-dialog').showModal();
 }
@@ -316,6 +318,57 @@ function roomFormPatch() {
     sharePos: $('#set-room-pos').checked,
     shareAnno: $('#set-room-anno').checked,
   };
+}
+
+/**
+ * 提示行对齐到真实状态。
+ * state.roomHintManual 里那句话（探活结果/表单校验）只在"状态没变且没过期"时保留，
+ * 其余情况一律以房间状态为准 —— 这样提示行永远不会停在某个过时的中间态上。
+ */
+function applyRoomHint(room) {
+  const el = $('#room-hint');
+  if (!el) return;
+  const st = (room && room.status) || 'off';
+  const manual = state.roomHintManual;
+  if (manual && manual.status === st && Date.now() < manual.until) {
+    el.textContent = manual.text;
+    el.className = manual.cls;
+    return;
+  }
+  if (state.roomHintTimer) {
+    clearTimeout(state.roomHintTimer);
+    state.roomHintTimer = null;
+  }
+  state.roomHintManual = null;
+  const d = roomHintFor(room);
+  el.textContent = d ? d.text : '';
+  el.className = d ? d.cls : 'room-hint';
+}
+
+/**
+ * 手动写一句提示（"正在探测…"/探活结果/表单校验）。
+ * ttl 到了就自动让位给当前状态 —— 提示行绝不会被一句话永久占住。
+ */
+function setRoomHint(text, cls, ttl = 8000) {
+  if (state.roomHintTimer) {
+    clearTimeout(state.roomHintTimer);
+    state.roomHintTimer = null;
+  }
+  if (!text) {
+    state.roomHintManual = null;
+    applyRoomHint(state.room);
+    return;
+  }
+  const st = (state.room && state.room.status) || 'off';
+  state.roomHintManual = { text, cls: cls || 'room-hint', status: st, until: Date.now() + ttl };
+  const el = $('#room-hint');
+  el.textContent = text;
+  el.className = state.roomHintManual.cls;
+  state.roomHintTimer = setTimeout(() => {
+    state.roomHintTimer = null;
+    state.roomHintManual = null;
+    applyRoomHint(state.room);
+  }, ttl);
 }
 
 /**
@@ -343,6 +396,7 @@ function renderRoomStatus(room) {
     label.className = `room-state ${cls}`;
     if (room && room.error && st === 'error') label.textContent = `连接失败：${room.error}`;
   }
+  applyRoomHint(room);
 }
 
 async function saveSettings() {
@@ -783,44 +837,43 @@ $('#settings-ok').addEventListener('click', () => saveSettings());
 // 房间（联机）
 // ---------------------------------------------------------------------------
 $('#room-test').addEventListener('click', async () => {
-  const hint = $('#room-hint');
   const cfg = roomFormPatch();
-  hint.className = 'room-hint';
-  hint.textContent = '正在探测 /healthz …';
+  setRoomHint('正在探测 /healthz …', 'room-hint');
   const res = await api.roomTest({ url: cfg.url, port: cfg.port });
   if (res && res.ok && res.protoOk) {
-    hint.className = 'room-hint ok';
-    hint.textContent = `连接成功：服务端 v${res.ver}（协议 v${res.proto}），单房间上限 ${res.maxRoomPeers} 人${res.persist ? '，标注会落盘' : ''}`;
+    setRoomHint(`连接成功：服务端 v${res.ver}（协议 v${res.proto}），单房间上限 ${res.maxRoomPeers} 人${res.persist ? '，标注会落盘' : ''}`, 'room-hint ok', 20000);
   } else {
-    hint.className = 'room-hint bad';
-    hint.textContent = `失败：${(res && res.error) || '未知错误'}`;
+    setRoomHint(`失败：${(res && res.error) || '未知错误'}`, 'room-hint bad', 20000);
   }
 });
 
 $('#room-connect').addEventListener('click', async () => {
-  const hint = $('#room-hint');
   const patch = roomFormPatch();
   if (!patch.url || !patch.roomId) {
-    hint.className = 'room-hint bad';
-    hint.textContent = '至少要填「服务器地址」和「房间号」';
+    setRoomHint('至少要填「服务器地址」和「房间号」', 'room-hint bad', 20000);
     return;
   }
   patch.enabled = true;
   $('#set-room-enabled').checked = true;
   state.cfg = { ...state.cfg, room: { ...(state.cfg.room || {}), ...patch } };
-  hint.className = 'room-hint';
-  hint.textContent = '正在加入…';
+  setRoomHint('正在加入…', 'room-hint');
   await api.setConfig({ room: patch });
-  await api.roomReconnect();
+  // 拿回握手后的真实状态立刻重画一次提示行：配置没变时主进程会直接 no-op（已经在房间里了），
+  // 光等状态广播的话，这句"正在加入…"就可能一直挂在那儿
+  const snap = await api.roomReconnect();
+  if (snap) state.room = snap;
+  state.roomHintManual = null;
+  renderRoomStatus(state.room);
 });
 
 $('#room-disconnect').addEventListener('click', async () => {
   $('#set-room-enabled').checked = false;
   state.cfg = { ...state.cfg, room: { ...(state.cfg.room || {}), enabled: false } };
-  const hint = $('#room-hint');
-  hint.className = 'room-hint';
-  hint.textContent = '已离开房间';
-  await api.roomLeave();
+  const snap = await api.roomLeave();
+  if (snap) state.room = snap;
+  // 先落状态再写提示：这句"已离开房间"记的是"离开后"的状态，才不会被下一次刷新冲掉
+  setRoomHint('已离开房间', 'room-hint');
+  renderRoomStatus(state.room);
 });
 
 // 顶栏胶囊：点一下打开设置（就在房间卡片里改）

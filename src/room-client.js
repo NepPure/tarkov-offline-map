@@ -23,6 +23,7 @@ const DEFAULT_PORT = 8787;
 const POS_MIN_INTERVAL_MS = 200;   // 位置消息最小间隔（和服务端限速一致）
 const PING_INTERVAL_MS = 25000;    // 应用层心跳
 const PONG_TIMEOUT_MS = 10000;     // 心跳没回就判定连接已死
+const HANDSHAKE_TIMEOUT_MS = 8000; // TCP 通了但服务端迟迟不回 welcome：到这个点就掐掉重连
 const MAX_BACKOFF_MS = 30000;
 
 /** 指数退避：1s, 2s, 4s, 8s, 16s, 30s, 30s… */
@@ -155,10 +156,11 @@ class RoomClient {
     this.onLog = opts.onLog || (() => {});
     this.now = opts.now || (() => Date.now());
     this.WebSocketImpl = opts.WebSocketImpl || require('ws');
+    this.handshakeTimeoutMs = Number(opts.handshakeTimeoutMs) > 0 ? Number(opts.handshakeTimeoutMs) : HANDSHAKE_TIMEOUT_MS;
     this.state = EMPTY_STATE();
     this.ws = null;
     this.cfg = null;          // 归一化后的房间配置
-    this.timers = { reconnect: null, ping: null, pong: null, pos: null };
+    this.timers = { reconnect: null, ping: null, pong: null, pos: null, handshake: null };
     this.pendingPos = null;   // 被节流挡住、等着补发的位置
     this.lastPosAt = 0;
     this.lastPingAt = 0;
@@ -228,6 +230,19 @@ class RoomClient {
     ws.on('message', (raw) => this.onMessage(raw));
     ws.on('close', (code, reason) => this.onClose(code, reason));
     ws.on('error', (e) => this.onLog(`连接错误：${e && e.message ? e.message : e}`));
+    // 握手看门狗：TCP 连上了、hello 也发了，但服务端不回 welcome（进程假死/端口后面挂的不是本服务/
+    // 中间设备把帧吞了）——光靠 ws 自己的超时可能要等很久，界面就一直卡在"正在加入…"。
+    // 到点主动掐掉，让上面那条重连逻辑接管（状态会变成"连不上服务端，正在自动重试…"）。
+    if (this.timers.handshake) clearTimeout(this.timers.handshake);
+    this.timers.handshake = setTimeout(() => {
+      this.timers.handshake = null;
+      if (this.ws !== ws) return; // 已经换了新连接，这条是上一个时代的
+      this.onLog(`握手超时（${this.handshakeTimeoutMs}ms）：没等到 welcome`);
+      try {
+        ws.terminate ? ws.terminate() : ws.close();
+      } catch {}
+    }, this.handshakeTimeoutMs);
+    if (this.timers.handshake.unref) this.timers.handshake.unref();
   }
 
   disconnect(reason = '主动断开') {
@@ -362,6 +377,11 @@ class RoomClient {
   }
 
   onHello() {
+    // 握手完成：看门狗拆掉（不然它会在 8 秒后把自己这条好连接掐了）
+    if (this.timers.handshake) {
+      clearTimeout(this.timers.handshake);
+      this.timers.handshake = null;
+    }
     this.state.attempts = 0;
     this.setState({ status: 'online', error: null, onlineSince: this.now() });
     this.startPing();

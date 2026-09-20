@@ -127,6 +127,56 @@ test('雷达边缘钳位：圆外的队友按同样方位贴到圆边上', async
   assert.strictEqual(clampToRadar(cx, cy, cx, cy, R).clamped, false, '正好在圆心不能算出界');
 });
 
+test('提示行文案由状态推导：每种状态下都不会说错话', () => {
+  // 未联机：不写提示（顶栏胶囊也是隐藏的）
+  assert.strictEqual(R.roomHint(null), null);
+  assert.strictEqual(R.roomHint({ status: 'off' }), null);
+
+  assert.deepStrictEqual(R.roomHint({ status: 'connecting' }), { text: '正在加入…', cls: 'room-hint' });
+
+  // 从没在线过 -> "连不上"；在线过再断 -> "断了重连"（用户要做的事不一样）
+  const never = R.roomHint({ status: 'reconnecting', attempts: 2, onlineSince: null });
+  assert.match(never.text, /连不上服务端/);
+  assert.match(never.text, /第 2 次/);
+  const dropped = R.roomHint({ status: 'reconnecting', attempts: 3, onlineSince: 123 });
+  assert.match(dropped.text, /连接断了/);
+
+  // 独自在线：必须说清楚"就你一个人"，否则用户会以为功能坏了
+  const alone = R.roomHint({ status: 'online', peers: [] });
+  assert.match(alone.text, /已加入房间/);
+  assert.match(alone.text, /就你 1 个人/);
+  assert.strictEqual(alone.cls, 'room-hint ok');
+
+  const two = R.roomHint({ status: 'online', peers: [{ id: 'p1', nick: '小红' }] });
+  assert.match(two.text, /当前 2 人/);
+  assert.match(two.text, /另有 1 位队友/);
+
+  const bad = R.roomHint({ status: 'error', error: '房间已满' });
+  assert.strictEqual(bad.text, '加入失败：房间已满');
+  assert.strictEqual(bad.cls, 'room-hint bad');
+  assert.match(R.roomHint({ status: 'error' }).text, /未知错误/);
+});
+
+test('提示行接线：状态刷新时重算，且没有任何地方能把它写死', () => {
+  const mj = read('renderer/map.js');
+  // 由状态驱动的唯一入口：renderRoomStatus 末尾必须对齐提示行
+  assert.ok(mj.includes('function applyRoomHint(room)'), '缺少 applyRoomHint');
+  assert.ok(/if \(room && room\.error && st === 'error'\)[\s\S]{0,200}?applyRoomHint\(room\);/.test(mj),
+    'renderRoomStatus 里要重算提示行（每次状态广播都会走到这里）');
+  // 手动话术（探活结果/表单校验）必须带状态与到期时间，不能永久占位
+  assert.ok(mj.includes('function setRoomHint(text, cls, ttl = 8000)'), '缺少 setRoomHint');
+  assert.ok(mj.includes('state.roomHintTimer = setTimeout('), '手动话术必须到期自动让位');
+  assert.ok(!/\$\('#room-hint'\)\.textContent = '正在加入…'/.test(mj), '不许再直接把"正在加入…"写死');
+  // "加入房间"必须拿回握手后的真实状态立刻重画（配置没变时主进程是 no-op）
+  assert.ok(/api\.roomReconnect\(\)[\s\S]{0,200}?renderRoomStatus\(state\.room\)/.test(mj),
+    '点「加入房间」后要按返回的真实状态重画提示行');
+  const rc = read('src/room-client.js');
+  assert.ok(rc.includes('handshakeTimeoutMs'), '连接层要有握手超时（否则一直卡在 connecting）');
+  // 刚打开/刷新窗口时 state:get 也要带房间快照，否则已经在线却不显示胶囊（要等下一个事件）
+  assert.match(read('main.js'), /state:get'[\s\S]{0,220}?room: room \? room\.snapshot\(\) : null/,
+    '初次加载的 state 必须带 room（不然刷新后顶栏胶囊/提示行空白）');
+});
+
 test('渲染层接线：队友图层、图例分组、点击、雷达同步都在', () => {
   const mv = read('renderer/common/map-view.js');
   assert.ok(mv.includes("import { peerColor, peerInitial, peerLabel, relTime, staleLevel, peerLegendLabel } from './room.js';"));

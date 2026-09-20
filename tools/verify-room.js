@@ -115,10 +115,19 @@ function check(name, ok, detail) {
   let joined = false;
 
   try {
-    // 1) 默认不联机
+    // 1) 离线优先：配置里关着就必须是 off。
+    //    但用户自己可能已经把房间开着（他自己搭了服务端）—— 那这时"应该是连上的"，
+    //    脚本不能反过来把"他开着联机"判成失败（第一次跑就是这么误报的）。
     const st0 = await ev(`window.api.roomStatus()`);
-    check('默认不联机（房间功能关闭时状态 off）', st0 && st0.status === 'off', `status=${st0 && st0.status}`);
-    check('未联机时顶栏不显示状态胶囊', (await ev(`document.querySelector('#room-chip').classList.contains('hidden')`)) === true);
+    if (origRoom && origRoom.enabled) {
+      check('原配置里房间是开着的：启动后就该自己连上（联机没被吞掉）',
+        !!st0 && st0.status !== 'off', `status=${st0 && st0.status}`);
+      check('开着房间时顶栏胶囊是显示的',
+        (await ev(`document.querySelector('#room-chip').classList.contains('hidden')`)) === false);
+    } else {
+      check('默认不联机（房间功能关闭时状态 off）', !!st0 && st0.status === 'off', `status=${st0 && st0.status}`);
+      check('未联机时顶栏不显示状态胶囊', (await ev(`document.querySelector('#room-chip').classList.contains('hidden')`)) === true);
+    }
 
     // 2) 设置页填参数 + 测试连接
     await ev(`document.querySelector('#btn-settings').click()`);
@@ -174,6 +183,37 @@ function check(name, ok, detail) {
       await sleep(150);
     }
     check('「加入房间」按钮也能连上', /在线/.test(chip2), chip2);
+
+    // 3c) 提示行必须说真话（回归：以前它只在点按钮时写一次，之后没人管）。
+    //     用户报的正是这个：顶栏已经写着"房间 N 人"，按钮旁边那句还挂着"正在加入…"。
+    let hintOnline = '';
+    for (let i = 0; i < 40; i++) {
+      hintOnline = await ev(`document.querySelector('#room-hint').textContent`);
+      if (/已加入房间/.test(hintOnline)) break;
+      await sleep(150);
+    }
+    check('连上以后提示行说"已加入房间"，不会停在"正在加入…"', /已加入房间/.test(hintOnline), hintOnline);
+    check('提示行颜色也跟着状态走（成功色）',
+      /room-hint ok/.test(await ev(`document.querySelector('#room-hint').className`)),
+      await ev(`document.querySelector('#room-hint').className`));
+
+    // 3d) 关键回归：**配置一个字段都不改**再点一次「加入房间」。
+    //     主进程那边 room:reconnect 会直接 no-op（已经在线，不想白折腾一条连接），
+    //     以前这就让"正在加入…"永远留在提示行里 —— 现在必须立刻回到真实状态。
+    const hintBefore = await ev(`document.querySelector('#room-hint').textContent`);
+    await ev(`document.querySelector('#room-connect').click()`);
+    await sleep(150);
+    const hintJustAfter = await ev(`document.querySelector('#room-hint').textContent`);
+    let hintBack = '';
+    for (let i = 0; i < 40; i++) {
+      hintBack = await ev(`document.querySelector('#room-hint').textContent`);
+      if (/已加入房间/.test(hintBack)) break;
+      await sleep(150);
+    }
+    check('配置没变时点「加入房间」：提示行回到"已加入房间"（不会卡在"正在加入…"）',
+      /已加入房间/.test(hintBack), `点前="${hintBefore}" 点后立刻="${hintJustAfter}" → 稳定后="${hintBack}"`);
+    check('重复点「加入房间」不会把已有连接踢掉',
+      (await ev(`window.api.roomStatus()`)).status === 'online');
     // 关掉设置弹窗：后面要在地图上点队友标记（modal 会挡住鼠标命中）
     await ev(`document.querySelector('#settings-dialog').open && document.querySelector('#settings-dialog').close()`);
     await sleep(200);
@@ -543,6 +583,13 @@ function check(name, ok, detail) {
 
     // 7) 离开房间
     await ev(`document.querySelector('#room-disconnect').click()`);
+    let hintLeft = '';
+    for (let i = 0; i < 30; i++) {
+      hintLeft = await ev(`document.querySelector('#room-hint').textContent`);
+      if (/已离开房间/.test(hintLeft)) break;
+      await sleep(100);
+    }
+    check('「离开房间」后提示行说"已离开房间"', /已离开房间/.test(hintLeft), hintLeft);
     let st2 = null;
     for (let i = 0; i < 40; i++) {
       st2 = await ev(`window.api.roomStatus()`);
@@ -613,7 +660,10 @@ function check(name, ok, detail) {
     })()`);
     await sleep(500);
   } finally {
-    // 8) 收尾：还原（先还原配置，再关掉可能的连接）
+    // 8) 收尾：还原。
+    //    顺序有讲究：**先离开房间，再还原配置**。反过来的话，"离开房间"会把
+    //    settings.room.enabled 改成 false —— 用户本来开着联机的话，收尾反而把他的开关关了
+    //    （第一次跑就被这么坑了一道：还原检查报 enabled:false，其实是脚本自己关的）。
     try {
       if (peer) peer.destroy();
       if (scriptPeer) {
@@ -621,6 +671,7 @@ function check(name, ok, detail) {
           scriptPeer.kill();
         } catch {}
       }
+      if (joined && !(origRoom && origRoom.enabled)) await ev(`window.api.roomLeave()`);
       if (origRoom) {
         await ev(`window.api.setConfig({ room: ${JSON.stringify(origRoom)} })`);
       }
@@ -634,7 +685,6 @@ function check(name, ok, detail) {
       if (origAnnos) {
         await ev(`window.api.setAnnotations(${JSON.stringify(origAnnos)})`);
       }
-      if (joined) await ev(`window.api.roomLeave()`);
       await ev(`document.querySelector('#settings-dialog').open && document.querySelector('#settings-dialog').close()`);
       const after = await ev(`window.api.getConfig().then((c) => c.room || null)`);
       check('收尾：房间配置已还原成用户原来的样子',
