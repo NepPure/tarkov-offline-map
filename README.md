@@ -97,6 +97,7 @@ tarkov-offline-map/
 │  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
 │  ├─ verify-about.js        关于页面验收（标题改名/纯本地徽标移除/版本号/GitHub 地址/设置里的入口）
 │  ├─ verify-room.js         房间联机界面验收（57 项，含雷达出范围贴边方位指示、状态提示行不说假话）
+│  ├─ verify-room-live.js    连**你自己部署的服务端**跑真·多客户端自检（N 个真客户端 + 截图定位 + 大图/雷达截图）
 │  ├─ verify-room-2clients.js 真·多客户端验收（21 项：自起服务端 + 两个真客户端 + 截图->定位真链路）
 │  ├─ verify-server-image.js 不用 Docker 验证镜像内容（文件集/npm ci/HEALTHCHECK/真客户端进房）
 │  ├─ preflight.js           发布前闸门（版本一致性/tag/测试/打包产物是否过期/镜像内容）
@@ -393,6 +394,12 @@ cd server && docker compose up -d            # 推荐
 3) 队友按同样的地址和房间号加入即可。
 
 > 端口要放行：Windows 防火墙 / 云服务器安全组允许 8787（或你映射的端口）。
+>
+> ⚠️ **别把自己那份配置复制给队友**（整份 `%APPDATA%\tarkov-offline-map\` 拷过去）。
+> 每个人的"身份"是各自客户端生成并记在配置里的（`room.peerId`），抄过去就等于告诉服务端
+> "我们是同一个人"，后进来的会把先进来的踢下线 —— 表现是两边都**一直「在线 · 1 人」、
+> 永远看不到队友**，被踢的那边状态栏写「连接失败：相同身份在别处重连」。
+> 让队友自己装一遍、自己填昵称就行。
 
 ### 一台电脑怎么自己试
 
@@ -473,6 +480,10 @@ node tools/verify-room.js              # 界面验收 57 项：进房（保存/�
                                        # + 状态提示行不说假话（重复点"加入房间"不会卡在"正在加入…"）+ 收尾还原用户配置
 node tools/verify-room-2clients.js     # 真·多客户端：自起服务端 + 两个真客户端 + 截图->定位->房间->对方地图真链路，
                                        # 含"队友换图后旧点消失/图例改口/回来又出现"（21 项）
+node tools/verify-room-live.js --url=wss://你的域名 --port=443 --room=联机自检 --clients=3
+                                       # 连你自己部署的服务端做一次真·多客户端自检：N 个真客户端各自独立配置目录，
+                                       # 走"往截图目录扔带坐标的截图 -> 自动定位 -> 同步"这条真链路，
+                                       # 逐项断言定位/朝向/轨迹/图例/按人开关/雷达，并把大图与雷达截图存到 test-artifacts/
 node tools/verify-server-image.js      # 不用 Docker 也能验镜像内容（文件集 / npm ci / HEALTHCHECK / 真客户端进房）
 node tools/verify-asar.js dist\win-unpacked\resources\app.asar   # 打包产物里到底有没有这个版本的代码
 ```
@@ -528,6 +539,7 @@ powershell -File tools/verify-exe.ps1      # 打包版验收：启动 exe -> 截
 node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --remote-debugging-port=9222 启动）
 node tools/verify-about.js                 # 关于页面验收（15 项：标题改名/纯本地徽标移除/版本号/GitHub 地址/设置入口）
 node tools/verify-room.js                  # 房间联机界面验收（57 项，脚本自起真服务端 + 一个真队友客户端 + 假队友脚本）
+node tools/verify-room-live.js             # 连真实服务端的多客户端自检（见上面「房间联机」一节；带 --url/--port/--room 参数）
 node tools/verify-room-2clients.js         # 真·多客户端联机验收（21 项：自起服务端 + 两个真客户端，含截图->定位->房间->对方地图真链路）
 node tools/verify-mini-input.js            # 系统级真实鼠标输入验收：小地图拖动跟随 + 工具条按钮可点 + 位置记忆
 node tools/verify-mini-pan.js              # 雷达 Ctrl+拖动平移地图验收（CDP 合成输入，不动系统鼠标，游戏在前台也能跑）
