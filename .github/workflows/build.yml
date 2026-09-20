@@ -100,7 +100,7 @@ jobs:
           body: |
             **塔科夫地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
 
-            下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 145MB）
+            下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 155MB）
             校验：`SHA256SUMS.txt`（同目录）
 
             - 默认不联网：监听游戏日志自动识图 + 监听截图目录定位，运行时不发任何网络请求、无遥测

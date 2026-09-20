@@ -12,7 +12,8 @@
 ## 下载（Windows 免安装）
 
 到 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
-`塔科夫地图-<版本>.exe`（portable 单文件，双击即用，约 145MB，内含离线地图数据与赛季文件参考截图），
+`tarkov-offline-map-<版本>-win-x64-portable.exe`（portable 单文件，双击即用，约 155MB，
+内含 15 张地图数据、实验室/迷宫/破冰船的瓦片底图与赛季文件参考截图），
 校验值见同页 `SHA256SUMS.txt`。
 
 - 未做代码签名：SmartScreen 提示"未知发布者"时选择"仍要运行"
