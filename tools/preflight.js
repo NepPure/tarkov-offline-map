@@ -44,7 +44,7 @@ const srvPkg = readJson(path.join('server', 'package.json'));
 const version = pkg.version;
 const tag = `v${version}`;
 
-console.log(`塔可夫地图 ${version} —— 发布前检查\n`);
+console.log(`塔科夫地图 ${version} —— 发布前检查\n`);
 
 // ---------------------------------------------------------------- 1) git
 const branch = sh('git', ['rev-parse', '--abbrev-ref', 'HEAD']).out;
@@ -58,13 +58,20 @@ check('客户端与服务端版本号一致', pkg.version === srvPkg.version, `p
 const compose = fs.readFileSync(path.join(ROOT, 'server', 'docker-compose.yml'), 'utf-8');
 const imageTag = `ghcr.io/neppure/tarkov-offline-map-server:${srvPkg.version}`;
 check('docker-compose 指的镜像 tag = 当前版本', compose.includes(imageTag), imageTag);
-const artifact = `dist/塔可夫地图-${version}.exe`;
+const artifact = `dist/塔科夫地图-${version}.exe`;
 
 // ---------------------------------------------------------------- 3) tag 是否已存在
 const localTag = sh('git', ['tag', '--list', tag]).out;
-const remoteTag = sh('git', ['ls-remote', '--tags', 'origin', tag]).out;
-check(`tag ${tag} 尚未存在（不会覆盖已发布版本）`, !localTag && !remoteTag,
-  `本地=${localTag || '无'} 远端=${remoteTag ? '已存在' : '无'}`, true);
+// 注意：ls-remote 失败（断网/代理不通）时它的输出是那句 fatal 报错，非空。
+// 直接拿输出当"远端已有这个 tag"会给出一个吓人的假警报 —— 联网失败要说成联网失败。
+const remoteRes = sh('git', ['ls-remote', '--tags', 'origin', tag]);
+const remoteAsked = remoteRes.code === 0;
+const remoteTag = remoteAsked ? remoteRes.out : '';
+check(`tag ${tag} 尚未存在（不会覆盖已发布版本）`, remoteAsked && !localTag && !remoteTag,
+  remoteAsked
+    ? `本地=${localTag || '无'} 远端=${remoteTag ? '已存在' : '无'}`
+    : `远端查询失败（断网 / 代理不通？）：${(remoteRes.out || '').split('\n')[0]}`,
+  true);
 
 // ---------------------------------------------------------------- 4) 测试
 if (has('--no-tests')) {

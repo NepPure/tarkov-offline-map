@@ -10,7 +10,7 @@
  * 用法:
  *   1) 启动应用（dev 或打包版）并带远程调试端口：
  *        npx electron . --remote-debugging-port=9222
- *        dist\塔可夫离线地图-1.2.3.exe --remote-debugging-port=9222
+ *        dist\塔科夫离线地图-1.2.3.exe --remote-debugging-port=9222
  *   2) node tools/verify-mini-input.js [--port=9222] [--delta=40]
  *
  * 注意：PowerShell 的 Cursor.Position 是"DPI 虚拟化"后的坐标（等于 Electron 的 DIP），

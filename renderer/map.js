@@ -12,6 +12,7 @@ const state = {
   detail: null,
   applyState: null,
   cfg: null,
+  miniEnabled: null,   // 小地图雷达的**真实**开关（主进程 miniStatus.enabled）；cfg 那份可能是旧的
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
   room: null,          // 房间联机状态（主进程广播过来的快照）
   roomStatusPrev: null, // 上一次的房间状态（用来抓"刚变成 online"这个时刻）
@@ -44,10 +45,10 @@ async function init() {
     state.season = null;
   }
 
-  // 地图下拉（用 id 作 value）
+  // 地图下拉（用 id 作 value）：SVG 底图与已下瓦片底图的图都能选
   const sel = $('#map-select');
   sel.innerHTML = '<option value="">-- 选择地图 --</option>' +
-    state.maps.filter((m) => m.hasSvg).map((m) => `<option value="${m.id}">${m.name}</option>`).join('');
+    state.maps.filter((m) => m.hasBasemap).map((m) => `<option value="${m.id}">${m.name}</option>`).join('');
   sel.addEventListener('change', () => { if (sel.value) api.selectMap({ id: sel.value }); });
 
   // 按钮
@@ -63,6 +64,8 @@ async function init() {
     const on = e.currentTarget.classList.toggle('active');
     view.setViewMode({ follow: on });
   });
+  // 楼层下拉：默认停在"自动"（跟着玩家高度走），手动选层会同时上报主进程
+  $('#floor-select').addEventListener('change', (e) => pickFloor(e.currentTarget.value));
   onToggle('#btn-rotate', (e) => {
     const on = e.currentTarget.classList.toggle('active');
     view.setViewMode({ rotate: on });
@@ -277,7 +280,7 @@ function openSettings() {
   $('#set-auto-floor').checked = c.autoFloor !== false;
   $('#set-sound').checked = c.sound !== false;
   $('#set-auto-delete').checked = !!c.autoDeleteScreenshots;
-  $('#set-mini').checked = !!c.miniVisible;
+  $('#set-mini').checked = state.miniEnabled != null ? state.miniEnabled : !!c.miniVisible;
   $('#set-map-opacity').value = c.mapOpacity ?? 1;
   $('#set-mini-opacity').value = c.miniOpacity ?? 0.9;
   $('#set-mini-radius').value = c.miniRadius ?? 55;
@@ -474,7 +477,7 @@ async function applyMainState(s) {
         $('#empty-hint').classList.remove('show');
         const sel = $('#map-select');
         if (sel.value !== entry?.id) sel.value = entry?.id || '';
-        renderFloorButtons(resolved);
+        renderFloorPicker();
         renderLegend();
         if (state.cfg.sound !== false) beep('map');
       }
@@ -516,8 +519,10 @@ async function applyMainState(s) {
     $('#st-exfil').textContent = '最近撤离: -';
   }
 
-  // 3) 楼层
+  // 3) 楼层（默认"自动"：按玩家高度自己切；手动选过就一直是那个层，直到你说自动）
   if (s.floor && state.cfg.autoFloor !== false) view.setFloor(s.floor);
+  syncFloorPicker();
+  renderFloorStatus();
 
   // 4) 状态栏
   if (state.detail) {
@@ -541,6 +546,10 @@ async function applyMainState(s) {
   if (s.miniStatus) {
     const ms = s.miniStatus;
     const running = ms.enabled && ms.alive && ms.visible && !ms.crashed;
+    // 设置页那个"启用小地图雷达"复选框也必须跟着真实状态走：
+    // 顶栏按钮点开雷达时只改了主进程的 settings，渲染层这份 cfg 是旧的，
+    // 不记一份真的就会出现"雷达开着、设置里却是没勾"（用户以为勾选逻辑坏了）
+    state.miniEnabled = !!ms.enabled;
     const btn = $('#btn-mini');
     btn.classList.toggle('active', !!ms.enabled);
     btn.title = ms.enabled
@@ -562,9 +571,8 @@ async function applyMainState(s) {
 function onPlayerSettled(pos, heading) {
   $('#st-pos').textContent = pos ? `位置: ${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}` : '位置: -';
   $('#st-heading').textContent = heading ? `朝向: ${Math.round(heading.yawDeg)}°` : '朝向: -';
-  $('#st-floor').textContent = `楼层: ${view.floor === 'auto' ? '自动' : view.floor}`;
+  renderFloorStatus();
 }
-
 async function loadMapDetail(entry, mapKey) {
   try {
     const json = await (await fetch('app://data/maps-dump.json')).json();
@@ -576,7 +584,11 @@ async function loadMapDetail(entry, mapKey) {
       const file = detail.svgPath.split('/').pop();
       try { svgText = await (await fetch(`app://data/maps/${file}`)).text(); } catch (e) { console.warn('SVG 缺失', file, e); }
     }
-    await view.setMap(detail, svgText);
+    // 没有 SVG 的图（实验室/迷宫/破冰船）用本地瓦片当底图；有没有下过由主进程扫盘告诉我们
+    const meta = entry || state.maps.find((m) => m.key === detail.key) || null;
+    await view.setMap(detail, svgText, { tileDirs: meta?.tiles || null });
+    // 换图后上一次手动选的层未必存在（海关的 3 层到灯塔就没有）—— 没有就回"自动"
+    if (view.floor !== 'auto' && !(view.floors || []).some((l) => l.key === view.floor)) view.setFloor('auto');
     // 赛季文件刷点按当前地图 id 注入（无刷点的地图自动为空）
     view.setSeasonDocuments(state.season, detail.id);
     // 手动标注也按地图分开注入（换图不会串味）
@@ -591,38 +603,68 @@ async function loadMapDetail(entry, mapKey) {
   }
 }
 
-function renderFloorButtons(detail) {
-  const wrap = $('#floor-buttons');
-  const SHORT = {
-    '2nd Floor': '2F', '3rd Floor': '3F', '4th Floor': '4F', '5th Floor': '5F',
-    '1st Floor': '1F', Basement: '地下', Underground: '地下', Tunnels: '隧道',
-    Garage: '车库', 'Second Level': '2层', Technical: '技术层',
-  };
-  const layers = [{ name: '一层', svgLayer: detail.svgLayer, extents: [] }, ...(detail.layers || [])];
-  wrap.innerHTML = '';
-  for (const [idx, l] of layers.entries()) {
-    const btn = document.createElement('button');
-    btn.textContent = idx === 0 ? '一层' : (SHORT[l.name] || l.name);
-    btn.title = l.name;
-    btn.dataset.layer = l.svgLayer || l.name;
-    btn.addEventListener('click', () => {
-      wrap.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      view.setFloor(btn.dataset.layer);
-    });
-    wrap.appendChild(btn);
+/**
+ * 楼层下拉。楼层清单由 MapView 统一算好（view.floors）—— SVG 底图按 svgLayer、
+ * 瓦片底图按图层名，两边共用一份 key，避免选下去找不到对应图层。
+ *
+ * 为什么是下拉框而不是一排按钮：破冰船有 16 层甲板（原站按船体分段各一张瓦片图），
+ * 铺成按钮能把顶栏撑成两行。只有一层时整块收起来，没得选就别占地方。
+ */
+const FLOOR_ZH = {
+  '1st Floor': '一层', '2nd Floor': '二层', '3rd Floor': '三层', '4th Floor': '四层', '5th Floor': '五层',
+  Basement: '地下', Underground: '地下', Tunnels: '地下管道', Garage: '车库',
+  'Second Level': '二层', Technical: '技术层',
+  // 破冰船（上游只有英文名）
+  Infirmary: '医务室', Helipad: '直升机甲板', 'Gym/Canteen': '健身房 / 食堂',
+  'Accommodation (lower)': '居住区（下层）', 'Accommodation (mid)': '居住区（中层）',
+  'Accommodation (upper)': '居住区（上层）', "Officers' Deck": '军官甲板',
+  'Stairs (blocked)': '楼梯（封闭）', Bridge: '舰桥', 'Bridge Roof': '舰桥顶',
+  'Control Room': '控制室', 'Engine Room': '轮机舱', 'Engine Room (upper)': '轮机舱（上层）',
+  'Fuel Pumps (lower)': '燃油泵（下层）', 'Fuel Pumps': '燃油泵', 'Storage/Security': '储藏 / 安保区',
+};
+
+/** 楼层的显示名：破冰船那种英文甲板名给中文，其余原样（底图那层在数据里就叫"一层"） */
+function floorLabel(name) {
+  return FLOOR_ZH[name] || name;
+}
+
+function renderFloorPicker() {
+  const wrap = $('#floor-picker');
+  const sel = $('#floor-select');
+  const layers = view.floors || [];
+  if (layers.length <= 1) {
+    // 只有一张底图，没有可切的东西
+    wrap.classList.add('hidden');
+    sel.innerHTML = '';
+    return;
   }
-  if (detail.layers?.length) {
-    const auto = document.createElement('button');
-    auto.textContent = '自动';
-    auto.addEventListener('click', () => {
-      wrap.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
-      view.setFloor('auto');
-    });
-    wrap.appendChild(auto);
-  }
-  const floor = state.applyState?.floor;
-  if (!floor || floor === 'auto' || floor === detail.svgLayer) wrap.querySelector('button')?.classList.add('active');
+  wrap.classList.remove('hidden');
+  sel.innerHTML =
+    '<option value="auto">自动（按你所在高度）</option>' +
+    layers.map((l) => `<option value="${escapeHtml(l.key)}" title="${escapeHtml(l.title || l.name)}">${escapeHtml(floorLabel(l.name))}</option>`).join('');
+  syncFloorPicker();
+}
+
+/** 把下拉框对齐到当前楼层（'auto' 或某个图层 key） */
+function syncFloorPicker() {
+  const sel = $('#floor-select');
+  if (!sel || !sel.options.length) return;
+  const want = view.floor && view.floor !== 'auto' ? view.floor : 'auto';
+  sel.value = [...sel.options].some((o) => o.value === want) ? want : 'auto';
+}
+
+/** 状态栏的楼层文案（手动选层后立刻刷新，不用等下一次状态广播） */
+function renderFloorStatus() {
+  $('#st-floor').textContent = `楼层: ${view.floor === 'auto' ? '自动' : view.floor}`;
+}
+
+/** 用户在下拉框里选了一层：渲染层立刻生效，同时告诉主进程 */
+function pickFloor(value) {
+  view.setFloor(value);
+  renderFloorStatus();
+  // 必须上报主进程：否则下一次状态广播（位置更新 / 配置变更 / 房间事件）会把 floor
+  // 按回它那份旧值（一直是 'auto'），表现为"手动选的层马上自己跳回自动"
+  api.setFloor(value);
 }
 
 // ---------------------------------------------------------------------------

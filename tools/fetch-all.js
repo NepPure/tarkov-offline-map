@@ -3,7 +3,8 @@
  * 数据快照脚本：
  *  - 从 kaedeori 服务端拉取全部地图配置（一次即可，之后运行不再需要服务器）
  *  - 下载每张地图的 SVG 底图到 data/maps/
- *  - 可选 --tiles：为无 SVG 的地图（实验室/冰船/迷宫）下载瓦片金字塔到 data/tiles/<map>_<layer>/<z>/<x>/<y>.png
+ *  - 可选 --tiles：为无 SVG 的地图（实验室/冰船/迷宫）下载瓦片底图到 data/tiles/<原始路径>/3/<x>/<y>.png
+ *    （实际逻辑在 tools/fetch-tiles.js，也可以单独跑 npm run fetch:tiles）
  *
  * 依赖: npm i socket.io-client
  * 用法: node tools/fetch-all.js [--tiles]
@@ -59,39 +60,12 @@ const LANG = arg('lang', 'zh');
   }
 
   if (process.argv.includes('--tiles')) {
-    // 无 SVG 的地图：下载瓦片金字塔（起点 zoom2，终点 min(maxZoom,6)）
-    for (const m of maps) {
-      const d = m.detail;
-      if (d.svgPath) continue;
-      const targets = [];
-      if (d.tilePath) targets.push({ layer: 'main', tilePath: d.tilePath });
-      for (const l of d.layers || []) if (l.tilePath) targets.push({ layer: l.name || l.svgLayer, tilePath: l.tilePath });
-      for (const t of targets) {
-        await downloadPyramid(t.tilePath, path.join(REPO, 'data', 'tiles', `${d.key}_${String(t.layer).replace(/\W+/g, '_')}`), d.minZoom ?? 2, Math.min(d.maxZoom ?? 6, 6));
-      }
-    }
+    // 无 SVG 的地图（实验室/冰船/迷宫）：瓦片底图交给 tools/fetch-tiles.js。
+    // 原站的卫星图只有固定 zoom=3 这一层 —— 这里以前照着 minZoom..maxZoom 去扫，
+    // z=4/5/6 在 CDN 上根本不存在，白跑两万多次 404。
+    const { fetchTiles } = require('./fetch-tiles');
+    await fetchTiles({ maps });
   }
   s.close();
   process.exit(0);
 })().catch((e) => { console.error('[fatal]', e); process.exit(1); });
-
-async function downloadPyramid(tilePath, outDir, zMin, zMax) {
-  fs.mkdirSync(outDir, { recursive: true });
-  for (let z = zMin; z <= zMax; z++) {
-    const n = Math.pow(2, z);
-    for (let x = 0; x < n; x++) {
-      for (let y = 0; y < n; y++) {
-        const u = tilePath.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
-        const out = path.join(outDir, String(z), String(x), `${y}.png`);
-        if (fs.existsSync(out)) continue;
-        try {
-          const rsp = await fetch(u);
-          if (!rsp.ok) continue;
-          fs.mkdirSync(path.dirname(out), { recursive: true });
-          fs.writeFileSync(out, Buffer.from(await rsp.arrayBuffer()));
-        } catch {}
-      }
-    }
-    console.log(`[tiles] ${path.basename(outDir)} z=${z} done`);
-  }
-}

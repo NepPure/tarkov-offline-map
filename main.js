@@ -17,6 +17,7 @@ const os = require('os');
 
 const mapsData = require('./src/maps-data');
 const annotations = require('./src/annotations');
+const { readJsonFile } = require('./src/json-file');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
 const roomClientModule = require('./src/room-client');
@@ -30,7 +31,7 @@ const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry
 if (process.env.TAKOV_USER_DATA) app.setPath('userData', process.env.TAKOV_USER_DATA);
 else app.setPath('userData', path.join(app.getPath('appData'), 'tarkov-offline-map'));
 
-const APP_TITLE = '塔可夫地图';
+const APP_TITLE = '塔科夫地图';
 const REPO_ROOT = __dirname;
 const DATA_DIR = path.join(REPO_ROOT, 'data');
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -142,7 +143,7 @@ function loadSettings() {
   };
   let merged = defaults;
   try {
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    const raw = readJsonFile(SETTINGS_FILE);
     merged = {
       ...defaults,
       ...raw,
@@ -444,6 +445,27 @@ function applyMiniClickThrough() {
 
 function broadcastMiniStatus() {
   try { broadcast({ miniStatus: miniStatus() }); } catch {}
+}
+
+/**
+ * 把配置里的 miniVisible 真正落到窗口上。
+ *
+ * 为什么需要这个：设置页那个"启用小地图雷达"复选框此前只是写进了配置 ——
+ * 只有启动流程和顶栏按钮会读它。于是"顶栏开了小地图 → 进设置取消勾选 → 保存"
+ * 这条路径上，配置确实变成了 false，可窗口还是原样挂在桌面上（用户看到的就是
+ * "取消勾选了小地图也没关"）。反过来，窗口不存在时勾上也不会出现。
+ */
+function applyMiniVisible() {
+  if (settings.miniVisible) {
+    if (!miniAlive() || !miniWin.isVisible()) createMiniWindow('config-on');
+  } else if (miniAlive()) {
+    miniHidden = true;
+    miniLog('config: miniVisible=false -> hide');
+    stopMiniDrag('config-off');
+    stopMiniPan('config-off');
+    miniWin.hide();
+  }
+  broadcastMiniStatus();
 }
 
 /** 重新置顶（不抢焦点）。注意：绝不作用于隐藏状态的窗口——
@@ -816,6 +838,8 @@ function setupIpc() {
     saveSettings();
     syncWatchers();
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniClickThrough')) applyMiniClickThrough();
+    // 小地图开关同理：设置页勾/去勾必须立刻开/关窗口，不能只改配置
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniVisible')) applyMiniVisible();
     // 房间配置变了（开关/地址/房间号/昵称/共享项）才重新握手
     if (roomChanged) syncRoom();
     broadcast({}); // 立刻把新配置推给所有窗口（雷达的透明度/方向/楼层/穿透等）
@@ -1597,7 +1621,7 @@ async function runVisualTest() {
 }
 app.whenReady().then(() => {
   settings = loadSettings();
-  mapsData.load(path.join(DATA_DIR, 'maps-dump.json'));
+  mapsData.load(path.join(DATA_DIR, 'maps-dump.json'), { dataRoot: DATA_DIR });
   // 手动标注（世界坐标，独立文件）
   annotations.load(ANNOTATIONS_FILE);
   appLog(`annotations loaded: ${JSON.stringify(annotations.stats())}`);

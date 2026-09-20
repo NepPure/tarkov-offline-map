@@ -4,7 +4,7 @@
  *
  * 用户要求：标题去掉"离线"、左上角去掉"纯本地"、新增关于页面（GitHub 地址 + 功能简介）。
  * 这里用 CDP 真点一遍：
- *   1) 窗口标题与左上角标题都是「塔可夫地图」，页面里没有"塔可夫离线地图"
+ *   1) 窗口标题与左上角标题都是「塔科夫地图」，页面里没有"塔科夫离线地图"
  *   2) 顶栏那个"纯本地"胶囊徽标已经没了
  *   3) 顶栏「关于」能打开关于弹窗，版本号 = package.json 里的版本
  *   4) 关于弹窗里有 GitHub 地址、功能简介（含"房间联机"）与"默认不联网"说明
@@ -103,11 +103,11 @@ function check(name, ok, detail) {
     h1: (document.querySelector('.brand h1') || {}).textContent,
     tag: !!document.querySelector('.brand .tag'),
     headerText: (document.querySelector('.topbar') || {}).textContent || '',
-    html: document.documentElement.innerHTML.includes('塔可夫离线地图'),
+    html: document.documentElement.innerHTML.includes('塔科夫离线地图'),
   })`);
-  check('窗口标题是「塔可夫地图」', brand.docTitle === '塔可夫地图', brand.docTitle);
-  check('左上角标题是「塔可夫地图」', brand.h1 === '塔可夫地图', brand.h1);
-  check('页面里不再出现「塔可夫离线地图」', brand.html === false);
+  check('窗口标题是「塔科夫地图」', brand.docTitle === '塔科夫地图', brand.docTitle);
+  check('左上角标题是「塔科夫地图」', brand.h1 === '塔科夫地图', brand.h1);
+  check('页面里不再出现「塔科夫离线地图」', brand.html === false);
   check('左上角「纯本地」徽标已移除', brand.tag === false && !brand.headerText.includes('纯本地'));
 
   // 2) 顶栏「关于」-> 弹窗

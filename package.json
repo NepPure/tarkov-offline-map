@@ -1,8 +1,8 @@
 {
   "name": "tarkov-offline-map",
-  "productName": "塔可夫地图",
-  "version": "2.0.1",
-  "description": "塔可夫地图 - 日志自动识别地图 + 截图定位 + 悬浮小地图，默认完全本地运行；房间联机（和队友互看位置与标注）为可选功能",
+  "productName": "塔科夫地图",
+  "version": "2.0.2",
+  "description": "塔科夫地图 - 日志自动识别地图 + 截图定位 + 悬浮小地图，默认完全本地运行；房间联机（和队友互看位置与标注）为可选功能",
   "main": "main.js",
   "private": true,
   "author": "NepPure",
@@ -26,6 +26,7 @@
     "room": "node server/server.js",
     "room:peer": "node tools/fake-peer.js",
     "fetch:data": "node tools/fetch-all.js",
+    "fetch:tiles": "node tools/fetch-tiles.js",
     "fetch:quests": "node tools/fetch-quests.js",
     "fetch:icons": "node tools/fetch-icons.js",
     "fetch:season": "node tools/fetch-season.js",
@@ -41,7 +42,7 @@
   },
   "build": {
     "appId": "com.neppure.tarkov-offline-map",
-    "productName": "塔可夫地图",
+    "productName": "塔科夫地图",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -70,7 +71,7 @@
       "icon": "build/icon.png"
     },
     "portable": {
-      "artifactName": "塔可夫地图-${version}.exe",
+      "artifactName": "塔科夫地图-${version}.exe",
       "requestExecutionLevel": "user"
     }
   },

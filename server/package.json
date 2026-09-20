@@ -1,8 +1,8 @@
 {
   "name": "tarkov-offline-map-server",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
-  "description": "塔可夫地图 · 房间服务端（极轻量：单进程、纯内存、可选落盘，只有 ws 一个依赖）",
+  "description": "塔科夫地图 · 房间服务端（极轻量：单进程、纯内存、可选落盘，只有 ws 一个依赖）",
   "main": "server.js",
   "type": "commonjs",
   "engines": {

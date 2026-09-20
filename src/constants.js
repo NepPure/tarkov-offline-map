@@ -104,7 +104,8 @@ const MAPKEY_TO_SVG = {
   shoreline: 'Shoreline.svg',
   reserve: 'Reserve.svg',
   lighthouse: 'Lighthouse.svg',
-  // theLab / icebreaker / labyrinth 目前仅瓦片（无 SVG），走"无底图"模式
+  // theLab / icebreaker / labyrinth 上游没有 SVG，底图走 data/tiles 下的瓦片
+  // （见 src/tiles.js 与 renderer/common/map-view.js 的 satelliteLayout）
 };
 
 // 会话目录名: log_2026.09.07_23-03-04_1.1.0.1.46911

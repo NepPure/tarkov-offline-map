@@ -49,9 +49,9 @@ button:hover { border-color: var(--accent); color: #fff; }
 button.toggle.active { background: #0e2a30; border-color: var(--accent); color: var(--accent); }
 /* 雷达开关：配置开着但窗口不健康（被系统吞掉/崩溃）时给出提示色，主进程看门狗会自动重建 */
 button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
-.floor-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
-.floor-buttons button { padding: 3px 8px; font-size: 11px; }
-.floor-buttons button.active { background: #0e2a30; border-color: var(--accent); color: var(--accent); }
+/* 楼层下拉：破冰船有 16 层甲板，铺成一排按钮能把顶栏撑成两行（这里改成一个下拉框） */
+.floor-picker select { max-width: 150px; }
+.floor-picker.hidden { display: none; }
 
 /* 窄屏（高 DPI 缩放时 CSS 视口可能只有 ~950px）下的紧凑布局 */
 @media (max-width: 1180px) {

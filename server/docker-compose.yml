@@ -1,4 +1,4 @@
-# 塔可夫地图 · 房间服务端（一条命令起服务）
+# 塔科夫地图 · 房间服务端（一条命令起服务）
 #
 #   docker compose up -d          起服务
 #   docker compose logs -f        看日志
@@ -14,7 +14,7 @@
 services:
   room:
     # 官方镜像（也可以自己 build：把 image 换成 tarkov-room:local 并打开下面 build 那行）
-    image: ghcr.io/neppure/tarkov-offline-map-server:2.0.1
+    image: ghcr.io/neppure/tarkov-offline-map-server:2.0.2
     # build: .
     container_name: tarkov-map-room
     restart: unless-stopped

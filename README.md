@@ -1,4 +1,4 @@
-# 塔可夫实时地图 (tarkov-offline-map)
+# 塔科夫实时地图 (tarkov-offline-map)
 
 [![Build & Release (Windows)](https://github.com/NepPure/tarkov-offline-map/actions/workflows/build.yml/badge.svg)](https://github.com/NepPure/tarkov-offline-map/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/NepPure/tarkov-offline-map)](https://github.com/NepPure/tarkov-offline-map/releases/latest)
@@ -12,7 +12,7 @@
 ## 下载（Windows 免安装）
 
 到 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
-`塔可夫地图-<版本>.exe`（portable 单文件，双击即用，约 145MB，内含离线地图数据与赛季文件参考截图），
+`塔科夫地图-<版本>.exe`（portable 单文件，双击即用，约 145MB，内含离线地图数据与赛季文件参考截图），
 校验值见同页 `SHA256SUMS.txt`。
 
 - 未做代码签名：SmartScreen 提示"未知发布者"时选择"仍要运行"
@@ -58,6 +58,16 @@ Boss、出生点、散落物资、BTR 站点、**赛季文件刷点**、地名�
 4. **楼层判定**：`z`(高度) 落在各楼层 `layers[].extents[].height` 区间且位于该层区域矩形内 → 自动切层
    （SVG 底图按 `data-layer` 分组：Ground_Level / First_Floor / Second_Floor / ...）。
 
+5. **底图有两种**：
+   - 大多数图用上游的 **SVG**（`data/maps/*.svg`），矢量、可无限放大；
+   - 实验室 / 迷宫 / 破冰船在上游就**没有 SVG**，用的是"卫星图"瓦片（`tilePath`）。
+     原站这套瓦片的层级是**固定 `zoom=3`**（每层 8×8 = 64 块），本项目把瓦片按原样落到
+     `data/tiles/<原始路径>/3/<x>/<y>.png`，渲染时按原站同一套几何贴回地图像素空间
+     （见 `src/tiles.js` 与 `renderer/common/map-view.js` 的 `satelliteLayout()`）。
+     所以这三张图同样**完全离线**，楼层次级也照常工作（顶栏是楼**下拉框**，默认「自动」按玩家高度切；
+     实验室：一层 / 二层 / 技术层，破冰船：16 层甲板按高度从下到上、中文名）。
+     补数据：`npm run fetch:tiles`。
+
 ## 目录结构
 
 ```
@@ -66,7 +76,8 @@ tarkov-offline-map/
 ├─ preload.js                contextBridge API
 ├─ src/
 │  ├─ constants.js           bundle→raidCode→地图 映射表、正则
-│  ├─ maps-data.js           data/maps-dump.json 加载与查询
+│  ├─ maps-data.js           data/maps-dump.json 加载与查询（含本地瓦片底图可用性）
+│  ├─ tiles.js               瓦片底图落盘路径规则（远端 tilePath → data/tiles/<目录>）
 │  ├─ mini-geometry.js       小地图悬浮窗拖动/钳位几何（纯函数，带单测）
 │  ├─ projection.js          投影/四元数/朝向（复刻原站公式）
 │  ├─ parsers.js             截图文件名 & 日志行解析
@@ -74,17 +85,19 @@ tarkov-offline-map/
 │  ├─ screenshot-watcher.js  截图目录监听
 │  └─ room-key.js            房间号推导（sha256，客户端/服务端各一份，交叉校验）
 ├─ renderer/
-│  ├─ common/map-view.js     地图渲染引擎（SVG 底图/楼层/标记/玩家/轨迹/平移缩放）
+│  ├─ common/map-view.js     地图渲染引擎（SVG/瓦片底图·楼层/标记/玩家/轨迹/平移缩放）
 │  ├─ map.html|css|js        主地图窗口
 │  └─ minimap.html|js        圆形小地图悬浮窗
 ├─ data/
 │  ├─ maps-dump.json         15 张地图完整配置（投影/楼层/撤离点/boss/物资/BTR…）
 │  ├─ maps/*.svg             各图 SVG 底图（内含全部楼层 data-layer）
+│  ├─ tiles/                 实验室/迷宫/破冰船的瓦片底图（z=3，每层 8×8，约 1230 张 PNG / 10MB）
 │  ├─ season-documents.json  赛季文件刷点（419 个点 / 14 张图 / 8 类文件，含中文元数据与参考截图路径）
 │  ├─ season-images/         位置参考截图原图（419 张 webp，约 73MB，离线可看）
 │  └─ icons/                 标记图标 + season_<类型>.webp 赛季文件图标
 ├─ tools/
 │  ├─ fetch-all.js           数据快照脚本（重新拉取地图配置 + SVG）
+│  ├─ fetch-tiles.js         实验室/迷宫/破冰船的瓦片底图下载（原站固定 z=3，约 1230 张）
 │  ├─ fetch-season.js        赛季文件刷点快照（含中文名/说明/图标）
 │  ├─ fetch-season-images.js 赛季文件位置参考截图下载（原图）
 │  ├─ check-svg-pack.js      对比上游互动地图素材包，判断底图是否更新
@@ -95,6 +108,9 @@ tarkov-offline-map/
 │  ├─ verify-exe.ps1         打包版验收（启动/截屏/零残留）
 │  ├─ verify-exe-cdp.js      打包版深检（标记/赛季文件/截图查看器/小地图）
 │  ├─ verify-mini-input.js   小地图真实鼠标输入验收（拖动/按钮/位置记忆）
+│  ├─ verify-raster.js       瓦片底图（实验室/迷宫/破冰船）+ 楼层下拉 + 小地图开关验收（28 项，隔离实例）
+│  ├─ verify-exe-tiles.js    打包版同款验收（自造隔离配置目录 + 起 exe + 查版本/雷达/瓦片，6 项）
+│  ├─ diagnose-renderer.js   渲染层诊断：窗口白屏/空的时候抓异常与 console 报错（隔离实例）
 │  ├─ verify-about.js        关于页面验收（标题改名/纯本地徽标移除/版本号/GitHub 地址/设置里的入口）
 │  ├─ verify-room.js         房间联机界面验收（57 项，含雷达出范围贴边方位指示、状态提示行不说假话）
 │  ├─ verify-room-live.js    连**你自己部署的服务端**跑真·多客户端自检（N 个真客户端 + 截图定位 + 大图/雷达截图）
@@ -125,7 +141,7 @@ npm run visual-test  # 可视化自检：自动注入工厂位置并截屏到 te
 启动后：
 - **自动探测游戏目录**（注册表卸载信息 + Steam 常见路径 + 文档目录），也可在"设置"中手动指定
 - 游戏进局后地图自动切换；按 `Print Screen` 后即见定位（截图文件名携带坐标与朝向）
-- 顶栏：地图下拉、楼层切换（含"自动"）、定位自动居中、车头朝上、小地图雷达、标记点、任务、尺子测距、图钉化、导入截图、设置
+- 顶栏：地图下拉、楼**下拉框**（默认"自动"按高度切层）、定位自动居中、车头朝上、小地图雷达、标记点、任务、尺子测距、图钉化、导入截图、设置
 - 左侧"任务"面板：**搜索任务 → 勾选 → 地点画到地图上**（详见下节）
 - 右侧"标记点图例"按**大类分组**，每组前面都有一个**批量显示/隐藏**的组开关（三态：全开 / 部分选中 / 全关）：
   撤离·转移·交通 / Boss·出生点 / 钥匙锁·开关 / 危险·固定武器 / 赛季文件刷点 / 物资箱·散落物资 / 地名，
@@ -384,7 +400,7 @@ Boss 就是头像、钥匙就是钥匙、赛季文件就是文件图标），大
 ```bash
 # 1) 起服务端（任一方式）
 cd server && docker compose up -d            # 推荐
-# 或者：docker run -d -p 8787:8787 --restart unless-stopped ghcr.io/neppure/tarkov-offline-map-server:2.0.1
+# 或者：docker run -d -p 8787:8787 --restart unless-stopped ghcr.io/neppure/tarkov-offline-map-server:2.0.2
 # 或者：cd server && npm ci --omit=dev && PORT=8787 node server.js
 ```
 
@@ -491,7 +507,7 @@ node tools/verify-asar.js dist\win-unpacked\resources\app.asar   # 打包产物�
 ## 打包 Windows 一键运行 exe
 
 ```bash
-npm run dist      # electron-builder portable -> dist\塔可夫地图-<version>.exe
+npm run dist      # electron-builder portable -> dist\塔科夫地图-<version>.exe
 ```
 
 - 产物为 **免安装单文件 exe**（v1.2.0 起约 145MB，含 73MB 赛季文件参考截图），双击即用，自带图标与版本信息
@@ -557,6 +573,7 @@ node tools/scan-privacy.js                 # 开源前扫描样例里的账号ID
 ```bash
 npm i socket.io-client           # 首次
 npm run fetch:data               # 重新拉取地图配置与 SVG（默认站台版本见 tools/fetch-all.js）
+npm run fetch:tiles              # 重新下载无 SVG 地图的瓦片底图（实验室/迷宫/破冰船）
 npm run fetch:quests             # 重新拉取任务/目标/区域坐标 + 中文名（写入 data/quests-dump.json，约 560KB）
 npm run fetch:season             # 重新拉取赛季文件刷点 + 类型图标
 npm run fetch:season:images      # 下载赛季文件位置参考截图原图（约 73MB）

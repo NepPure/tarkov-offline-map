@@ -3,21 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' 'unsafe-inline'; img-src 'self' app: data:; connect-src 'self' app:" />
-  <title>塔可夫地图</title>
+  <title>塔科夫地图</title>
   <link rel="stylesheet" href="map.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <span class="brand-dot"></span>
-      <h1>塔可夫地图</h1>
+      <h1>塔科夫地图</h1>
       <button id="room-chip" class="room-chip hidden" title="房间联机状态（点击打开设置）">房间: 未联机</button>
     </div>
     <div class="controls">
       <label>地图
         <select id="map-select"></select>
       </label>
-      <div id="floor-buttons" class="floor-buttons"></div>
+      <label id="floor-picker" class="hidden">楼层
+        <select id="floor-select"></select>
+      </label>
       <button id="btn-follow" class="toggle active" title="捕获位置后自动居中">定位自动居中</button>
       <button id="btn-rotate" class="toggle" title="车头朝上（随朝向旋转）">车头朝上</button>
       <button id="btn-mini" class="toggle" title="显示/隐藏圆形小地图">小地图雷达</button>
@@ -218,7 +220,7 @@
       <h2>关于</h2>
       <div class="about-title">
         <span class="brand-dot"></span>
-        <b>塔可夫地图</b>
+        <b>塔科夫地图</b>
         <span id="about-ver" class="about-ver">v-</span>
       </div>
       <p class="about-desc">《逃离塔科夫》的第三方地图辅助工具：读游戏日志识别你在哪张图，读截图文件名定位你的位置与朝向，

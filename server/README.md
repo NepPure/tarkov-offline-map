@@ -1,4 +1,4 @@
-# 塔可夫地图 · 房间服务端
+# 塔科夫地图 · 房间服务端
 
 给客户端「房间（联机）」功能用的小服务端：**同一房间的人互相看到位置、朝向、轨迹和手动标注**。
 
@@ -27,7 +27,7 @@ docker compose down           # 停
 
 ```bash
 docker run -d --name tarkov-room -p 8787:8787 --restart unless-stopped \
-  ghcr.io/neppure/tarkov-offline-map-server:2.0.1
+  ghcr.io/neppure/tarkov-offline-map-server:2.0.2
 ```
 
 **方式 C：不用 docker，直接裸跑**
@@ -42,7 +42,7 @@ PORT=8787 node server.js
 
 ```bash
 curl http://127.0.0.1:8787/healthz
-# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.0.1","proto":2,"uptime":3,"rooms":0,"peers":0,...}
+# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.0.2","proto":2,"uptime":3,"rooms":0,"peers":0,...}
 ```
 
 浏览器打开 `http://<服务器IP>:8787/` 能看到一行纯文本状态（房间数、在线人数、内存占用，**不含任何房间标识**）。

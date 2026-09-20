@@ -37,6 +37,19 @@ async function getDetail(mapId) {
   return json.maps.map((m) => m.detail).find((d) => d.id === mapId) || null;
 }
 
+/**
+ * 本地瓦片底图清单（实验室/迷宫/破冰船这类没有 SVG 的图）。
+ * 主进程扫盘后经 listMaps 下发；只取一次，之后换图直接查。
+ */
+let tileMeta = null;
+async function tileDirsFor(mapId) {
+  if (tileMeta === null) {
+    try { tileMeta = await api.listMaps(); } catch { tileMeta = []; }
+  }
+  const m = tileMeta.find((x) => x.id === mapId);
+  return (m && m.tiles) || null;
+}
+
 /** 以 (x,z) 为中心时，让半径 RADIUS_M 正好铺满圆盘的缩放（小地图的"标准视野"） */
 function radiusScale(x, z) {
   const w = document.getElementById('mini-root').getBoundingClientRect().width || 296;
@@ -101,7 +114,7 @@ async function applyState(s) {
       const file = detail.svgPath.split('/').pop();
       try { svgText = await (await fetch(`app://data/maps/${file}`)).text(); } catch {}
     }
-    await view.setMap(detail, svgText);
+    await view.setMap(detail, svgText, { tileDirs: await tileDirsFor(s.mapId) });
     // 赛季文件刷点（离线快照）：小地图上也标出来，找文件时不用切回主窗口
     await seasonReady;
     if (seasonData) view.setSeasonDocuments(seasonData, detail.id);
@@ -123,8 +136,9 @@ async function applyState(s) {
     centerOnMap();
   }
   // 楼层：默认按玩家高度自动切层；关掉后固定在地图基础层
+  // （基础层用 view.baseLayer：SVG 图是 detail.svgLayer，瓦片图是它的第一层）
   if (miniAutoFloor) view.setFloor('auto');
-  else view.setFloor((detail && detail.svgLayer) || 'auto');
+  else view.setFloor(view.baseLayer || (detail && detail.svgLayer) || 'auto');
   // 房间成员：雷达上也画队友（离得近的时候比主窗口更有用）
   if (s.room) {
     const myId = s.room.self ? s.room.self.id : null;

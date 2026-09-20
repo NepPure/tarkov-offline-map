@@ -47,6 +47,21 @@ const MARKER_LABELS = {
   hazards: '危险', loot: '物资', weapons: '固定武器', labels: '地名',
 };
 
+const NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * 瓦片底图（实验室/迷宫/破冰船这类没有 SVG 的图）。
+ *
+ * 原站对这些图走"卫星图"路径：瓦片金字塔固定在 zoom=3（8×8 一共 64 块），
+ * 像素范围 = 投影结果 × 2^3。这里复刻同一套几何，只是把瓦片换成本地文件
+ * （npm run fetch:tiles 下到 data/tiles/<CDN 上的原始路径>/3/<x>/<y>.png，
+ *   目录名由 src/tiles.js 统一算，主进程扫盘后经 listMaps 把目录名交下来）。
+ *
+ * SATELLITE_ZOOM 与 src/tiles.js 的同名常量必须一致（test/raster-basemap.test.js 盯着）。
+ */
+const SATELLITE_ZOOM = 3;
+const DEFAULT_TILE_SIZE = 256;
+
 /** 小地图同时渲染的标记上限（超出时优先保留撤离点/Boss/赛季文件等关键标记） */
 const MINI_MARKER_CAP = 260;
 /** 小地图"舒适区"：超过这个数量就按重要度丢弃次要标记（否则小圆盘里全是重叠的图标） */
@@ -145,6 +160,9 @@ export class MapView {
     this.showAllHeights = true;  // 表层显示全部标记
     this.layers = [];            // 可选楼层 [{name, svgLayer, extents}]
     this.baseLayer = null;
+    this.floors = [];            // 顶栏楼层按钮用（SVG 与瓦片底图统一成一份）
+    this.tiles = null;           // 瓦片底图元数据（无 SVG 的图才有，见 #buildTileLayers）
+    this.rasterRoot = null;      // 瓦片底图 <g>（楼层按需创建，见 #ensureRasterLayer）
     this.layerReady = null;
     this.markerEls = [];
     this.markerCache = null;     // 当前地图标记列表 [{group,x,z,y,label,color,size}]
@@ -357,14 +375,24 @@ export class MapView {
   }
 
   // ------------------------------------------------------------------ Map
-  async setMap(detail, svgText) {
+  /**
+   * @param detail maps-dump 里的 detail
+   * @param svgText SVG 底图文本（有 SVG 的图才有）
+   * @param opts.tileDirs 本地已有的瓦片层 { 远端 tilePath: 'data/tiles 下的目录' }
+   *                      （由主进程 listMaps 提供，无 SVG 的图才会用到）
+   */
+  async setMap(detail, svgText, opts = {}) {
     this.detail = detail;
     this.proj = makeProjection(detail);
     this.px = mapPixelBounds(detail, this.proj);
-    this.baseLayer = detail.svgLayer || null;
+    // 无 SVG 的图走瓦片底图：只有本地确实下过瓦片才开，否则保持原来的"无底图"模式
+    this.tiles = (!svgText && detail.tilePath) ? this.#buildTileLayers(detail, opts.tileDirs) : null;
+    this.baseLayer = detail.svgLayer || (this.tiles ? this.tiles.baseKey : null);
     this.layers = (detail.layers || []).map((l) => ({
       name: l.name, svgLayer: l.svgLayer || l.name, extents: l.extents || [],
     }));
+    // 楼层列表（顶栏下拉与自动楼层共用同一份，避免两处各拼一套 key 对不上）
+    this.floors = this.#buildFloors();
     window.__viewDebug = {
       detailKey: detail.key,
       transform: detail.transform,
@@ -372,9 +400,19 @@ export class MapView {
       bounds: detail.bounds,
       px: this.px,
       svgLayer: detail.svgLayer,
+      tiles: this.tiles ? {
+        baseKey: this.tiles.baseKey,
+        zoom: this.tiles.zoom,
+        tileSize: this.tiles.tileSize,
+        step: this.tiles.step,
+        range: [this.tiles.x0, this.tiles.x1, this.tiles.y0, this.tiles.y1],
+        dirs: this.tiles.layers.map((l) => l.dir),
+      } : null,
     };
     // 构建底图
     this.worldG.innerHTML = '';
+    this.baseSvg = null;
+    this.rasterRoot = null;
     this.markerEls = [];
     this.markerCache = null;
     this.markerCounts = null;
@@ -397,7 +435,57 @@ export class MapView {
 
   setSvgSize(w, h) { this.svgSize = { w, h }; }
 
+  /**
+   * 楼层清单（顶栏下拉用）。
+   *  - SVG 底图：底图那一层 + 各 data-layer，顺序按上游给的层叠顺序
+   *  - 瓦片底图：各瓦片层；若每层都带高度区间（破冰船 16 层甲板），按高度**从下到上**排
+   *    —— 上游那串名字是按船体分段编号的，直接用看着是乱的
+   */
+  #buildFloors() {
+    if (!this.tiles) {
+      return [
+        { key: this.baseLayer || '一层', name: '一层', title: '一层', extents: [] },
+        ...this.layers.map((l) => ({ key: l.svgLayer, name: l.name, title: l.name, extents: l.extents })),
+      ];
+    }
+    const out = this.tiles.layers.map((l) => ({ key: l.key, name: l.name, title: l.name, extents: l.extents }));
+    const lowOf = (l) => (l.extents[0] && l.extents[0].height ? l.extents[0].height[0] : null);
+    if (out.every((l) => Number.isFinite(lowOf(l)))) out.sort((a, b) => lowOf(a) - lowOf(b));
+    return out;
+  }
+
+  /**
+   * 组装瓦片底图的层级清单（纯数据，不碰 DOM）。
+   *
+   * 只有"本地确实存在的层"才会进来（tileDirs 由主进程扫 data/tiles 得到），
+   * 所以少下了一层也不会出现点开是空白的楼层选项。
+   *
+   * 基础层：detail.tilePath。有些图（破冰船）基础层的瓦片路径与 layers[0] 完全相同，
+   * 那时就直接用 layers[0] 的名字当基础层，免得列表里出现两个一模一样的层。
+   */
+  #buildTileLayers(detail, tileDirs) {
+    if (!tileDirs || !tileDirs[detail.tilePath]) return null;
+    const geo = satelliteLayout(detail, this.proj);
+    if (!geo) return null;
+    const out = [];
+    const add = (name, tilePath, extents, key) => {
+      const dir = tileDirs[tilePath];
+      if (!dir || out.some((l) => l.dir === dir)) return;
+      out.push({ key: key || name, name: name || key, dir, extents: extents || [], g: null });
+    };
+    const dup = (detail.layers || []).find((l) => l.tilePath === detail.tilePath);
+    if (dup) add(dup.name, dup.tilePath, dup.extents, dup.svgLayer || dup.name);
+    else add('一层', detail.tilePath, [], detail.svgLayer);
+    for (const l of detail.layers || []) {
+      if (l.tilePath === detail.tilePath) continue;
+      add(l.name, l.tilePath, l.extents, l.svgLayer || l.name);
+    }
+    if (!out.length) return null;
+    return { ...geo, baseKey: out[0].key, layers: out };
+  }
+
   #buildBase(svgText) {
+    if (this.tiles) return this.#buildRasterBase();
     if (!svgText) return;
     try {
       const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
@@ -425,6 +513,13 @@ export class MapView {
     }
   }
 
+  #buildRasterBase() {
+    this.rasterRoot = document.createElementNS(NS, 'g');
+    this.rasterRoot.setAttribute('class', 'raster-base');
+    this.worldG.appendChild(this.rasterRoot);
+    this.#applyFloor();
+  }
+
   /** 楼层切换：显示 data-layer===当前层 的组（原站 Vme 逻辑） */
   setFloor(floor) {
     this.floor = floor;
@@ -434,6 +529,7 @@ export class MapView {
   }
 
   #applyFloor() {
+    if (this.tiles) return this.#applyRasterFloor();
     if (!this.baseSvg) return;
     const target = this.#resolveFloorLayer();
     // 只切换"顶层图层组"（g[data-layer]），嵌套子组随父级显隐（复刻原站 Vme 语义）
@@ -455,6 +551,47 @@ export class MapView {
     }
     // 若该层无可切换组，则全部显示（兜底）
     if (!found) for (const g of groups) { g.removeAttribute('style'); g.setAttribute('display', 'block'); }
+  }
+
+  /**
+   * 瓦片底图的楼层切换。
+   * 与 SVG 不同，瓦片一层最多 64 张图：按需创建（切到哪层才建哪层的 <g>），
+   * 建过就留着，下次切回来是瞬时的。
+   */
+  #applyRasterFloor() {
+    if (!this.rasterRoot) return;
+    const target = this.#resolveFloorLayer();
+    const want = this.tiles.layers.find((l) => l.key === target) || this.tiles.layers[0];
+    for (const l of this.tiles.layers) {
+      if (l === want) {
+        this.#ensureRasterLayer(l).setAttribute('display', 'block');
+      } else if (l.g) {
+        l.g.setAttribute('display', 'none');
+      }
+    }
+  }
+
+  #ensureRasterLayer(layer) {
+    if (layer.g) return layer.g;
+    const t = this.tiles;
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('data-layer', layer.key);
+    for (let x = t.x0; x <= t.x1; x++) {
+      for (let y = t.y0; y <= t.y1; y++) {
+        const img = document.createElementNS(NS, 'image');
+        img.setAttribute('href', `app://data/tiles/${layer.dir}/${t.zoom}/${x}/${y}.png`);
+        img.setAttribute('x', String(x * t.step));
+        img.setAttribute('y', String(y * t.step));
+        img.setAttribute('width', String(t.step));
+        img.setAttribute('height', String(t.step));
+        img.setAttribute('preserveAspectRatio', 'none');
+        img.setAttribute('data-tile', `${x}/${y}`);
+        g.appendChild(img);
+      }
+    }
+    this.rasterRoot.appendChild(g);
+    layer.g = g;
+    return g;
   }
 
   /** 解析当前应显示的楼层 svgLayer 名 */
@@ -1996,15 +2133,45 @@ export function makeProjection(detail) {
   };
 }
 
-function mapPixelBounds(detail, proj) {
+export function mapPixelBounds(detail, proj, scale = 1) {
   const p = proj || makeProjection(detail);
   const [c1, c2] = detail.bounds;
   const pts = [
     p.project(c1[0], c1[1]), p.project(c1[0], c2[1]),
     p.project(c2[0], c1[1]), p.project(c2[0], c2[1]),
   ];
-  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  const xs = pts.map((q) => q.x * scale), ys = pts.map((q) => q.y * scale);
   return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+}
+
+/**
+ * 计算瓦片底图的地图落位。
+ *
+ * 复刻原站：
+ *   zoom  = min(maxZoom, max(minZoom, 3))   —— 固定 3，所以磁盘上只有 8×8 一层
+ *   scale = 2^zoom
+ *   像素范围（缩放后）用投影算，画布按需裁到 [minX, maxX] × [minY, maxY]
+ *   瓦片 (x, y) 画在 (x*tileSize - minX, y*tileSize - minY)
+ *
+ * 换算回"地图像素空间"（世界坐标投影后、未乘 scale 的那个空间，和 SVG 底图同一套）
+ * 之后，瓦片 (x, y) 的左上角就正好是 (x*tileSize/scale, y*tileSize/scale)，
+ * 边长 tileSize/scale —— 与原点的 minX/minY 无关。
+ */
+export function satelliteLayout(detail, proj) {
+  if (!detail || !detail.tilePath || !detail.transform || !detail.bounds) return null;
+  const tileSize = Number(detail.tileSize) || DEFAULT_TILE_SIZE;
+  const minZoom = Number.isFinite(Number(detail.minZoom)) ? Number(detail.minZoom) : SATELLITE_ZOOM;
+  const maxZoom = Number.isFinite(Number(detail.maxZoom)) ? Number(detail.maxZoom) : SATELLITE_ZOOM;
+  const zoom = Math.min(maxZoom, Math.max(minZoom, SATELLITE_ZOOM));
+  const scale = 2 ** zoom;
+  const px = mapPixelBounds(detail, proj, scale);
+  const last = scale - 1;
+  const x0 = Math.max(0, Math.floor(px.minX / tileSize));
+  const x1 = Math.min(last, Math.floor((px.maxX - 1) / tileSize));
+  const y0 = Math.max(0, Math.floor(px.minY / tileSize));
+  const y1 = Math.min(last, Math.floor((px.maxY - 1) / tileSize));
+  if (!(x1 >= x0) || !(y1 >= y0)) return null;
+  return { zoom, scale, tileSize, step: tileSize / scale, x0, x1, y0, y1 };
 }
 
 function headingAngle(detail, quat, proj) {

@@ -93,12 +93,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.ver.outputs.tag }}
-          name: 塔可夫地图 ${{ steps.ver.outputs.version }}
+          name: 塔科夫地图 ${{ steps.ver.outputs.version }}
           files: release/*
           generate_release_notes: true
           fail_on_unmatched_files: true
           body: |
-            **塔可夫地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
+            **塔科夫地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
 
             下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 145MB）
             校验：`SHA256SUMS.txt`（同目录）

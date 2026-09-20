@@ -10,3 +10,7 @@ build/*
 !build/icon.png
 # 房间服务端 PERSIST=1 时的本地落盘目录（Docker 里是 /data，这里是本机裸跑）
 server/data/
+# 视频工程（录屏/配音/字幕流水线）与它的产物都不进仓库：
+# 它依赖本机的 ffmpeg/python 环境与个人路径，属于本机工具，不是应用的一部分
+tools/video/
+video-out/

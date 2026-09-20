@@ -35,6 +35,8 @@ if (files.length) {
   ok(files.some((f) => f.endsWith('renderer/common/room.js')), '清单含 renderer/common/room.js');
   ok(!hasFile('server/server.js'), '不应含 server/server.js（服务端本体不该进客户端安装包）');
   ok(!hasFile('server/Dockerfile'), '不应含 server/Dockerfile');
+  // 无 SVG 的地图（实验室/迷宫/破冰船）的瓦片底图必须一起打进包，否则那三张图又变成"只有标记没有地面"
+  ok(files.some((f) => f.startsWith('/data/tiles/') && f.endsWith('.png')), '清单含 data/tiles 瓦片底图（实验室/迷宫/破冰船）');
 }
 
 // ---- 2) 源码字符串 ----
@@ -48,15 +50,21 @@ const need = [
   // 雷达出范围贴边方位指示
   'clampToRadar', 'data-off-range', 'peer-offrange-chevron',
   // 2.0.0 界面：改名 + 关于页
-  '塔可夫地图', 'about-dialog', 'about-repo',
+  '塔科夫地图', 'about-dialog', 'about-repo',
   // 2.0.1：状态提示行只说真话（由状态推导）+ 握手看门狗
   'roomHint', '已加入房间', 'handshakeTimeoutMs', 'roomHintManual',
+  // 2.0.2：实验室/迷宫/破冰船的瓦片底图 + 设置页小地图开关真正开关窗口 + JSON 读取容错 BOM
+  //        + 楼层改下拉框（#floor-select）
+  'satelliteLayout', 'raster-base', 'app://data/tiles/', 'hasBasemap', 'applyMiniVisible', 'readJsonFile',
+  'floor-select',
 ];
 for (const n of need) ok(has(n), `含 ${n}`);
 
 const bad = [
   'QUEST_COLORS', 'questColor', "e.name || '转移点';",
-  '<span class="tag">纯本地</span>', '塔可夫离线地图',
+  '<span class="tag">纯本地</span>', '塔科夫离线地图',
+  // 2.0.2 改名：游戏叫「逃离塔科夫」，"塔可夫"是错别字，包里不许再出现
+  '塔可夫',
 ];
 for (const n of bad) ok(!has(n), `不应含 ${n}`);
 

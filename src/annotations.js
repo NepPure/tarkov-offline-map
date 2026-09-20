@@ -12,6 +12,7 @@
  */
 const fs = require('fs');
 const crypto = require('crypto');
+const { readJsonFile } = require('./json-file');
 
 const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'circle', 'rect']);
 const MAX_STROKES_PER_MAP = 400;   // 每张图最多多少笔
@@ -73,7 +74,7 @@ function sanitize(raw) {
 
 function load(file) {
   try {
-    DATA = sanitize(JSON.parse(fs.readFileSync(file, 'utf-8')));
+    DATA = sanitize(readJsonFile(file));
   } catch {
     DATA = {};
   }
