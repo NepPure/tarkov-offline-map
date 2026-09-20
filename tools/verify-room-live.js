@@ -465,48 +465,132 @@ const YAWS = [0, 90, 200, 300];
       }
     }
 
-    // 9b) 队友跑到雷达显示范围外：必须按他真实所在的方位贴到圆边上（否则标记跑到窗口外，
-    //     看起来就是"队友消失了"）。把乙号扔到 400 米外拍一张证据，再放回原位。
-    const far = clients[1];
+    // 9b) 雷达边缘渲染（队友跑到显示范围外）。
+    //     这是最容易画错的场景：算错方位 -> 队友出现在相反的边上；忘记钳位 -> 标记跑到窗口外
+    //     （看起来就是"队友消失了"）。所以四个方向各来一遍，而且每一步都**独立算一遍**
+    //     "按他的真实世界坐标，他应该出现在雷达的哪个方位"，再和渲染出来的位置比 ——
+    //     只读 data-bearing 属性等于拿自己的输出验自己。
     const observer = clients[0];
-    const home = SPOTS[1][1];
-    far.dropShot(SPOTS[0][1][0] + 400, 4.5, SPOTS[0][1][2] + 400, 90);
-    let offRange = null;
+    const rover = clients[1];
+    const base = SPOTS[0][1]; // 以甲号为中心
+    const roverId = ((await rover.ev('window.api.roomStatus()')) || {}).self.id;
+    const radarGeom = `(() => {
+      const v = window.__view;
+      const el = document.querySelector('.mapstage');
+      const rect = el.getBoundingClientRect();
+      const cx = rect.width / 2, cy = rect.height / 2;
+      const mark = document.querySelector('.peer-mark[data-peer="${roverId}"]');
+      if (!mark) return { found: false, total: document.querySelectorAll('.peer-mark').length };
+      const peer = (v.peers || []).find((p) => String(p.id) === ${JSON.stringify(roverId)});
+      if (!peer || !peer.pos) return { found: false, why: '队友没有定位' };
+      // 把"他的真实世界坐标"按雷达当前的投影/缩放/旋转算到屏幕坐标，得到"他该在哪个方位"
+      const q = v.getProjection().project(peer.pos.x, peer.pos.z);
+      const vp = v.getViewport();
+      const dx = q.x - vp.cx, dy = q.y - vp.cy;
+      const cos = Math.cos(vp.rot), sin = Math.sin(vp.rot);
+      const sx = (dx * cos - dy * sin) * vp.scale + rect.width / 2;
+      const sy = (dx * sin + dy * cos) * vp.scale + rect.height / 2;
+      const circle = mark.querySelector('circle');
+      const b = circle.getBoundingClientRect();
+      const mx = b.left + b.width / 2 - rect.left;
+      const my = b.top + b.height / 2 - rect.top;
+      return {
+        found: true,
+        off: mark.getAttribute('data-off-range') === '1',
+        wantBearing: (Math.atan2(sy - cy, sx - cx) * 180) / Math.PI,
+        // 真正"渲染出来"的方位：直接量图标圆心相对雷达圆心的像素方位
+        gotBearing: (Math.atan2(my - cy, mx - cx) * 180) / Math.PI,
+        attrBearing: mark.getAttribute('data-bearing') === null ? null : Number(mark.getAttribute('data-bearing')),
+        radarR: Number(mark.getAttribute('data-radar-r')),
+        radius: Math.min(rect.width, rect.height) / 2,
+        dist: Math.hypot(mx - cx, my - cy),
+        trueDist: Math.hypot(sx - cx, sy - cy),
+        inWindow: mx >= 0 && my >= 0 && mx <= rect.width && my <= rect.height,
+        chevron: !!mark.querySelector('.peer-offrange-chevron'),
+        dashed: circle.getAttribute('stroke-dasharray'),
+      };
+    })()`;
+    const bearingTable = [];
+    const DIRS = [
+      { label: '正东', dx: 1, dz: 0 },
+      { label: '正南', dx: 0, dz: 1 },
+      { label: '正西', dx: -1, dz: 0 },
+      { label: '正北', dx: 0, dz: -1 },
+    ];
+    for (const dir of DIRS) {
+      // 先把他的轨迹清掉（换图会清本地轨迹），否则几次瞬移会在雷达上留下一串横穿圆心的虚线
+      await rover.ev(`window.api.selectMap({ key: 'woods' })`);
+      await sleep(250);
+      await rover.ev(`window.api.selectMap({ key: 'customs' })`);
+      await sleep(250);
+      rover.dropShot(base[0] + dir.dx * 400, 4.5, base[2] + dir.dz * 400, 90);
+      await sleep(900);
+      rover.dropShot(base[0] + dir.dx * 380, 4.5, base[2] + dir.dz * 380, 90); // 第二张 -> 圆边附近一小段轨迹
+      let g = null;
+      for (let i = 0; i < 32; i++) {
+        g = await observer.miniEv(radarGeom);
+        if (g && g.found && g.off) break;
+        await sleep(250);
+      }
+      const dB = g && g.found && g.off ? Math.abs(((g.gotBearing - g.wantBearing + 540) % 360) - 180) : 999;
+      const attrDB = g && g.found && g.off && g.attrBearing !== null
+        ? Math.abs(((g.attrBearing - g.wantBearing + 540) % 360) - 180)
+        : 999;
+      bearingTable.push({
+        dir: dir.label,
+        want: g && g.found ? Math.round(g.wantBearing) : null,
+        got: g && g.off ? Math.round(g.gotBearing) : null,
+        dist: g && g.found ? Math.round(g.dist) : null,
+        R: g && g.found ? g.radarR : null,
+        trueDist: g && g.found ? Math.round(g.trueDist) : null,
+      });
+      check(`雷达·${dir.label} 400 米外：标记贴在圆边上（没画到窗口外）`,
+        !!g && g.found && g.off && Math.abs(g.dist - g.radarR) <= 2 && g.trueDist > g.radarR + 50 && g.inWindow,
+        g && g.found
+          ? `贴边距圆心 ${Math.round(g.dist)}px / 圆边 ${g.radarR}px；他的真实位置在 ${Math.round(g.trueDist)}px 处（在窗口内=${g.inWindow}）`
+          : '没出现出范围标记');
+      check(`雷达·${dir.label}：渲染出来的方位与他真实方位一致（期望值是独立算的）`, dB < 3,
+        g && g.found
+          ? `期望 ${Math.round(g.wantBearing)}° 渲染在 ${Math.round(g.gotBearing)}°（差 ${dB.toFixed(1)}°）；标记自带属性写的 ${g.attrBearing}°（差 ${attrDB.toFixed(1)}°）`
+          : '-');
+      if (dir.label === '正东') {
+        check('雷达：出范围标记带朝外箭头 + 虚线边框（一眼看出他在更外面）',
+          !!g && g.found && g.off && g.chevron && !!g.dashed,
+          g && g.found ? `朝外箭头=${g.chevron} 虚线=${g.dashed}` : '-');
+      }
+      try {
+        await observer.shot(`live-甲号-雷达-队友在${dir.label}外.png`, 'mini');
+      } catch (e) {
+        check(`雷达·${dir.label} 截图`, false, e.message);
+      }
+    }
+    // 回到范围里：不该再贴边，标记就画在他真实的位置上
+    await rover.ev(`window.api.selectMap({ key: 'woods' })`);
+    await sleep(250);
+    await rover.ev(`window.api.selectMap({ key: 'customs' })`);
+    await sleep(250);
+    rover.dropShot(base[0] + 12, 4.5, base[2] + 12, 90);
+    await sleep(900);
+    rover.dropShot(base[0] + 15, 4.5, base[2] + 15, 90);
+    let near = null;
     for (let i = 0; i < 32; i++) {
-      offRange = await observer.miniEv(`(() => {
-        const m = document.querySelector('.peer-mark[data-off-range="1"]');
-        if (!m) return { found: false, total: document.querySelectorAll('.peer-mark').length };
-        const el = document.querySelector('.mapstage');
-        const rect = el.getBoundingClientRect();
-        const cx = rect.width / 2, cy = rect.height / 2;
-        const circle = m.querySelector('circle');
-        const b = circle.getBoundingClientRect();
-        return {
-          found: true,
-          bearing: Number(m.getAttribute('data-bearing')),
-          radarR: Number(m.getAttribute('data-radar-r')),
-          dist: Math.round(Math.hypot(b.left + b.width / 2 - rect.left - cx, b.top + b.height / 2 - rect.top - cy)),
-          chevron: !!m.querySelector('.peer-offrange-chevron'),
-          dashed: circle.getAttribute('stroke-dasharray'),
-          total: document.querySelectorAll('.peer-mark').length,
-        };
-      })()`);
-      if (offRange && offRange.found) break;
+      near = await observer.miniEv(radarGeom);
+      if (near && near.found && !near.off) break;
       await sleep(250);
     }
-    check('雷达：队友跑出显示范围后按方位贴到圆边（不是画到窗口外）',
-      !!offRange && offRange.found && Math.abs(offRange.dist - offRange.radarR) <= 2,
-      offRange && offRange.found ? `贴边距圆心 ${offRange.dist}px（圆边 ${offRange.radarR}px）方位 ${offRange.bearing}°` : '没出现出范围标记');
-    check('雷达：出范围标记带朝外箭头 + 虚线边框',
-      !!offRange && offRange.found && offRange.chevron && !!offRange.dashed,
-      offRange && offRange.found ? `朝外箭头=${offRange.chevron} 虚线=${offRange.dashed}` : '-');
+    const nB = near && near.found ? Math.abs(((near.gotBearing - near.wantBearing + 540) % 360) - 180) : 999;
+    check('雷达：队友回到范围内后不再贴边（画在他真实位置上，方位也对得上）',
+      !!near && near.found && !near.off && Math.abs(near.dist - near.trueDist) <= 2 && near.trueDist < near.radius - 5 && nB < 3,
+      near && near.found
+        ? `渲染在距圆心 ${Math.round(near.dist)}px、真实位置 ${Math.round(near.trueDist)}px（雷达半径 ${Math.round(near.radius)}px）期望 ${Math.round(near.wantBearing)}° 渲染 ${Math.round(near.gotBearing)}°`
+        : '没找到标记');
     try {
-      await observer.shot('live-甲号-雷达-队友出范围.png', 'mini');
-      await observer.shot('live-甲号-大图-队友出范围.png', 'map');
+      await observer.shot('live-甲号-雷达-队友在范围内.png', 'mini');
     } catch (e) {
-      check('出范围证据截图', false, e.message);
+      check('在范围内的雷达截图', false, e.message);
     }
-    far.dropShot(home[0], home[1], home[2], YAWS[1]); // 放回去
+    say(`      雷达方位对照表：${bearingTable.map((b) => `${b.dir} 期望${b.want}°/实际${b.got}°`).join('  ')}`);
+    rover.dropShot(SPOTS[1][1][0], 4.5, SPOTS[1][1][2], YAWS[1]); // 放回原位
     await sleep(1200);
 
     // 10) 按人开关：甲关掉乙 -> 乙的标记/轨迹/标注在甲的大图和雷达上一起消失，再打开
