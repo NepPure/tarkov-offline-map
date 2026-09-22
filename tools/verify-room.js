@@ -9,9 +9,10 @@
  *   4) 另一个**真客户端**（src/room-client.js）以队友身份进同一个房间
  *      -> 界面显示 2 人、主进程房间快照里能看到队友
  *   5) 队友上报地图/位置/轨迹 -> 客户端收得到（M3 起还会画在地图上）
- *   6) 队友画一笔标注 -> 客户端收得到，且带 owner（右侧按人开关图例要用）
- *   7) 「离开房间」-> 回到未联机，胶囊隐藏
- *   8) 收尾：把设置里的房间配置**原样还原**（这台机器是用户自己的配置，不能留脏数据）
+ *   6) 队友画一笔标注 -> 客户端收得到，且带 owner（右侧"队友绘图"开关要用）
+ *   7) 队友开新一局（newraid）-> 他那个旧点在我这边消失（peer-reset）
+ *   8) 「离开房间」-> 回到未联机，胶囊隐藏
+ *   9) 收尾：把设置里的房间配置**原样还原**（这台机器是用户自己的配置，不能留脏数据）
  *
  * 用法:
  *   npx electron . --remote-debugging-port=9222
@@ -36,12 +37,23 @@ async function targets() {
   return r.json();
 }
 
-function cdp(wsUrl, calls) {
+/**
+ * 一次 CDP 调用。**必须带超时**：窗口被遮挡时 Page.captureScreenshot 会一直等不到新帧
+ * （以前这一等就是把脚本永久挂住，收尾的"还原配置/标注"也跑不到）。超时至少能让 finally 跑起来。
+ */
+function cdp(wsUrl, calls, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     let id = 0;
+    let done = false;
     const pending = new Map();
     const results = [];
+    const hard = setTimeout(() => {
+      if (done) return;
+      done = true;
+      try { ws.close(); } catch {}
+      reject(new Error(`CDP 超时（${timeoutMs}ms）：${calls.map((c) => c[0]).join(',')}`));
+    }, timeoutMs);
     ws.onopen = async () => {
       for (const [method, params] of calls) {
         const myId = ++id;
@@ -50,6 +62,9 @@ function cdp(wsUrl, calls) {
         results.push(await p);
       }
       ws.close();
+      if (done) return;
+      done = true;
+      clearTimeout(hard);
       resolve(
         results.map((m) => {
           const r = m && m.result;
@@ -62,7 +77,12 @@ function cdp(wsUrl, calls) {
         }),
       );
     };
-    ws.onerror = (e) => reject(new Error(`ws error ${e.message || ''}`));
+    ws.onerror = (e) => {
+      if (done) return;
+      done = true;
+      clearTimeout(hard);
+      reject(new Error(`ws error ${e.message || ''}`));
+    };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.id && pending.has(msg.id)) pending.get(msg.id)(msg);
@@ -88,12 +108,17 @@ function check(name, ok, detail) {
   if (!t) throw new Error('未找到主窗口（用 --remote-debugging-port 启动了吗？）');
   const ws = t.webSocketDebuggerUrl;
   const ev = (expr) => cdp(ws, [['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }]]).then((r) => r[0]);
+  // 截图只是留证据：窗口被挡住时 Chromium 不出帧会卡住，失败也不该影响验收
   const shot = async (file) => {
-    const data = await cdp(ws, [['Page.captureScreenshot', { format: 'png' }]]);
-    if (typeof data[0] === 'string') {
-      fs.mkdirSync(ART, { recursive: true });
-      fs.writeFileSync(path.join(ART, file), Buffer.from(data[0], 'base64'));
-      console.log(`      截图 -> test-artifacts/${file}`);
+    try {
+      const data = await cdp(ws, [['Page.captureScreenshot', { format: 'png' }]], 8000);
+      if (typeof data[0] === 'string') {
+        fs.mkdirSync(ART, { recursive: true });
+        fs.writeFileSync(path.join(ART, file), Buffer.from(data[0], 'base64'));
+        console.log(`      截图 -> test-artifacts/${file}`);
+      }
+    } catch (e) {
+      console.log(`      （截图跳过：${e.message}）`);
     }
   };
 
@@ -104,12 +129,26 @@ function check(name, ok, detail) {
     await new Promise((r) => setTimeout(r, 200));
   } return false; })()`);
 
+  // 标注文件的磁盘备份：脚本被强杀时 finally 跑不到，靠它下次还原（同 verify-annotations.js）
+  const ANNO_BACKUP = path.join(ART, 'annotations-backup.json');
+  if (fs.existsSync(ANNO_BACKUP)) {
+    try {
+      const bak = JSON.parse(fs.readFileSync(ANNO_BACKUP, 'utf-8'));
+      await ev(`window.api.setAnnotations(${JSON.stringify(bak)})`);
+      fs.unlinkSync(ANNO_BACKUP);
+      console.log('（发现上次被中断的验收：已把标注还原回去）');
+    } catch (e) {
+      console.log(`（标注备份还原失败：${e.message}）`);
+    }
+  }
+
   const origRoom = await ev(`window.api.getConfig().then((c) => c.room || null)`);
   const origToggles = await ev(`window.api.getConfig().then((c) => c.markerToggles || null)`);
   const origAnnos = await ev(`window.api.getAnnotations()`);
   console.log(`原房间配置: ${JSON.stringify(origRoom)}`);
   console.log(`原图例开关: ${Object.keys(origToggles || {}).length} 个（结束会还原）`);
   console.log(`原标注: ${JSON.stringify(Object.keys(origAnnos || {}))}（结束会还原）`);
+  try { fs.mkdirSync(ART, { recursive: true }); fs.writeFileSync(ANNO_BACKUP, JSON.stringify(origAnnos)); } catch {}
   let peer = null;
   let scriptPeer = null;
   let joined = false;
@@ -374,11 +413,15 @@ function check(name, ok, detail) {
       check('雷达：出范围标记带朝外箭头 + 虚线边框（一眼看出他在外面）',
         !!geom && geom.found && geom.hasChevron && !!geom.dashed, geom && geom.found ? `chevron=${geom.hasChevron} dash=${geom.dashed}` : '-');
       {
-        const data = await cdp(miniWs, [['Page.captureScreenshot', { format: 'png' }]]);
-        if (typeof data[0] === 'string') {
-          fs.mkdirSync(ART, { recursive: true });
-          fs.writeFileSync(path.join(ART, 'room-radar-offrange.png'), Buffer.from(data[0], 'base64'));
-          console.log('      截图 -> test-artifacts/room-radar-offrange.png');
+        try {
+          const data = await cdp(miniWs, [['Page.captureScreenshot', { format: 'png' }]], 8000);
+          if (typeof data[0] === 'string') {
+            fs.mkdirSync(ART, { recursive: true });
+            fs.writeFileSync(path.join(ART, 'room-radar-offrange.png'), Buffer.from(data[0], 'base64'));
+            console.log('      截图 -> test-artifacts/room-radar-offrange.png');
+          }
+        } catch (e) {
+          console.log(`      （雷达截图跳过：${e.message}）`);
         }
       }
 
@@ -398,7 +441,7 @@ function check(name, ok, detail) {
       let moved = null;
       for (let i = 0; i < 40; i++) {
         moved = await ev(`(() => {
-          const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+          const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友位置');
           const row = sec && sec.querySelector('.legend-item');
           return {
             marks: document.querySelectorAll('.peer-mark').length,
@@ -430,41 +473,98 @@ function check(name, ok, detail) {
       await sleep(400);
     }
 
-    // 6c) 右侧图例：一人一行（地图上画了谁，图例里就有谁）
-    const legend = await ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
-      if (!sec) return null;
-      const row = sec.querySelector('.legend-item');
-      if (!row) return null;
-      return {
-        group: (sec.querySelector('.legend-group-name') || {}).textContent || '',
-        name: (row.querySelector('.legend-name') || {}).textContent || '',
-        count: Number((row.querySelector('.legend-count') || {}).textContent || 0),
-        swatchText: (row.querySelector('svg.legend-swatch text') || {}).textContent || '',
-        checked: row.querySelector('input').checked,
-        id: row.querySelector('input').dataset.group,
+    // 6c) 图例：位置 / 轨迹 / 绘图 **三个分组**，每组一人一行（地图上画了什么，图例里就能单独关掉）
+    const roomLegend = await ev(`(() => {
+      const pick = (label) => {
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === label);
+        if (!sec) return null;
+        const row = sec.querySelector('.legend-item');
+        if (!row) return null;
+        const svg = row.querySelector('svg.legend-swatch');
+        return {
+          group: label,
+          name: (row.querySelector('.legend-name') || {}).textContent || '',
+          count: Number((row.querySelector('.legend-count') || {}).textContent || 0),
+          swatchText: (svg && svg.querySelector('text') ? svg.querySelector('text').textContent : '') || '',
+          swatchShape: svg ? svg.innerHTML : '',
+          checked: row.querySelector('input').checked,
+          id: row.querySelector('input').dataset.group,
+        };
       };
+      return { pos: pick('队友位置'), trail: pick('队友轨迹'), anno: pick('队友绘图') };
     })()`);
-    check('右侧图例出现「房间成员」分组', !!legend && legend.group === '房间成员', legend && legend.group);
-    check('图例图标也是昵称第一个字（不是圆点）', !!legend && legend.swatchText === '假', legend && legend.swatchText);
-    check('图例计数 = 位置 + 标注数', !!legend && legend.count >= 2, legend ? String(legend.count) : '-');
-    check('图例行 id = peer:<队友id>', !!legend && legend.id === `peer:${peer.cfg.peerId}`, legend && legend.id);
+    check('右侧图例出现「队友位置 / 队友轨迹 / 队友绘图」三个分组',
+      !!(roomLegend && roomLegend.pos && roomLegend.trail && roomLegend.anno),
+      JSON.stringify(roomLegend && Object.keys(roomLegend)));
+    check('位置那一行用昵称第一个字（不是圆点）', roomLegend && roomLegend.pos.swatchText === '假', roomLegend && roomLegend.pos.swatchText);
+    check('位置/轨迹/绘图 三个开关 id 各自独立',
+      !!roomLegend && roomLegend.pos.id === `peer:pos:${peer.cfg.peerId}`
+      && roomLegend.trail.id === `peer:trail:${peer.cfg.peerId}`
+      && roomLegend.anno.id === `peer:anno:${peer.cfg.peerId}`,
+      roomLegend ? `${roomLegend.pos.id} / ${roomLegend.trail.id} / ${roomLegend.anno.id}` : '-');
+    check('轨迹行有轨迹点数、绘图行有笔数', roomLegend && roomLegend.trail.count >= 2 && roomLegend.anno.count >= 1,
+      roomLegend ? `trail=${roomLegend.trail.count} anno=${roomLegend.anno.count}` : '-');
 
-    // 6d) 按人开关：关掉这个人 -> 标记/轨迹/标注一起消失；再打开 -> 回来
-    const toggle = (on) => ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+    // 6d) 按类开关：关掉"位置"不该影响轨迹与绘图（以前是一个人一个开关，三样一起没）
+    const setCat = (label, on) => ev(`(() => {
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === ${JSON.stringify(label)});
+      if (!sec) return null;
       const box = sec.querySelector('.legend-item input');
       if (box.checked !== ${on}) box.click();
       return box.checked;
     })()`);
-    await toggle(false);
+    const layerCount = () => ev(`({ marks: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
+
+    await setCat('队友位置', false);
     await sleep(400);
-    const off = await ev(`({ marks: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
-    check('取消勾选"某个人" -> 他的标记/轨迹/标注一起隐藏', off.marks === 0 && off.trails === 0 && off.annos === 0, JSON.stringify(off));
-    await toggle(true);
+    const noPos = await layerCount();
+    check('关掉「队友位置」-> 只剩轨迹与绘图', noPos.marks === 0 && noPos.trails === 1 && noPos.annos >= 1, JSON.stringify(noPos));
+    await setCat('队友位置', true);
     await sleep(400);
-    const on = await ev(`({ marks: document.querySelectorAll('.peer-mark').length, annos: document.querySelectorAll('.peer-anno').length })`);
-    check('重新勾选 -> 全部回来', on.marks === 1 && on.annos >= 1, JSON.stringify(on));
+    check('再打开「队友位置」-> 标记回来', (await layerCount()).marks === 1);
+
+    await setCat('队友轨迹', false);
+    await sleep(400);
+    const noTrail = await layerCount();
+    check('关掉「队友轨迹」-> 位置与绘图还在', noTrail.marks === 1 && noTrail.trails === 0 && noTrail.annos >= 1, JSON.stringify(noTrail));
+    await setCat('队友轨迹', true);
+    await sleep(400);
+
+    await setCat('队友绘图', false);
+    await sleep(400);
+    const noAnno = await layerCount();
+    check('关掉「队友绘图」-> 位置与轨迹还在', noAnno.marks === 1 && noAnno.trails === 1 && noAnno.annos === 0, JSON.stringify(noAnno));
+    await setCat('队友绘图', true);
+    await sleep(400);
+    check('三样都打开 -> 全回来', JSON.stringify(await layerCount()) === JSON.stringify({ marks: 1, trails: 1, annos: 1 }), JSON.stringify(await layerCount()));
+
+    // 6d-2) 队友开新一局（同一张图）：他上一局残留的点在我这边也必须消失
+    peer.newRaid();
+    let wiped = null;
+    for (let i = 0; i < 40; i++) {
+      wiped = await ev(`(() => {
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友位置');
+        const row = sec && sec.querySelector('.legend-item');
+        return {
+          marks: document.querySelectorAll('.peer-mark').length,
+          trails: document.querySelectorAll('.peer-trail').length,
+          posCount: row ? Number(row.querySelector('.legend-count').textContent) : -1,
+        };
+      })()`);
+      if (wiped && wiped.marks === 0) break;
+      await sleep(150);
+    }
+    check('队友开新一局后：他的旧点/轨迹在我这边消失（peer-reset）',
+      !!wiped && wiped.marks === 0 && wiped.trails === 0 && wiped.posCount === 0, JSON.stringify(wiped));
+    // 他在新局里重新定位 -> 标记回来
+    peer.setPosition({ map: useMap, x: 100, y: 1, z: 200, hdg: 90, ts: Date.now(), trail: [{ x: 95, z: 198 }, { x: 100, z: 200 }] });
+    let respawned = 0;
+    for (let i = 0; i < 40; i++) {
+      respawned = await ev(`document.querySelectorAll('.peer-mark').length`);
+      if (respawned === 1) break;
+      await sleep(150);
+    }
+    check('队友在新局里重新定位后标记又出现', respawned === 1, String(respawned));
 
     // 6e) 点队友标记 -> 视野跳到他那儿
     const focus = await ev(`(() => {
@@ -486,7 +586,7 @@ function check(name, ok, detail) {
 
     // 6f) 反向：我画的标注要能同步给队友（带稳定 id）
     const selfId = (await ev(`window.api.roomStatus()`)).self.id;
-    await ev(`document.querySelector('#btn-anno').click()`);
+    await ev(`document.querySelector('.anno-tool[data-tool="pen"]').click()`);
     await sleep(300);
     const drawn = await ev(`(() => {
       const stage = document.querySelector('.mapstage');
@@ -502,7 +602,7 @@ function check(name, ok, detail) {
       const list = window.__view.annos;
       return { count: list.length, lastId: list.length ? list[list.length - 1].id : null };
     })()`);
-    await ev(`document.querySelector('#anno-exit').click()`);
+    await ev(`document.querySelector('.anno-tool[data-tool="pen"]').click()`); // 再点一次同一个工具 = 退出标注
     check('画完一笔后本地有了稳定 id', !!drawn.lastId && /^[A-Za-z0-9_-]{1,40}$/.test(drawn.lastId), String(drawn.lastId));
     let mine = null;
     for (let i = 0; i < 40; i++) {
@@ -606,7 +706,7 @@ function check(name, ok, detail) {
     //     渲染层要 600ms 防抖才把标注同步给主进程，所以进房那一刻主进程手里根本没有这一笔。
     //     以前补发是主进程做的，正好漏掉这一笔；现在由渲染层在"变成 online"那一刻补发。
     const offlineId = await ev(`(() => {
-      document.querySelector('#btn-anno').click();
+      document.querySelector('.anno-tool[data-tool="pen"]').click();
       const stage = document.querySelector('.mapstage');
       const r = stage.getBoundingClientRect();
       const x1 = r.left + r.width * 0.2, y1 = r.top + r.height * 0.25;
@@ -617,7 +717,7 @@ function check(name, ok, detail) {
         window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x1 + (x2 - x1) * t, clientY: y1 + (y2 - y1) * t }));
       }
       window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x2, clientY: y2, button: 0 }));
-      document.querySelector('#anno-exit').click();
+      document.querySelector('.anno-tool[data-tool="pen"]').click(); // 退出标注
       const list = window.__view.annos;
       const id = list.length ? list[list.length - 1].id : null;
       // 立刻进房（不等防抖）
@@ -696,6 +796,11 @@ function check(name, ok, detail) {
       const annoAfter = await ev(`window.api.getAnnotations()`);
       check('收尾：标注已还原', JSON.stringify(annoAfter) === JSON.stringify(origAnnos),
         JSON.stringify(Object.keys(annoAfter || {})));
+      if (JSON.stringify(annoAfter) === JSON.stringify(origAnnos)) {
+        try { fs.unlinkSync(ANNO_BACKUP); } catch {}
+      } else {
+        console.log(`      ⚠ 标注没还原到位，备份留在 ${ANNO_BACKUP}`);
+      }
     } catch (e) {
       console.log(`收尾时出错（请手工检查设置里的房间配置）：${e.message}`);
     }

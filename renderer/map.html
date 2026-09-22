@@ -21,45 +21,27 @@
         <select id="floor-select"></select>
       </label>
       <button id="btn-follow" class="toggle active" title="捕获位置后自动居中">定位自动居中</button>
-      <button id="btn-rotate" class="toggle" title="车头朝上（随朝向旋转）">车头朝上</button>
+      <button id="btn-rotate" class="toggle active" title="固定地图方向：地图始终正北朝上（关掉 = 随角色朝向旋转）">固定地图方向</button>
       <button id="btn-mini" class="toggle" title="显示/隐藏圆形小地图">小地图雷达</button>
       <button id="btn-legend" class="toggle active" title="标记点图例，可配置图钉显示">标记点</button>
       <button id="btn-quests" class="toggle active" title="任务清单：搜索/勾选，勾选的任务地点会画在地图上">任务</button>
       <button id="btn-measure" class="toggle" title="尺子：在地图上点两点测距（Esc 取消）">尺子</button>
-      <button id="btn-anno" class="toggle" title="手动标注：画圈 / 规划路径 / 箭头，按地图保存（Esc 退出）">标注</button>
       <button id="btn-pin" class="toggle" title="图钉化地图：缩小主窗口并置顶">图钉化</button>
       <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
       <button id="btn-settings" title="高级设置">设置</button>
       <button id="btn-about" title="关于：版本、开源地址与功能简介">关于</button>
     </div>
-  </header>
-
-  <main id="map-root">
-    <div id="empty-hint">
-      <p>等待游戏日志...</p>
-      <p class="sub">启动游戏后会自动识别你所在的图；游戏内按 <b>Print Screen</b> 截图即可在图上定位</p>
-    </div>
-    <div id="info-card" class="info-card hidden"></div>
-    <div id="shot-viewer" class="shot-viewer hidden">
-      <img id="shot-viewer-img" alt="位置参考截图" />
-      <div class="shot-viewer-bar">
-        <span id="shot-viewer-caption"></span>
-        <span class="shot-viewer-hint">滚轮缩放 · 拖动平移 · 点击空白/Esc 关闭</span>
-        <button id="shot-viewer-close">×</button>
-      </div>
-    </div>
-    <div id="measure-tip" class="measure-tip hidden">尺子：点击地图选择两点（Esc 取消）</div>
-    <div id="anno-bar" class="anno-bar hidden">
+    <!-- 手动标注工具条：常驻顶栏第二行（不悬浮在地图上；点工具即进入标注，「取消」/ Esc / 再点一次退出） -->
+    <div id="anno-bar" class="anno-bar">
       <div class="anno-row">
-        <button class="anno-tool active" data-tool="pen" title="自由画笔：按住拖动">✎ 画笔</button>
+        <span class="anno-tag">标注</span>
+        <button class="anno-tool" data-tool="pen" title="自由画笔：按住拖动">✎ 画笔</button>
         <button class="anno-tool" data-tool="path" title="路径规划：点击加点，双击或回车结束">⌇ 路径</button>
         <button class="anno-tool" data-tool="line" title="直线：按住拖动">／ 直线</button>
         <button class="anno-tool" data-tool="arrow" title="箭头：按住拖动">➤ 箭头</button>
-        <button class="anno-tool" data-tool="circle" title="圆：从圆心往外拖">◯ 圆</button>
-        <button class="anno-tool" data-tool="rect" title="矩形：按住拖动">▭ 矩形</button>
+        <button class="anno-tool" data-tool="ellipse" title="椭圆：从一个角拖到对角（鼠标划过的是对角线）；按住 Shift 画正圆">◯ 椭圆</button>
+        <button class="anno-tool" data-tool="rect" title="矩形：从一个角拖到对角">▭ 矩形</button>
         <button class="anno-tool" data-tool="erase" title="橡皮：点一下删掉那一笔">⌫ 橡皮</button>
-      </div>
-      <div class="anno-row">
         <span id="anno-colors" class="anno-colors"></span>
         <span id="anno-widths" class="anno-widths">
           <button data-width="2" title="细">细</button>
@@ -68,58 +50,79 @@
         </span>
         <button id="anno-undo" title="撤销上一笔（Ctrl+Z）">撤销</button>
         <button id="anno-clear" title="清空本图所有标注">清空</button>
-        <button id="anno-exit" title="退出标注（Esc）">完成</button>
+        <button id="anno-cancel" title="退出标注模式（Esc）：地图恢复拖动与自动居中" disabled>取消</button>
       </div>
-      <div class="anno-hint" id="anno-hint"></div>
     </div>
-  </main>
+  </header>
 
-  <aside id="quest-panel" class="quest-panel">
-    <div class="quest-head">
-      <span class="quest-title">任务</span>
-      <span id="quest-badge" class="quest-badge">0</span>
-      <div class="quest-head-actions">
-        <button id="quest-reset" title="清空所有勾选">清空</button>
-        <button id="quest-close" title="收起任务栏">×</button>
+  <!-- 顶栏下面那一块：左侧任务栏 / 中间地图 / 右侧图例。
+       两个浮窗挂在这一层（不是 body），所以永远贴在**顶栏（含常驻标注工具条那行）下沿**，
+       顶栏换几行都不会盖到标注工具条上 -->
+  <div id="workarea" class="workarea">
+    <main id="map-root">
+      <div id="empty-hint">
+        <p>等待游戏日志...</p>
+        <p class="sub">启动游戏后会自动识别你所在的图；游戏内按 <b>Print Screen</b> 截图即可在图上定位</p>
       </div>
-    </div>
-    <div class="quest-tools">
-      <input id="quest-q" type="search" placeholder="搜索任务 / 目标 / 商人" autocomplete="off" />
-      <div class="quest-chips">
-        <button class="chip active" id="qc-map" title="只显示当前地图有内容的任务">本图</button>
-        <button class="chip active" id="qc-loc" title="只显示能在地图上画出来的任务">有地点</button>
-        <button class="chip" id="qc-checked" title="只看已勾选的任务">已勾选</button>
-        <button class="chip" id="qc-kill" title="击杀类目标给的是刷怪区，默认不画（很大很糊）">击杀区</button>
+      <div id="info-card" class="info-card hidden"></div>
+      <div id="shot-viewer" class="shot-viewer hidden">
+        <img id="shot-viewer-img" alt="位置参考截图" />
+        <div class="shot-viewer-bar">
+          <span id="shot-viewer-caption"></span>
+          <span class="shot-viewer-hint">滚轮缩放 · 拖动平移 · 点击空白/Esc 关闭</span>
+          <button id="shot-viewer-close">×</button>
+        </div>
       </div>
-      <div class="quest-selects">
-        <select id="quest-trader" title="按商人过滤"></select>
-        <select id="quest-level" title="按等级上限过滤">
-          <option value="0">不限等级</option>
-          <option value="10">≤ Lv10</option>
-          <option value="20">≤ Lv20</option>
-          <option value="35">≤ Lv35</option>
-          <option value="50">≤ Lv50</option>
-        </select>
-      </div>
-    </div>
-    <div id="quest-hint" class="quest-hint hidden"></div>
-    <div id="quest-list" class="quest-list"></div>
-    <div class="quest-foot">
-      <span id="quest-stat">未加载</span>
-    </div>
-  </aside>
+      <div id="measure-tip" class="measure-tip hidden">尺子：点击地图选择两点（Esc 取消）</div>
+    </main>
 
-  <aside id="legend-panel" class="legend-panel">
-    <div class="legend-head">
-      <span>标记点图例</span>
-      <div class="legend-actions">
-        <button id="legend-all" title="所有大类全部显示">全开</button>
-        <button id="legend-none" title="所有大类全部隐藏">全关</button>
-        <button id="legend-close">×</button>
+    <aside id="quest-panel" class="quest-panel">
+      <div class="quest-head">
+        <span class="quest-title">任务</span>
+        <span id="quest-badge" class="quest-badge">0</span>
+        <div class="quest-head-actions">
+          <button id="quest-reset" title="清空所有勾选">清空</button>
+          <button id="quest-close" title="收起任务栏">×</button>
+        </div>
       </div>
-    </div>
-    <div id="legend-body" class="legend-body"></div>
-  </aside>
+      <div class="quest-tools">
+        <input id="quest-q" type="search" placeholder="搜索任务 / 目标 / 商人" autocomplete="off" />
+        <div class="quest-chips">
+          <button class="chip active" id="qc-map" title="只显示当前地图有内容的任务">本图</button>
+          <button class="chip active" id="qc-loc" title="只显示能在地图上画出来的任务">有地点</button>
+          <button class="chip" id="qc-checked" title="只看已勾选的任务">已勾选</button>
+          <button class="chip" id="qc-kill" title="击杀类目标给的是刷怪区，默认不画（很大很糊）">击杀区</button>
+        </div>
+        <div class="quest-selects">
+          <select id="quest-trader" title="按商人过滤"></select>
+          <select id="quest-level" title="按等级上限过滤">
+            <option value="0">不限等级</option>
+            <option value="10">≤ Lv10</option>
+            <option value="20">≤ Lv20</option>
+            <option value="35">≤ Lv35</option>
+            <option value="50">≤ Lv50</option>
+          </select>
+        </div>
+      </div>
+      <div id="quest-hint" class="quest-hint hidden"></div>
+      <div id="quest-list" class="quest-list"></div>
+      <div class="quest-foot">
+        <span id="quest-stat">未加载</span>
+      </div>
+    </aside>
+
+    <aside id="legend-panel" class="legend-panel">
+      <div class="legend-head">
+        <span>标记点图例</span>
+        <div class="legend-actions">
+          <button id="legend-all" title="所有大类全部显示">全开</button>
+          <button id="legend-none" title="所有大类全部隐藏">全关</button>
+          <button id="legend-close">×</button>
+        </div>
+      </div>
+      <div id="legend-body" class="legend-body"></div>
+    </aside>
+  </div>
 
   <aside class="statusbar">
     <span id="st-map">地图: -</span>
@@ -129,6 +132,7 @@
     <span id="st-heading">朝向: -</span>
     <span id="st-log">日志: -</span>
     <span id="st-shot">截图: -</span>
+    <span id="st-autoshot" class="hidden">自动截图: -</span>
     <span id="st-boss">Boss: -</span>
     <span id="st-exfil">最近撤离: -</span>
   </aside>
@@ -200,11 +204,33 @@
           <label class="row"><input type="checkbox" id="set-mini-auto-floor" /> 按玩家高度自动切换楼层（默认开）</label>
           <label class="row"><input type="checkbox" id="set-mini-click-through" /> 点击穿透：雷达看得到但点不着（鼠标直接作用到游戏）</label>
           <label class="row"><input type="checkbox" id="set-mini-follow" /> 缩放跟随互动地图（默认关：按自己的显示半径）</label>
+          <label class="row">雷达上显示标注
+            <select id="set-mini-annos">
+              <option value="off">不显示</option>
+              <option value="mine">只显示我的</option>
+              <option value="all">我的 + 队友的</option>
+            </select>
+          </label>
           <div class="hint">雷达默认没有任何按钮：<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆），<b>滚轮缩放</b>，
             <b>Ctrl + 拖动 = 平移圆盘里的地图</b>（窗口不动；玩家照旧跟随，只是不再固定在圆心），
             <b>Ctrl + 双击</b> 把视野偏移归零（换图时会自动归零）；
             方向/居中/楼层/点击穿透/透明度都在这里调。开了点击穿透后，雷达右下角会出现一个小"解锁"块，
             鼠标悬停到它上面时会临时恢复交互，点一下就关掉穿透（穿透状态下收不到鼠标，所以要先解锁才能拖动）。</div>
+        </section>
+
+        <section class="settings-card">
+          <h3>自动截图（定时刷新定位）</h3>
+          <label class="row"><input type="checkbox" id="set-autoshot" /> 启用定时自动截图（<b>默认关</b>）</label>
+          <label class="row">间隔(秒) <input type="number" id="set-autoshot-interval" min="5" max="600" step="5" style="width:90px" /></label>
+          <label class="row">截图键 <input type="text" id="set-autoshot-key" placeholder="PrintScreen" style="width:150px" />
+            <button type="button" id="set-autoshot-capture" title="点这里，然后按下你在游戏里用的截图键">按下按键捕获</button>
+          </label>
+          <div class="hint" id="set-autoshot-hint"></div>
+          <div class="hint">定位只能来自"游戏写出的带坐标截图"，所以这个功能是<b>替你有节奏地按一次游戏截图键</b>：
+            只在你<b>局内</b>且<b>游戏窗口在最前面</b>时按，连按 3 次都没拿到新坐标就自动暂停（多半是键位不对）。
+            游戏里改过截图键的话，这里要填同一个键（键名用 <code>PrintScreen</code> / <code>F12</code> / <code>KeyP</code> 这种写法，
+            也可以点「按下按键捕获」直接按一下）。建议同时开启「自动删除截图文件」，否则截图会越攒越多。
+            实现方式是向系统发一次按键（<b>不注入游戏进程、不读写游戏内存</b>），线上对局请自行评估风险。</div>
         </section>
       </div>
       <div class="dialog-actions">
@@ -232,7 +258,7 @@
         <li><b>悬浮小地图</b>：可拖动的圆形雷达置顶在游戏画面上，滚轮缩放、Ctrl 拖动平移、支持点击穿透</li>
         <li><b>标记与图例</b>：撤离点 / 转移点 / Boss / 出生点 / 钥匙锁 / 物资箱 / 地名 / 赛季文件刷点，右侧图例逐项开关</li>
         <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，点标记看商人、等级、阶段、任务物品与所需钥匙</li>
-        <li><b>手动标注</b>：画圈、规划路径、箭头、矩形，按地图保存（存世界坐标，缩放旋转都不跑位）</li>
+        <li><b>手动标注</b>：顶栏常驻工具条（画笔 / 路径 / 直线 / 箭头 / 椭圆 / 矩形 + 「取消」退出），按地图保存（存世界坐标，缩放旋转都不跑位）</li>
         <li><b>房间联机</b>（v2.0 新增，可选）：填自己的服务器地址，和队友互相看到位置、朝向与标注</li>
       </ul>
       <div class="about-row">

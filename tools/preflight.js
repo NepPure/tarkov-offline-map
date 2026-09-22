@@ -90,30 +90,33 @@ if (has('--no-tests')) {
 }
 
 // ---------------------------------------------------------------- 5) 打包产物
+
+/** 某个目录里最新的源码改动时间（跳过依赖/产物目录） */
+const newestSrc = (dir) => {
+  let best = 0;
+  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, f.name);
+    if (f.isDirectory()) {
+      if (['node_modules', 'test', 'data', 'dist', 'dist-server', 'build', '.git'].includes(f.name)) continue;
+      best = Math.max(best, newestSrc(full));
+    } else if (/\.(js|html|css|json)$/.test(f.name)) {
+      best = Math.max(best, fs.statSync(full).mtimeMs);
+    }
+  }
+  return best;
+};
+
 const exePath = path.join(ROOT, artifact);
 if (!fs.existsSync(exePath)) {
   check('打包产物存在', false, `${artifact} 不存在（跑 npm run dist）`);
 } else {
   const exeMtime = fs.statSync(exePath).mtimeMs;
   // 源码里最新的改动时间：main.js / src / renderer / server 的源码
-  const newest = (dir) => {
-    let best = 0;
-    for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, f.name);
-      if (f.isDirectory()) {
-        if (['node_modules', 'test', 'data', 'dist', 'build', '.git'].includes(f.name)) continue;
-        best = Math.max(best, newest(full));
-      } else if (/\.(js|html|css|json)$/.test(f.name)) {
-        best = Math.max(best, fs.statSync(full).mtimeMs);
-      }
-    }
-    return best;
-  };
   const srcMtime = Math.max(
     fs.statSync(path.join(ROOT, 'main.js')).mtimeMs,
-    newest(path.join(ROOT, 'src')),
-    newest(path.join(ROOT, 'renderer')),
-    newest(path.join(ROOT, 'server')),
+    newestSrc(path.join(ROOT, 'src')),
+    newestSrc(path.join(ROOT, 'renderer')),
+    newestSrc(path.join(ROOT, 'server')),
   );
   const fresh = exeMtime > srcMtime;
   check('打包产物比源码新（不是旧包）', fresh,
@@ -124,6 +127,25 @@ if (!fs.existsSync(exePath)) {
     check('打包内容检查通过（含本版本代码、不含服务端本体）', a.code === 0, (a.out.match(/asar 文件条目数: \d+/) || [''])[0]);
   } else {
     check('能找到 win-unpacked/resources/app.asar', false, '跑一次 npm run dist 就有了');
+  }
+}
+
+// 服务端单文件 exe（npm run dist:server）—— 可选交付路径，缺了只提醒不拦发布
+{
+  const srvName = `tarkov-offline-map-server-${srvPkg.version}-win-x64.exe`;
+  const srvExe = path.join(ROOT, 'dist-server', srvName);
+  if (fs.existsSync(srvExe)) {
+    const srvMtime = fs.statSync(srvExe).mtimeMs;
+    const srvSrc = Math.max(
+      newestSrc(path.join(ROOT, 'server')),
+      fs.statSync(path.join(ROOT, 'tools', 'make-server-exe.js')).mtimeMs,
+    );
+    const freshSrv = srvMtime > srvSrc;
+    check('服务端 exe 比源码新（不是旧包）', freshSrv,
+      freshSrv ? `${srvName}（${(fs.statSync(srvExe).size / 1048576).toFixed(1)}MB）`
+        : '服务端源码改动晚于这个 exe，建议重新 npm run dist:server', true);
+  } else {
+    check('服务端 exe 存在（可选，CI 会构建）', false, `没找到 dist-server/${srvName}（本地跑 npm run dist:server）`, true);
   }
 }
 

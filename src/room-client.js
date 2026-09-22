@@ -272,6 +272,43 @@ class RoomClient {
     this.send({ t: 'map', map });
   }
 
+  /**
+   * 新一局：自己的定位作废（服务端记住的也要清），并清掉本机看到的队友残留位置。
+   *
+   * 为什么两边都要做：
+   *   - 本机清 -> 队友上一局留下的点不能出现在新局的图上；
+   *   - 发 `newraid` -> 让服务端把我记的旧点抹掉并向其他人广播 `peer-reset`。
+   *     少了这一步，"我这边开新局"时那些没在局内（或没识别到新局）的队友屏幕上
+   *     会一直停着我的旧点，直到我下次按截图键才刷新。
+   *
+   * @param {number} [beforeTs] 只清"早于这个时刻收到"的队友定位（默认全清）
+   * @returns {number} 本机清掉了几个队友的定位
+   */
+  newRaid(beforeTs = Infinity) {
+    const dropped = this.dropPeerPositions(beforeTs);
+    if (dropped) this.emit();
+    this.send({ t: 'newraid' });
+    return dropped;
+  }
+
+  /**
+   * 清掉"早于 beforeTs 收到"的队友定位（只清 pos，不动昵称与他所在的图）。
+   * 比较用的是**本机收到时间** `peer.at`（和本地日志同一个时钟），不是对方的截图时间，
+   * 所以两台机器时钟不一致也不会误判；新局里队友刚发来的定位不会被清掉。
+   */
+  dropPeerPositions(beforeTs = Infinity) {
+    const cut = Number(beforeTs);
+    const limit = Number.isFinite(cut) ? cut : Infinity;
+    let dropped = 0;
+    this.state.peers = this.state.peers.map((p) => {
+      if (!p.pos) return p;
+      if ((Number(p.at) || 0) >= limit) return p;
+      dropped += 1;
+      return { ...p, pos: null };
+    });
+    return dropped;
+  }
+
   /** 上报定位（带轨迹尾巴）；节流合并，保证最后一条一定会发出去 */
   setPosition(pos) {
     if (!pos || !this.cfg || !this.cfg.sharePos) return;
@@ -454,6 +491,12 @@ class RoomClient {
       }
       case 'peer-pos': {
         this.patchPeer(m.id, { map: m.map || null, pos: pickPos(m), at: this.now() });
+        this.emit();
+        return;
+      }
+      case 'peer-reset': {
+        // 他开了新一局：之前那个点作废（他还没按截图键时不该在图上留着旧点）
+        this.patchPeer(m.id, { pos: null, at: this.now() });
         this.emit();
         return;
       }

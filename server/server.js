@@ -321,6 +321,17 @@ function createRoomServer(opts = {}) {
     broadcast(peer.room, { t: 'peer-map', id: peer.id, map, pos: null }, peer.id);
   }
 
+  /**
+   * 新一局：把他记的定位抹掉，并告诉其他人"他那个点作废"。
+   * 客户端进新局时会自己清本机那份，但"他开新局"这件事只有服务端能转达给其他人 ——
+   * 少了这条，没在局内（或没识别到新局）的队友屏幕上会一直停着他的旧点。
+   */
+  function onNewRaid(peer) {
+    if (!peer.pos) return;
+    peer.pos = null;
+    broadcast(peer.room, { t: 'peer-reset', id: peer.id }, peer.id);
+  }
+
   function onPos(peer, m) {
     const now = Date.now();
     // 位置是高频消息：太密的直接丢，但不明确报错（客户端本来就是"有定位才发"）
@@ -407,6 +418,8 @@ function createRoomServer(opts = {}) {
         return onMap(peer, m);
       case 'pos':
         return onPos(peer, m);
+      case 'newraid':
+        return onNewRaid(peer);
       case 'anno':
         return onAnno(peer, m);
       default:
@@ -606,11 +619,185 @@ function createRoomServer(opts = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// 直接运行（require 引入时不自动监听，方便单测）
+// 命令行参数（Windows 单文件 exe / 一条命令启动都靠它）
+//
+// 优先级：命令行 > 环境变量 > 默认值。命令行只是把同样的开关写得更顺手 ——
+// 在 Windows 上设环境变量很别扭，而双击 exe 时连命令行都没有，就全用默认值。
+//   tarkov-map-server.exe --port 9000 --max-room-peers 8 --persist --data-dir D:\room
 // ---------------------------------------------------------------------------
-if (require.main === module) {
-  const srv = createRoomServer();
-  srv.start();
+const FLAG_TO_CFG = {
+  host: 'host',
+  port: 'port',
+  'max-room-peers': 'maxRoomPeers',
+  'room-ttl': 'roomTtlSec',              // 秒（内部会 x1000）
+  'max-conn-per-ip': 'maxConnPerIp',
+  'max-annos-per-room': 'maxAnnosPerRoom',
+  'pos-min-interval-ms': 'posMinIntervalMs',
+  'save-debounce-ms': 'saveDebounceMs',
+  'data-dir': 'dataDir',
+  'log-level': 'logLevel',
+  persist: 'persist',
+  'public-status': 'publicStatus',
+  'trust-proxy': 'trustProxy',
+};
+const BOOL_FLAGS = new Set(['persist', 'public-status', 'trust-proxy']);
+const INT_FLAGS = {
+  port: [8787, 0, 65535],
+  maxRoomPeers: [16, 2, 256],
+  roomTtlSec: [600, 0, 86400],
+  maxConnPerIp: [8, 1, 512],
+  maxAnnosPerRoom: [2000, 10, 100000],
+  posMinIntervalMs: [200, 0, 5000],
+  saveDebounceMs: [5000, 0, 60000],
+};
+
+/**
+ * 解析命令行：返回 { over, help, version, unknown }。
+ * over 直接喂给 createRoomServer()（loadConfig 会 Object.assign 上去）。
+ * 认不出来的参数一律忽略 —— Windows/SEA 会在 argv 里塞自己的东西，不该因此启动失败。
+ */
+function parseArgs(argv = []) {
+  const over = {};
+  const unknown = [];
+  let help = false;
+  let version = false;
+  const list = Array.isArray(argv) ? argv : [];
+  for (let i = 0; i < list.length; i++) {
+    const raw = String(list[i] == null ? '' : list[i]);
+    if (!raw.startsWith('-')) continue;
+    let body = raw.replace(/^-+/, '');
+    let value = null;
+    const eq = body.indexOf('=');
+    if (eq >= 0) {
+      value = body.slice(eq + 1);
+      body = body.slice(0, eq);
+    }
+    const key = body.toLowerCase();
+    if (key === 'h' || key === 'help') { help = true; continue; }
+    if (key === 'v' || key === 'version') { version = true; continue; }
+    const cfgKey = FLAG_TO_CFG[key];
+    if (!cfgKey) { unknown.push(raw); continue; }
+    const isBool = BOOL_FLAGS.has(key);
+    if (value == null && !isBool) {
+      const next = list[i + 1];
+      if (next !== undefined && !String(next).startsWith('-')) {
+        value = String(next);
+        i += 1;
+      }
+    }
+    if (isBool) {
+      // --persist / --persist=1 / --persist=0 / --public-status=false
+      const on = value == null ? true : !/^(0|false|no|off)$/i.test(String(value));
+      over[cfgKey] = on;
+      continue;
+    }
+    if (value == null) { unknown.push(raw); continue; }
+    const intSpec = INT_FLAGS[cfgKey];
+    if (intSpec) {
+      const n = Number(value);
+      over[cfgKey] = Number.isFinite(n)
+        ? Math.max(intSpec[1], Math.min(intSpec[2], Math.round(n)))
+        : intSpec[0];
+    } else {
+      over[cfgKey] = String(value);
+    }
+  }
+  if (over.roomTtlSec !== undefined) {
+    over.roomTtlMs = over.roomTtlSec * 1000;
+    delete over.roomTtlSec;
+  }
+  return { over, help, version, unknown };
+}
+
+function usageText() {
+  return [
+    `${SERVER_NAME} v${SERVER_VERSION}（协议 v${P.PROTO}）—— 塔科夫地图 · 房间服务端`,
+    '',
+    '用法：',
+    '  tarkov-map-server.exe                       用默认值启动（监听 0.0.0.0:8787）',
+    '  tarkov-map-server.exe --port 9000           换端口',
+    '  tarkov-map-server.exe --persist --data-dir D:\\room-annos   标注落盘（重启不丢）',
+    '  tarkov-map-server.exe --help                看这一页',
+    '',
+    '命令行开关（等价的环境变量写在括号里，优先级：命令行 > 环境变量 > 默认值）：',
+    '  --host <addr>                监听地址（HOST，默认 0.0.0.0）',
+    '  --port <n>                   监听端口（PORT，默认 8787）',
+    '  --max-room-peers <n>         单房间人数上限（MAX_ROOM_PEERS，默认 16）',
+    '  --room-ttl <秒>              房间空了以后保留多久（ROOM_TTL，默认 600）',
+    '  --max-conn-per-ip <n>        单 IP 并发连接上限（MAX_CONN_PER_IP，默认 8）',
+    '  --max-annos-per-room <n>     单房间标注总数上限（MAX_ANNOS_PER_ROOM，默认 2000）',
+    '  --pos-min-interval-ms <n>    位置消息最小间隔（POS_MIN_INTERVAL_MS，默认 200）',
+    '  --save-debounce-ms <n>       落盘防抖（SAVE_DEBOUNCE_MS，默认 5000）',
+    '  --persist                   标注落盘（PERSIST=1，默认关：纯内存）',
+    '  --data-dir <dir>             落盘目录（DATA_DIR，默认 /data）',
+    '  --log-level <lvl>            error|warn|info|debug（LOG_LEVEL，默认 info）',
+    '  --public-status[=0]          匿名状态页开关（PUBLIC_STATUS，默认开）',
+    '  --trust-proxy                反代时按 X-Forwarded-For 限流（TRUST_PROXY）',
+    '',
+    '停止：按 Ctrl+C（双击启动的话，直接关掉这个窗口）。',
+  ].join('\n');
+}
+
+/** 本机内网 IPv4：启动时打出来，用户直接照着填客户端设置 */
+function lanAddresses() {
+  const out = [];
+  try {
+    const os = require('os');
+    for (const [name, list] of Object.entries(os.networkInterfaces())) {
+      for (const ni of list || []) {
+        if (ni && ni.family === 'IPv4' && !ni.internal) out.push({ name, address: ni.address });
+      }
+    }
+  } catch {}
+  return out;
+}
+
+function printBanner(cfg, port) {
+  const lans = lanAddresses();
+  const lines = ['', `  塔科夫地图 · 房间服务端 v${SERVER_VERSION}（协议 v${P.PROTO}）`, `  正在监听：${cfg.host}:${port}`];
+  if (lans.length) {
+    lines.push('  客户端「设置 → 房间（联机）」里填：');
+    for (const l of lans) lines.push(`      服务器地址 = ${l.address}${l.name ? `   （${l.name}）` : ''}  端口 = ${port}`);
+  } else {
+    lines.push(`  客户端「设置 → 房间（联机）」里填：服务器地址 = 本机 IP   端口 = ${port}`);
+  }
+  lines.push(`  健康检查 http://127.0.0.1:${port}/healthz    状态页 http://127.0.0.1:${port}/`);
+  lines.push(`  标注落盘：${cfg.persist ? `开（${cfg.dataDir}）` : '关（纯内存，重启即清）'}`);
+  if (cfg.host === '0.0.0.0') lines.push('  队友要连进来：Windows 防火墙 / 云安全组要放行这个端口');
+  lines.push('  停止：按 Ctrl+C（双击启动的话，关掉这个窗口即可）', '');
+  console.log(lines.join('\n'));
+}
+
+/** 双击 exe 时窗口别一闪就没：出错/退出前等用户按一下回车 */
+function pauseBeforeExit(code) {
+  const canPause = process.stdin.isTTY && !process.env.TARKOV_NO_PAUSE && !process.env.CI;
+  if (!canPause) {
+    process.exit(code);
+    return;
+  }
+  console.log('  按回车键关闭窗口…');
+  try { process.stdin.resume(); } catch {}
+  const bye = () => process.exit(code);
+  try { process.stdin.once('data', bye); } catch { setTimeout(bye, 100); }
+  setTimeout(bye, 120000).unref();
+}
+
+function main() {
+  const parsed = parseArgs(process.argv.slice(1));
+  if (parsed.help) { console.log(usageText()); return; }
+  if (parsed.version) { console.log(`${SERVER_NAME} v${SERVER_VERSION}（协议 v${P.PROTO}）`); return; }
+  const srv = createRoomServer(parsed.over);
+  if (parsed.unknown.length) console.log(`  提示：忽略了不认识的参数 ${parsed.unknown.join(' ')}（--help 看用法）`);
+
+  srv.server.on('error', (e) => {
+    const hint = e && e.code === 'EADDRINUSE'
+      ? `端口 ${srv.cfg.port} 已被占用（是不是已经开着一个服务端？换 --port 再试）`
+      : (e && e.message) || String(e);
+    console.error(`\n  启动失败：${hint}\n`);
+    pauseBeforeExit(1);
+  });
+
+  srv.start((port) => printBanner(srv.cfg, port));
 
   let closing = false;
   const shutdown = (sig) => {
@@ -622,6 +809,21 @@ if (require.main === module) {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('uncaughtException', (e) => {
+    console.error(`\n  未捕获异常：${(e && e.stack) || e}\n`);
+    pauseBeforeExit(1);
+  });
 }
 
-module.exports = { createRoomServer, PROTO: P.PROTO, LIMITS: P.LIMITS, SERVER_VERSION };
+// ---------------------------------------------------------------------------
+// 直接运行（require 引入时不自动监听，方便单测）
+// SEA（tools/make-server-exe.js 打出来的单文件 exe）里 require.main 不一定是本模块，
+// 所以额外认一下 node:sea 的 isSea()。
+// ---------------------------------------------------------------------------
+const IS_SEA = (() => {
+  try { return require('node:sea').isSea(); } catch { return false; }
+})();
+
+if (require.main === module || IS_SEA) main();
+
+module.exports = { createRoomServer, parseArgs, usageText, PROTO: P.PROTO, LIMITS: P.LIMITS, SERVER_VERSION };

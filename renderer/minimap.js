@@ -3,7 +3,7 @@
 /**
  * 圆形小地图悬浮窗：跟随玩家 + 车头朝上 + 缩放
  */
-import { MapView, metersToScreen, panCenterAfterDrag } from './common/map-view.js';
+import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini } from './common/map-view.js';
 
 const api = window.api;
 
@@ -16,6 +16,13 @@ let miniRotate = false;      // 固定地图方向（默认）；true = 随角�
 let miniAutoCenter = true;   // 定位后自动居中到玩家
 let miniAutoFloor = true;    // 按玩家高度自动切换楼层层级
 let clickThrough = false;    // 点击穿透状态（来自配置）
+
+// 标注：我画的那份（annotations.json）也要画在雷达上；队友的那份来自房间快照。
+// 三档配置见设置里的"雷达上显示标注"（off / mine / all），另外两边都还受图例开关控制。
+let miniAnnosMode = 'all';
+let myAnnos = [];            // 当前地图上我画的笔画
+let myAnnosMapId = null;     // 上面这份属于哪张图
+let lastAnnosAt = null;      // 主进程广播的"标注变更时间戳"（变了才重取，不做每秒 IPC）
 
 // 雷达视野偏移（地图像素）：Ctrl 拖动圆盘 = 平移圆盘里的地图，而不是移动悬浮窗。
 // 偏移叠加在"跟随玩家居中"之上——玩家照旧跟随，只是不再固定在圆心（相当于往某侧多看一点）。
@@ -101,6 +108,7 @@ async function applyState(s) {
     miniRotate = !!s.config.miniRotate;              // 默认 false = 固定地图方向
     miniAutoCenter = s.config.miniAutoCenter !== false;
     miniAutoFloor = s.config.miniAutoFloor !== false;
+    miniAnnosMode = normalizeMiniAnnoMode(s.config.miniAnnos);
     api.setMiniOpacity(s.config.miniOpacity ?? 0.9);
     setClickThrough(!!s.config.miniClickThrough);
   }
@@ -140,11 +148,32 @@ async function applyState(s) {
   if (miniAutoFloor) view.setFloor('auto');
   else view.setFloor(view.baseLayer || (detail && detail.svgLayer) || 'auto');
   // 房间成员：雷达上也画队友（离得近的时候比主窗口更有用）
-  if (s.room) {
-    const myId = s.room.self ? s.room.self.id : null;
-    view.setPeers(Array.isArray(s.room.peers) ? s.room.peers : []);
-    view.setPeerAnnos(((s.room.annos || {})[s.mapId] || []).filter((a) => a && a.owner !== myId));
+  const myId = s.room && s.room.self ? s.room.self.id : null;
+  const peerAnnos = s.room && Array.isArray((s.room.annos || {})[detail.id])
+    ? s.room.annos[detail.id].filter((a) => a && a.owner !== myId)
+    : [];
+  if (s.room) view.setPeers(Array.isArray(s.room.peers) ? s.room.peers : []);
+  else view.setPeers([]);
+
+  // 标注（我画的 + 队友的）：换图或"主进程说标注变了"时重取一次
+  const annosChanged = s.annosAt != null && s.annosAt !== lastAnnosAt;
+  if (myAnnosMapId !== detail.id || annosChanged) {
+    if (s.annosAt != null) lastAnnosAt = s.annosAt;
+    const wantMap = detail.id;
+    try {
+      const all = await api.getAnnotations();
+      // 换图/重取期间又切了图：这份结果作废（否则会把上一张图的笔画画到新图上）
+      if (detail && detail.id === wantMap) {
+        myAnnos = (all && all[wantMap]) || [];
+        myAnnosMapId = wantMap;
+      }
+    } catch (e) {
+      console.warn('雷达读取标注失败（不影响使用）', e);
+    }
   }
+  const split = filterAnnosForMini(miniAnnosMode, myAnnos, peerAnnos);
+  view.setAnnotations(split.mine);
+  view.setPeerAnnos(split.peers);
 }
 
 api.onState((s) => applyState(s));

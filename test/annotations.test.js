@@ -23,7 +23,9 @@ test('标注存储：清洗掉非法数据', () => {
       { kind: 'teleport', color: '#fff', width: 4, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }, // 非法 kind
       { kind: 'pen', color: 'red', width: 999, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] },       // 非法颜色 + 超宽
       { kind: 'pen', color: '#000000', width: 2, pts: [{ x: NaN, z: 2 }, { x: 3, z: 4 }] },  // NaN 坐标
-      { kind: 'circle', color: '#000000', width: 2, pts: [{ x: 5, z: 5 }] },                 // 点太少
+      { kind: 'ellipse', color: '#000000', width: 2, pts: [{ x: 5, z: 5 }] },                // 点太少
+      { kind: 'circle', color: '#000000', width: 2, pts: [{ x: 5, z: 5 }, { x: 6, z: 6 }] }, // 老 kind 彻底不认
+      { kind: 'ellipse', color: '#000000', width: 2, pts: [{ x: 7, z: 7 }, { x: 8, z: 8 }] }, // 新的椭圆：要留下
       { kind: 'pen', color: '#000000', width: 2, pts: [{ x: 9, z: 9 }, { x: 9, z: 9 }] },
     ],
     '': [{ kind: 'pen', color: '#000000', width: 2, pts: [{ x: 1, z: 1 }, { x: 2, z: 2 }] }], // 空 mapId
@@ -31,8 +33,10 @@ test('标注存储：清洗掉非法数据', () => {
   };
   const clean = ann.sanitize(raw);
   assert.deepStrictEqual(Object.keys(clean), ['customs']);
-  // 合法的是：原始第 1 笔、颜色/宽度被修正的第 3 笔、最后一笔（NaN 那笔点数不足被丢）
-  assert.strictEqual(clean.customs.length, 3);
+  // 合法的是：原始第 1 笔、颜色/宽度被修正的第 3 笔、椭圆那笔、最后一笔（NaN 那笔点数不足被丢）
+  assert.strictEqual(clean.customs.length, 4);
+  assert.strictEqual(clean.customs.filter((s) => s.kind === 'ellipse').length, 1, '椭圆要保留');
+  assert.strictEqual(clean.customs.some((s) => s.kind === 'circle'), false, '老 circle 不再被接受');
   // 颜色小写化、坐标四舍五入到两位
   assert.strictEqual(clean.customs[0].color, '#f87171');
   assert.deepStrictEqual(clean.customs[0].pts[1], { x: 3.46, z: 4.44 });
@@ -113,4 +117,55 @@ test('命中判定：点到线段距离 / 折线距离 / 多边形内部', () =>
     assert.strictEqual(clampAnnoWidth(999), 20);
     assert.strictEqual(clampAnnoWidth('abc'), 4);
   })();
+});
+
+test('椭圆：对角拖拽 = 内接椭圆；Shift = 正圆', () => {
+  return (async () => {
+    const { annoEllipseFromCorners, squareCorner } = await import('../renderer/common/map-view.js');
+
+    // 拖拽的两个角就是外接矩形的对角：圆心 = 中点，两半径 = 边长一半
+    const e = annoEllipseFromCorners({ x: 10, z: 20 }, { x: 30, z: 50 });
+    assert.deepStrictEqual(e, { cx: 20, cz: 35, rx: 10, rz: 15 });
+    // 反着拖（右下 -> 左上）结果一样
+    assert.deepStrictEqual(annoEllipseFromCorners({ x: 30, z: 50 }, { x: 10, z: 20 }), e);
+    // 退化：同一个点 -> 半径为 0（渲染成一点，不会崩）
+    assert.deepStrictEqual(annoEllipseFromCorners({ x: 1, z: 2 }, { x: 1, z: 2 }), { cx: 1, cz: 2, rx: 0, rz: 0 });
+
+    // Shift：取两条边里较长的那条当边长，方向沿用拖拽方向 -> 宽高相等（屏幕上是正圆）
+    assert.deepStrictEqual(squareCorner({ x: 0, z: 0 }, { x: 30, z: 10 }), { x: 30, z: 30 });
+    assert.deepStrictEqual(squareCorner({ x: 0, z: 0 }, { x: 10, z: 30 }), { x: 30, z: 30 });
+    // 四个方向的符号都要对
+    assert.deepStrictEqual(squareCorner({ x: 0, z: 0 }, { x: -30, z: 10 }), { x: -30, z: 30 });
+    assert.deepStrictEqual(squareCorner({ x: 0, z: 0 }, { x: -10, z: -30 }), { x: -30, z: -30 });
+    // 正方形再约束还是自己
+    assert.deepStrictEqual(squareCorner({ x: 5, z: 5 }, { x: 15, z: 15 }), { x: 15, z: 15 });
+    // 约束后的包围盒确实等边（世界坐标等边 -> 投影后仍是正圆：投影是旋转 + 等比缩放）
+    const sq = squareCorner({ x: 4, z: -7 }, { x: 20, z: 2 });
+    const box = annoEllipseFromCorners({ x: 4, z: -7 }, sq);
+    assert.strictEqual(box.rx, box.rz);
+  })();
+});
+
+test('标注工具条：常驻顶栏、有「取消」退出按钮、没有多余的提示行', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'map.html'), 'utf-8');
+  const js = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'map.js'), 'utf-8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'map.css'), 'utf-8');
+
+  // 工具条在顶栏里（第二行），七个工具齐全
+  assert.match(html, /<header class="topbar">[\s\S]*?id="anno-bar"[\s\S]*?<\/header>/);
+  for (const tool of ['pen', 'path', 'line', 'arrow', 'ellipse', 'rect', 'erase']) {
+    assert.ok(html.includes(`data-tool="${tool}"`), `缺少工具 ${tool}`);
+  }
+  // 「取消」按钮存在、默认禁用（没进标注模式时没意义），由 JS 按模式启用
+  assert.match(html, /<button id="anno-cancel"[^>]*disabled>取消<\/button>/, '缺少 #anno-cancel（取消）按钮');
+  assert.ok(js.includes("$('#anno-cancel').addEventListener"), '「取消」按钮没接上');
+  assert.ok(js.includes("$('#anno-cancel').disabled = !mode"), '「取消」要跟着标注模式启用/禁用');
+  assert.ok(js.includes('view.setDrawMode(null)'), '「取消」应该是退出标注模式');
+
+  // 用户明确要求：不要那行说明文字
+  assert.ok(!html.includes('anno-hint'), '提示行应该已经删掉');
+  assert.ok(!js.includes('ANNO_HINTS'), 'ANNO_HINTS 应该已经删掉（提示改回各按钮的 title）');
+  assert.ok(!css.includes('.anno-hint'), 'CSS 里的 .anno-hint 应该已经删掉');
+  // 每个工具自己的说明留在 title（悬停能看到）
+  assert.match(html, /data-tool="ellipse" title="[^"]*Shift[^"]*"/, '椭圆按钮的 title 要写清 Shift = 正圆');
 });

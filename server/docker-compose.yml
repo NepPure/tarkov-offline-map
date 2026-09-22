@@ -14,7 +14,7 @@
 services:
   room:
     # 官方镜像（也可以自己 build：把 image 换成 tarkov-room:local 并打开下面 build 那行）
-    image: ghcr.io/neppure/tarkov-offline-map-server:2.0.2
+    image: ghcr.io/neppure/tarkov-offline-map-server:2.1.0
     # build: .
     container_name: tarkov-map-room
     restart: unless-stopped

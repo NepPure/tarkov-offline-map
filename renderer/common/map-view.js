@@ -5,7 +5,7 @@
  * - SVG 底图（按 data-layer 切换楼层，复刻原站 Vme 逻辑）
  * - 标记层（撤离点/转移点/boss/刷新点/钥匙锁/开关/危险/物资/固定武器/标签）
  * - 玩家标记 + 朝向扇形 + 轨迹
- * - 平移/缩放/跟随玩家/车头朝上
+ * - 平移/缩放/跟随玩家/固定地图方向（可选随朝向旋转）
  * - 房间成员（v2.0）：队友的位置/朝向/轨迹 + 他们画的标注
  * 纯渲染层，无 NodeAPI（通过 preload 暴露的 window.api 通信）
  */
@@ -155,7 +155,7 @@ export class MapView {
     this.trail = [];
     this.floor = 'auto';
     this.follow = true;
-    this.rotate = false;         // 车头朝上
+    this.rotate = false;         // 随角色朝向旋转（false = 固定地图方向，默认）
     this.markerToggles = null;   // 由 setMarkerToggles 初始化（全部默认开启）
     this.showAllHeights = true;  // 表层显示全部标记
     this.layers = [];            // 可选楼层 [{name, svgLayer, extents}]
@@ -189,6 +189,7 @@ export class MapView {
     this.annos = [];
     this.annoLayer = null;
     this.drawMode = null;        // null | { tool, color, width }
+    this._followBeforeDraw = null; // 进标注前的"定位跟随"开关（退出时还原）
     this.onAnnoChange = null;    // 每加/删一笔时回调（用于持久化）
     this.onDrawModeChange = null;
     this._annoDraft = null;      // 正在画的草稿（不落盘）
@@ -248,7 +249,7 @@ export class MapView {
         if (this.drawMode) { this.#drawMove(e); return; }
         if (!dragging) return;
         moved += Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy);
-        // 空间平移 = 屏幕位移 / 缩放（含车头朝上旋转的逆变换）
+        // 空间平移 = 屏幕位移 / 缩放（含"随朝向旋转"时的逆变换）
         const next = panCenterAfterDrag(scx, scy, this.view.scale, this.view.rot, e.clientX - sx, e.clientY - sy);
         this.view.cx = next.cx;
         this.view.cy = next.cy;
@@ -629,7 +630,7 @@ export class MapView {
     if (this.player && pos) this.player.y = pos.y;
     this.heading = (pos && quat) ? headingAngle(this.detail, quat, this.proj) : null;
     this.#renderOverlay();
-    if (this.follow && this.player) this.#centerOnPlayer(false);
+    if (this.follow && this.player) this.#centerOnPlayer();
     if (this.onPlayerSettled) this.onPlayerSettled(this.player, this.heading);
   }
 
@@ -647,7 +648,7 @@ export class MapView {
   }
 
   // ------------------------------------------------------------------ 手动标注
-  /** 开/关标注模式：tool = pen|path|line|arrow|circle|rect|erase */
+  /** 开/关标注模式：tool = pen|path|line|arrow|ellipse|rect|erase */
   setDrawMode(mode) {
     this.drawMode = mode
       ? { tool: mode.tool || 'pen', color: mode.color || '#f87171', width: clampAnnoWidth(mode.width) }
@@ -658,7 +659,13 @@ export class MapView {
       this.measureMode = false;
       this.measurePoints = [];
       this.measurePending = false;
+      // 进标注要关掉"定位跟随"，否则定位一到视野就跳走，画不成。
+      // 但退出时必须还原（否则用户只是点了个工具，地图从此再也不自动居中）。
+      if (this._followBeforeDraw == null) this._followBeforeDraw = this.follow;
       this.follow = false;
+    } else if (this._followBeforeDraw != null) {
+      this.follow = this._followBeforeDraw;
+      this._followBeforeDraw = null;
     }
     this.el.classList.toggle('drawing', Boolean(this.drawMode));
     this.#renderOverlay();
@@ -787,6 +794,8 @@ export class MapView {
     const d = this._annoDraft;
     if (d.kind === 'pen') d.pts.push(w);
     else if (d.kind === 'path') d.pts[d.pts.length - 1] = w;
+    // 椭圆和矩形一样是"对角拖拽"：Shift 把包围盒补成正方形 = 正圆
+    else if (d.kind === 'ellipse') d.pts[1] = e.shiftKey ? squareCorner(d.pts[0], w) : w;
     else d.pts[1] = w;
     this.#requestRender();
   }
@@ -797,6 +806,10 @@ export class MapView {
     this._annoActive = false;
     if (!d) return;
     if (d.kind === 'path') return; // 折线继续加段，等双击/回车
+    // 椭圆：松手时还按着 Shift 也要补成正方形（覆盖"按住 Shift 后没再移动鼠标"）
+    if (d.kind === 'ellipse' && e.shiftKey && d.pts.length >= 2) {
+      d.pts[1] = squareCorner(d.pts[0], d.pts[1]);
+    }
     const down = this._annoDown || { x: e.clientX, y: e.clientY };
     const moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y);
     this._annoDown = null;
@@ -808,19 +821,18 @@ export class MapView {
     this.#commit(d);
   }
 
-  /** 世界坐标 -> 屏幕点（含圆/矩形的采样展开） */
+  /** 世界坐标 -> 屏幕点（含椭圆/矩形的采样展开） */
   #annoScreenPts(stroke) {
     const pts = stroke.pts || [];
     if (!pts.length) return [];
     let world = pts;
-    if (stroke.kind === 'circle') {
-      const c = pts[0];
-      const edge = pts[1] || pts[0];
-      const r = Math.hypot(edge.x - c.x, edge.z - c.z);
+    if (stroke.kind === 'ellipse') {
+      // 拖拽的两个对角点 = 外接矩形；椭圆内接其中（和 QQ 截图一样）
+      const e = annoEllipseFromCorners(pts[0], pts[1] || pts[0]);
       world = [];
-      for (let i = 0; i < 28; i++) {
-        const a = (i / 28) * Math.PI * 2;
-        world.push({ x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r });
+      for (let i = 0; i < 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        world.push({ x: e.cx + Math.cos(a) * e.rx, z: e.cz + Math.sin(a) * e.rz });
       }
     } else if (stroke.kind === 'rect') {
       const a = pts[0];
@@ -835,7 +847,7 @@ export class MapView {
     return out;
   }
 
-  /** 橡皮：找出光标下最近的一笔（边界 10px 内，圆/矩形内部也算） */
+  /** 橡皮：找出光标下最近的一笔（边界 10px 内，椭圆/矩形内部也算） */
   #annoHitAt(clientX, clientY) {
     const rect = this.el.getBoundingClientRect();
     const x = clientX - rect.left;
@@ -846,7 +858,7 @@ export class MapView {
       const s = this.annos[i];
       const sp = this.#annoScreenPts(s);
       if (sp.length < 2) continue;
-      const closed = s.kind === 'circle' || s.kind === 'rect';
+      const closed = s.kind === 'ellipse' || s.kind === 'rect';
       let d = polylineHitDistance(sp, x, y, closed);
       if (closed && pointInPolygon(sp, x, y)) d = 0;
       if (d < bestD) {
@@ -860,6 +872,9 @@ export class MapView {
   // ---------------------------------------------------------------- 队友（房间）
   /**
    * 画同房间的队友：圆底 + **昵称第一个字** + 朝向箭头，外加他最近一段轨迹（虚线）。
+   *
+   * "位置 / 轨迹 / 绘图"在图例里是**三个独立的开关**（`peer:pos:`/`peer:trail:`/`peer:anno:`），
+   * 所以这里不能一个 continue 把人整个跳过 —— 关掉轨迹时他的点还要在，反之亦然。
    *
    * 位置是"他最后一次按 Print Screen 那一刻"的定位，不是实时的，所以：
    *   - 超过 2 分钟算旧（淡一点）、超过 10 分钟算很旧（更淡），标签里写清"多久以前"；
@@ -891,7 +906,9 @@ export class MapView {
     for (const peer of this.peers) {
       if (!peer || !peer.pos) continue;
       if (peer.pos.map && this.detail && peer.pos.map !== this.detail.id) continue; // 别的图不画
-      if (this.#off(`peer:${peer.id}`)) continue;
+      const showPos = !this.#peerOff(peer.id, 'pos');
+      const showTrail = !this.#peerOff(peer.id, 'trail');
+      if (!showPos && !showTrail) continue;
       const color = peerColor(peer.id);
       const pr = this.proj.project(peer.pos.x, peer.pos.z);
       let s = this.#worldToScreen(pr.x, pr.y);
@@ -917,7 +934,7 @@ export class MapView {
 
       // 轨迹（虚线；只画能连成线的）
       const trail = Array.isArray(peer.pos.trail) ? peer.pos.trail : [];
-      if (trail.length >= 2) {
+      if (showTrail && trail.length >= 2) {
         const pts = trail.map((t) => {
           const q = this.proj.project(t.x, t.z);
           const s2 = this.#worldToScreen(q.x, q.y);
@@ -934,6 +951,7 @@ export class MapView {
         line.setAttribute('class', 'peer-trail');
         trailFrag.appendChild(line);
       }
+      if (!showPos) continue; // 只关了"位置"：轨迹已经画完了
 
       // 标记本体
       const r = clamped ? iconR * 0.82 : iconR; // 出范围的画小一点，一眼能看出"他在更外面"
@@ -1026,16 +1044,16 @@ export class MapView {
     }
     // 队友画的标注：颜色统一用"那个人的颜色"，这样一眼能看出是谁画的
     for (const s of this.peerAnnos) {
-      if (!s || !s.owner || this.#off(`peer:${s.owner}`)) continue;
+      if (!s || !s.owner || this.#peerOff(s.owner, 'anno')) continue;
       frag.appendChild(this.#annoNode({ ...s, color: peerColor(s.owner) }, false, 'peer-anno'));
     }
     this.annoLayer.appendChild(frag);
   }
 
-  /** 一笔 -> SVG 节点（圆/矩形用多边形，其余用折线） */
+  /** 一笔 -> SVG 节点（椭圆/矩形用多边形，其余用折线） */
   #annoNode(stroke, draft, cls) {
     const sp = this.#annoScreenPts(stroke);
-    const closed = stroke.kind === 'circle' || stroke.kind === 'rect';
+    const closed = stroke.kind === 'ellipse' || stroke.kind === 'rect';
     const el = document.createElementNS(ns(), closed ? 'polygon' : 'polyline');
     el.setAttribute('points', sp.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '));
     el.setAttribute('fill', closed ? stroke.color : 'none');
@@ -1100,6 +1118,15 @@ export class MapView {
   /** 某个图例开关是否被关掉（缺省 = 显示；"地图上出现什么，图例里就必须有什么"这条约束靠它统一） */
   #off(key) {
     return Boolean(this.markerToggles && this.markerToggles[key] === false);
+  }
+
+  /**
+   * 某个队友的某一类内容（pos 位置 / trail 轨迹 / anno 绘图）是否被关掉。
+   * 第二项 `peer:<id>` 是老的"按人一个开关"：老存档里勾掉过某人时，这里让三类一起关，
+   * 免得升级后他突然全冒出来。
+   */
+  #peerOff(id, kind) {
+    return this.#off(`peer:${kind}:${id}`) || this.#off(`peer:${id}`);
   }
 
   #renderQuests() {
@@ -1358,25 +1385,37 @@ export class MapView {
   }
 
   setViewMode({ follow, rotate }) {
-    if (follow !== undefined) this.follow = follow;
+    if (follow !== undefined) {
+      this.follow = follow;
+      // 标注模式里点「定位自动居中」：以用户这次点的为准，退出标注时还原到它
+      if (this.drawMode && this._followBeforeDraw != null) this._followBeforeDraw = follow;
+    }
     if (rotate !== undefined) this.rotate = rotate;
-    if (this.follow && this.player) this.#centerOnPlayer(true);
+    if (this.follow && this.player) this.#centerOnPlayer();
+    // 只切换"固定地图方向 / 随朝向旋转"时也要立刻按新角度重画，
+    // 否则（自动居中关着、或在标注模式里）要等下一次定位才看得出来
+    else if (rotate !== undefined) this.#applyRotation();
   }
 
-  #centerOnPlayer(recompute) {
+  /** 当前该用的旋转角：随朝向旋转 -> 把朝向转到屏幕上方；否则固定 0（正北朝上） */
+  #targetRotation() {
+    return this.rotate && this.heading ? (this.heading.screenAngleDeg + 90) * Math.PI / 180 : 0;
+  }
+
+  /** 只按新模式更新旋转角并重画（不动视野中心） */
+  #applyRotation() {
+    this.view.rot = this.#targetRotation();
+    this.#renderTransform();
+    this.#renderOverlay();
+    this.#emitView();
+  }
+
+  #centerOnPlayer() {
     if (!this.player || !this.proj) return;
     const p = this.proj.project(this.player.x, this.player.z);
     this.view.cx = p.x;
     this.view.cy = p.y;
-    if (this.rotate && this.heading) {
-      // 车头朝上：地图旋转，使得朝向指向屏幕上方
-      this.view.rot = (this.heading.screenAngleDeg + 90) * Math.PI / 180;
-    } else {
-      this.view.rot = 0;
-    }
-    this.#renderTransform();
-    this.#renderOverlay();
-    this.#emitView();
+    this.#applyRotation();
   }
 
   // ------------------------------------------------------------------ Render
@@ -1854,25 +1893,46 @@ export class MapView {
       items: [{ id: 'anno', label: '我的标注', count: (this.annos || []).length, swatch: 'pen', color: '#f87171' }],
     });
 
-    // 0d) 房间成员：一人一行（**地图上画了谁，这里就有谁**），可单独关掉某个人
+    // 0d) 房间成员：位置 / 轨迹 / 绘图 **三个独立分组**，每组一人一行
+    //（地图上画了谁、画了哪一类，这里就一定能单独关掉 —— 硬约束）
     if (this.peers && this.peers.length) {
       const annos = this.peerAnnos || [];
+      const onMapOf = (p) => !!(p.pos && (!p.pos.map || !this.detail || p.pos.map === this.detail.id));
+      const labelOf = (p) => peerLegendLabel(p, this.peers);
       groups.push({
-        id: 'g-room',
-        label: '房间成员',
-        items: this.peers.map((p) => {
-          const mine = annos.filter((a) => a && a.owner === p.id).length;
-          const onMap = !!(p.pos && (!p.pos.map || !this.detail || p.pos.map === this.detail.id));
-          return {
-            id: `peer:${p.id}`,
-            label: peerLegendLabel(p, this.peers),
-            color: peerColor(p.id),
-            count: onMap ? 1 + mine : 0,
-            swatch: 'peer',
-            initial: peerInitial(p.nick),
-            when: p.pos ? relTime(p.at || p.pos.ts) : '',
-          };
-        }),
+        id: 'g-room-pos',
+        label: '队友位置',
+        items: this.peers.map((p) => ({
+          id: `peer:pos:${p.id}`,
+          label: labelOf(p),
+          color: peerColor(p.id),
+          count: onMapOf(p) ? 1 : 0,
+          swatch: 'peer',
+          initial: peerInitial(p.nick),
+          when: p.pos ? relTime(p.at || p.pos.ts) : '',
+        })),
+      });
+      groups.push({
+        id: 'g-room-trail',
+        label: '队友轨迹',
+        items: this.peers.map((p) => ({
+          id: `peer:trail:${p.id}`,
+          label: labelOf(p),
+          color: peerColor(p.id),
+          count: onMapOf(p) && Array.isArray(p.pos.trail) ? p.pos.trail.length : 0,
+          swatch: 'trail',
+        })),
+      });
+      groups.push({
+        id: 'g-room-anno',
+        label: '队友绘图',
+        items: this.peers.map((p) => ({
+          id: `peer:anno:${p.id}`,
+          label: labelOf(p),
+          color: peerColor(p.id),
+          count: annos.filter((a) => a && a.owner === p.id).length,
+          swatch: 'pen',
+        })),
       });
     }
 
@@ -2014,6 +2074,60 @@ export function clampAnnoWidth(v) {
   return Math.max(1, Math.min(20, Math.round(n)));
 }
 
+/**
+ * 雷达（圆形小地图）上显示标注的三种模式：
+ *   off  = 不显示；mine = 只显示我画的；all = 我的 + 队友的（默认）
+ */
+export const MINI_ANNO_MODES = ['off', 'mine', 'all'];
+
+/** 归一化雷达标注模式：认不出来的一律回默认 'all'（老配置里没这个字段） */
+export function normalizeMiniAnnoMode(v) {
+  const s = String(v == null ? '' : v).trim().toLowerCase();
+  return MINI_ANNO_MODES.includes(s) ? s : 'all';
+}
+
+/**
+ * 雷达实际要画的两组标注（自己的 / 队友的）。
+ * 非数组一律当空处理（广播里的 room 快照可能缺字段）。
+ */
+export function filterAnnosForMini(mode, myAnnos, peerAnnos) {
+  const mine = Array.isArray(myAnnos) ? myAnnos : [];
+  const peers = Array.isArray(peerAnnos) ? peerAnnos : [];
+  const m = normalizeMiniAnnoMode(mode);
+  if (m === 'off') return { mine: [], peers: [] };
+  if (m === 'mine') return { mine, peers: [] };
+  return { mine, peers };
+}
+
+/**
+ * 椭圆：拖拽的两个对角点 = 外接矩形的对角，椭圆内接其中（QQ 截图那种画法）。
+ * 世界坐标里算（投影是"旋转 + 等比缩放"，所以世界轴对齐的包围盒采样成多边形再投影，
+ * 在任何 coordinateRotation 下都能正确画出椭圆）。
+ */
+export function annoEllipseFromCorners(a, b) {
+  const p = a || { x: 0, z: 0 };
+  const q = b || p;
+  return {
+    cx: (p.x + q.x) / 2,
+    cz: (p.z + q.z) / 2,
+    rx: Math.abs(q.x - p.x) / 2,
+    rz: Math.abs(q.z - p.z) / 2,
+  };
+}
+
+/**
+ * Shift 约束：把对角点补成**正方形**包围盒（画出来就是正圆）。
+ * 取两条边里较长的那条当边长，方向沿用原来的拖拽方向。
+ */
+export function squareCorner(a, b) {
+  const p = a || { x: 0, z: 0 };
+  const q = b || p;
+  const side = Math.max(Math.abs(q.x - p.x), Math.abs(q.z - p.z));
+  const sx = q.x - p.x < 0 ? -1 : 1;
+  const sz = q.z - p.z < 0 ? -1 : 1;
+  return { x: p.x + sx * side, z: p.z + sz * side };
+}
+
 /** 点到线段的距离（橡皮命中判定用） */
 export function distToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1;
@@ -2039,7 +2153,7 @@ export function polylineHitDistance(points, x, y, closed = false) {
   return best;
 }
 
-/** 点是否在多边形内（射线法；圆/矩形的"内部也算命中"用） */
+/** 点是否在多边形内（射线法；椭圆/矩形的"内部也算命中"用） */
 export function pointInPolygon(points, x, y) {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {

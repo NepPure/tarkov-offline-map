@@ -20,6 +20,7 @@ const annotations = require('./src/annotations');
 const { readJsonFile } = require('./src/json-file');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
+const { AutoShotRunner, createKeyPressHelper, normalizeKeyName, clampIntervalSec, dryRunRequested } = require('./src/auto-shot');
 const roomClientModule = require('./src/room-client');
 const { RoomClient, probeServer, randomPeerId } = roomClientModule;
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
@@ -104,6 +105,14 @@ function loadSettings() {
     miniAutoFloor: true,         // 按玩家高度自动切换楼层层级
     miniClickThrough: false,     // 点击穿透：看得到、点不着（悬停右下"解锁"小块可恢复）
     miniFollowMainZoom: false, // 小地图缩放依据: false=小地图自身, true=跟随互动地图缩放
+    miniAnnos: 'all',          // 雷达上显示标注：off=不显示 | mine=只显示我的 | all=我的+队友的
+    // 定时自动截图（默认关）：按配置的间隔替你按一次游戏截图键，
+    // 让游戏写出带坐标的截图 -> 定位/轨迹持续刷新。按键可配置（游戏内改过截图键就填那个）
+    autoShot: {
+      enabled: false,
+      intervalSec: 30,          // 5~600 秒
+      key: 'PrintScreen',       // 键名用 DOM e.code 那套写法（PrintScreen / F12 / KeyP …）
+    },
     mapOpacity: 1.0,
     rotateWithHeading: false,
     followPlayer: true,
@@ -149,12 +158,28 @@ function loadSettings() {
       ...raw,
       markerToggles: { ...defaults.markerToggles, ...(raw.markerToggles || {}) },
       room: { ...defaults.room, ...(raw.room || {}) },
+      autoShot: { ...defaults.autoShot, ...(raw.autoShot || {}) },
     };
   } catch {}
   // 身份标识第一次用的时候生成一次就固定下来：换房间/重连/重启后颜色和图例勾选不会跳
   if (!/^[A-Za-z0-9_-]{4,40}$/.test(String(merged.room.peerId || ''))) {
     merged.room.peerId = randomPeerId();
   }
+  // 自动截图：手改坏/老存档没有的字段要能兜住（键名不合法 -> 回默认键，间隔夹到 5~600）
+  {
+    const key = normalizeKeyName(merged.autoShot.key);
+    if (!key) {
+      appLog(`autoShot.key 不合法（${merged.autoShot.key}），已回默认 ${defaults.autoShot.key}`);
+      merged.autoShot.key = defaults.autoShot.key;
+    } else {
+      merged.autoShot.key = key;
+    }
+    merged.autoShot.intervalSec = clampIntervalSec(merged.autoShot.intervalSec);
+  }
+  // 雷达上显示标注的模式：认不出来就回默认（老配置里没有这个字段）。
+  // 渲染层还有一份等价的归一化（renderer/common/map-view.js#normalizeMiniAnnoMode），
+  // 这里只是把明显非法的值落成合法值，免得设置页下拉框出现空选项。
+  if (!['off', 'mine', 'all'].includes(String(merged.miniAnnos))) merged.miniAnnos = defaults.miniAnnos;
   // 一次性迁移：0.18 是"每个任务一个颜色 + 实心圆点"时代的老默认值，现在任务标记
   // 统一成图例的橘色半透明样式（默认 0.25）。只搬"恰好还是老默认"的存档，
   // 用户自己调过的数值（0.20/0.30…）不动。
@@ -191,6 +216,8 @@ const state = {
   logSummary: null,   // {session, version, lastEvent}
   mapsVersion: null,
   appVersion: null,   // 关于页面显示用（app.getVersion()）
+  annosAt: null,      // 标注数据最后一次变更的时间戳（雷达靠它决定要不要重取）
+  autoShotStatus: null, // 定时自动截图的运行状态（见 src/auto-shot.js#stats）
 };
 
 let lastStateWrite = 0;
@@ -283,6 +310,12 @@ function applyLogEvent(ev) {
       trail: [], position: null, quaternion: null, headingDeg: null,
       positionAt: null, lastFile: null, floor: 'auto',
     });
+    // 队友上一局留下的位置同样作废（同一张图开新局时最明显）：
+    // 本机先清掉"进新局之前收到的"那些点，再告诉服务端清掉我那份并广播给其他人。
+    if (room) {
+      const dropped = room.newRaid(Number.isFinite(ev.ts) ? ev.ts : Infinity);
+      if (dropped) appLog(`new raid: 清掉 ${dropped} 个队友的残留位置`);
+    }
   }
 
   if (raidCode) {
@@ -294,6 +327,12 @@ function applyLogEvent(ev) {
       appLog(`map switch -> ${detail.key} (${detail.name}) by ${ev.type} raidCode=${raidCode}`);
       broadcast({ mapId: detail.id, mapKey: detail.key, floor: 'auto', lastMapSource: 'logs' });
     }
+    // 认出进图行 = 这一局真的开始了（自动截图只在这之后才敢按键，免得在大厅里刷截图）
+    if (!raidSeen) {
+      raidSeen = true;
+      if (settings && settings.autoShot.enabled) appLog(`[autoshot] 已进图（${detail ? detail.key : raidCode}），开始自动按键`);
+    }
+    syncAutoShotContext();
   }
   // 认不出来的 bundle 由 logWatcherStatus('unknown-map') 统一记日志（见 startWatchers）
   broadcast({ logSummary: { ...state.logSummary, lastEvent: ev } });
@@ -312,6 +351,8 @@ function applyPosition(pos) {
     lastFile: pos.file,
   });
   pushPosition(); // 房间里的队友也要看到这次定位（截图定位是事件式的，有就发）
+  // 自动截图：拿到定位说明按键真的生效了（清掉"连续没效果"的计数，必要时解除暂停）
+  if (autoShotRunner) autoShotRunner.notePosition();
   // 自动删除截图文件（读取后删除）
   if (settings.autoDeleteScreenshots && pos.file) {
     const full = path.join(settings.screenshotsPath, pos.file);
@@ -333,9 +374,20 @@ const MINI_SIZE = 300;  // 小地图窗口边长（CSS px）
 // 小地图窗口健康检查：透明无边框窗口在 Windows 上可能被系统吞掉层级/停止重绘/崩溃，
 // 一旦发生就"看起来窗口消失了"。这里做日志 + 自愈（置顶、强制重绘、必要时重建）。
 // ---------------------------------------------------------------------------
+/**
+ * 往控制台写一行，**绝不能因为控制台出问题而崩主进程**。
+ * 踩过：用管道/重定向拉起应用时，父进程一退出 stdout 就断了，
+ * console.log 会抛 EPIPE，未捕获异常直接弹"主进程 JavaScript 错误"。
+ */
+function consoleLog(prefix, msg) {
+  try {
+    console.log(prefix, msg);
+  } catch {}
+}
+
 function miniLog(msg) {
   const line = `${new Date().toISOString()} ${msg}\n`;
-  console.log('[mini]', msg);
+  consoleLog('[mini]', msg);
   try {
     const file = path.join(app.getPath('userData'), 'mini.log');
     try { if (fs.statSync(file).size > 256 * 1024) fs.writeFileSync(file, ''); } catch {}
@@ -347,7 +399,7 @@ function miniLog(msg) {
 // 用户报"没切换地图"时，先看这个文件就能定位是日志没读到、还是 bundle 名没认出来。
 function appLog(msg) {
   const line = `${new Date().toISOString()} ${msg}\n`;
-  console.log('[app]', msg);
+  consoleLog('[app]', msg);
   try {
     const file = path.join(app.getPath('userData'), 'app.log');
     try { if (fs.statSync(file).size > 512 * 1024) fs.writeFileSync(file, ''); } catch {}
@@ -834,9 +886,13 @@ function setupIpc() {
       ...patch,
       markerToggles,
       room: { ...settings.room, ...((patch && patch.room) || {}) },
+      autoShot: { ...settings.autoShot, ...((patch && patch.autoShot) || {}) },
     };
     saveSettings();
     syncWatchers();
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'autoShot')) syncAutoShot();
+    // 截图目录变了要重算"目录在不在"（不在就不按了）
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'screenshotsPath')) syncAutoShotContext();
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniClickThrough')) applyMiniClickThrough();
     // 小地图开关同理：设置页勾/去勾必须立刻开/关窗口，不能只改配置
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniVisible')) applyMiniVisible();
@@ -1014,6 +1070,8 @@ function setupIpc() {
       const st = annotations.stats();
       appLog(`annotations saved: ${st.maps} 图 / ${st.strokes} 笔 / ${st.points} 点`);
     }, 500);
+    // 标注变了要让小地图知道：雷达只在收到这个时间戳变化时才去重取（不做每秒 IPC）
+    broadcast({ annosAt: Date.now() });
     return next;
   });
   ipcMain.handle('view:sync', (_e, viewport) => {
@@ -1053,6 +1111,12 @@ function startWatchers() {
     if (s.state === 'watching') appLog(`log session: ${s.session} (${s.version}) root=${s.root}`);
     else if (s.state === 'unknown-map') appLog(`UNKNOWN map bundle: ${s.bundle} (rcid=${s.rcid}) sample=${s.sample}`);
     else appLog(`log watcher: ${s.state}${s.message ? ' ' + s.message : ''}`);
+    // 换会话（重新开游戏）/日志目录没了：这一局的印象作废，自动截图先别按
+    if (s.state === 'no-session' || (s.state === 'watching' && s.session && s.session !== raidSession)) {
+      raidSession = s.session || null;
+      raidSeen = false;
+      syncAutoShotContext();
+    }
     broadcast({ logWatcherStatus: s });
   });
   shotWatcher = new ScreenshotWatcher(settings.screenshotsPath, (pos) => applyPosition(pos), (s) => {
@@ -1060,6 +1124,100 @@ function startWatchers() {
   });
   logWatcher.start();
   shotWatcher.start();
+}
+
+// ---------------------------------------------------------------------------
+// 定时自动截图（默认关）
+//
+// 定位只能来自"游戏写出的带坐标截图"，所以这个功能就是**按间隔替你按一次游戏截图键**。
+// 只在"局内 + 游戏窗口在最前面"时才按；连续 3 次按下去没新定位就自动暂停并说明原因。
+// 实现见 src/auto-shot.js（纯 Node，可单测；按键注入在 Windows 上由常驻 PowerShell 助手完成）。
+// ---------------------------------------------------------------------------
+let autoShotRunner = null;
+let autoShotHelper = null;
+let autoShotBroadcastTimer = null;
+let autoShotLastBroadcast = 0;
+let raidSeen = false;      // 当前日志会话里出现过"进图行"（局内）
+let raidSession = null;    // 当前日志会话目录名（换会话 = 重新开游戏）
+
+/** 局内吗：认出过地图 + 当前会话里出现过进图行 */
+function inRaidNow() {
+  return !!state.mapId && raidSeen;
+}
+
+function ensureAutoShot() {
+  if (autoShotRunner) return autoShotRunner;
+  autoShotRunner = new AutoShotRunner({
+    dryRun: dryRunRequested(),
+    log: (msg) => appLog(`[autoshot] ${msg}`),
+    onStatus: () => scheduleAutoShotBroadcast(),
+    press: ({ key }) => {
+      if (!autoShotHelper) {
+        autoShotHelper = createKeyPressHelper({
+          log: (msg) => appLog(`[autoshot] ${msg}`),
+        });
+      }
+      return autoShotHelper.press(key);
+    },
+  });
+  return autoShotRunner;
+}
+
+/** 状态广播节流：正常最多 5 秒一次（避免 1Hz 全量 state 广播 + state.json 频繁落盘） */
+function scheduleAutoShotBroadcast(force = false) {
+  if (!autoShotRunner) return;
+  const now = Date.now();
+  const elapsed = now - autoShotLastBroadcast;
+  if (!force && elapsed < 5000) {
+    if (!autoShotBroadcastTimer) {
+      autoShotBroadcastTimer = setTimeout(() => {
+        autoShotBroadcastTimer = null;
+        scheduleAutoShotBroadcast(true);
+      }, 5000 - elapsed);
+    }
+    return;
+  }
+  autoShotLastBroadcast = now;
+  broadcast({ autoShotStatus: autoShotRunner.stats() });
+}
+
+/** 把配置/上下文推给 runner（配置变、换图、换会话、截图目录变化时都调） */
+function syncAutoShotContext() {
+  if (!autoShotRunner && !settings.autoShot.enabled) return;
+  const runner = ensureAutoShot();
+  runner.setContext({
+    inRaid: inRaidNow(),
+    dirOk: (() => { try { return fs.existsSync(settings.screenshotsPath); } catch { return false; } })(),
+  });
+}
+
+function syncAutoShot() {
+  const runner = ensureAutoShot();
+  if (!settings.autoShot.enabled) {
+    runner.applyConfig(settings.autoShot);
+    if (autoShotHelper) {
+      autoShotHelper.stop();
+      autoShotHelper = null;
+    }
+    scheduleAutoShotBroadcast(true);
+    return runner;
+  }
+  runner.applyConfig(settings.autoShot);
+  syncAutoShotContext();
+  scheduleAutoShotBroadcast(true);
+  return runner;
+}
+
+function stopAutoShot() {
+  if (autoShotBroadcastTimer) {
+    clearTimeout(autoShotBroadcastTimer);
+    autoShotBroadcastTimer = null;
+  }
+  if (autoShotRunner) autoShotRunner.stop();
+  if (autoShotHelper) {
+    autoShotHelper.stop();
+    autoShotHelper = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1634,6 +1792,7 @@ app.whenReady().then(() => {
   setupIpc();
   createMainWindow();
   startWatchers();
+  syncAutoShot(); // 定时自动截图（默认关：关闭时只是把状态推给界面）
   syncRoom(); // 房间功能（默认关：settings.room.enabled = false 时这里什么都不做）
   if (settings.miniVisible) createMiniWindow('startup');
   startMiniWatchdog();
@@ -1662,6 +1821,7 @@ app.on('before-quit', () => {
   stopMiniDrag('quit');
   stopMiniPan('quit');
   stopKeyHelper();
+  stopAutoShot();
   if (logWatcher) logWatcher.stop();
   if (shotWatcher) shotWatcher.stop();
   if (room) room.destroy();

@@ -229,6 +229,41 @@ test('地图与定位：广播给队友（不回自己），轨迹裁到上限',
   assert.strictEqual(pp2.x, 13);
 });
 
+test('新一局：newraid 抹掉他的定位并广播 peer-reset（不回自己）；之后 welcome 里没有旧点', async (t) => {
+  const { srv, url } = await start({ posMinIntervalMs: 0 });
+  t.after(() => srv.close());
+
+  const { p: a } = await join(url, { nick: 'A', pid: 'peerAAAA1' });
+  const { p: b } = await join(url, { nick: 'B', pid: 'peerBBBB2' });
+  t.after(() => {
+    a.close();
+    b.close();
+  });
+  await a.next('peer-join');
+
+  // 同一张图上先有定位（这就是"上一局残留在图上的那个点"）
+  b.send({ t: 'pos', map: 'customs', x: 100, z: 200, y: 1, hdg: 90 });
+  const pp = await a.next('peer-pos');
+  assert.strictEqual(pp.map, 'customs');
+
+  // B 开新局（同一张图）
+  b.send({ t: 'newraid' });
+  const reset = await a.next('peer-reset');
+  assert.strictEqual(reset.id, 'peerBBBB2');
+  assert.strictEqual(await b.none('peer-reset'), null, '不该回给自己（自己的点自己清）');
+
+  // 服务端手里那份也清了：第三个人进来看不到旧点
+  const { p: c, w } = await join(url, { nick: 'C', pid: 'peerCCCC3' });
+  t.after(() => c.close());
+  const bPublic = w.peers.find((p) => p.id === 'peerBBBB2');
+  assert.ok(bPublic, 'B 还在房间里');
+  assert.strictEqual(bPublic.pos, undefined, 'welcome 里不该带上一局的旧定位（pos 字段整个不出现）');
+
+  // 没有定位时再发 newraid：不打扰任何人（幂等）
+  b.send({ t: 'newraid' });
+  assert.strictEqual(await a.none('peer-reset', 250), null);
+});
+
 test('标注：add 广播给所有人（含自己）、后来的人从 welcome 拿到；只能删自己的', async (t) => {
   const { srv, url } = await start();
   t.after(() => srv.close());
@@ -263,7 +298,7 @@ test('标注：add 广播给所有人（含自己）、后来的人从 welcome �
   assert.strictEqual(await c.none('anno'), null);
 
   // B 也不能用 A 的 id 覆盖
-  b.send({ t: 'anno', op: 'add', map: 'woods', id: 's1', kind: 'circle', pts: [{ x: 9, z: 9 }, { x: 8, z: 8 }] });
+  b.send({ t: 'anno', op: 'add', map: 'woods', id: 's1', kind: 'ellipse', pts: [{ x: 9, z: 9 }, { x: 8, z: 8 }] });
   assert.strictEqual(await a.none('anno'), null, '别人的 id 不能被覆盖');
 
   // 自己删自己的可以

@@ -45,8 +45,14 @@ const need = [
   'QUEST_BOX', 'transitLabel', 'setMapNames', 'quest-dot', 'locationsByMap',
   'otherMapsWithLocation', 'quest-hint', 'openMissing', 'syncLastMap',
   // 2.0.0 房间联机
-  'RoomClient', 'setPeers', 'setPeerAnnos', 'peer-mark', 'peer-trail', '房间成员',
+  'RoomClient', 'setPeers', 'setPeerAnnos', 'peer-mark', 'peer-trail',
   'room:test', 'room:anno', 'pushMyAnnosToRoom', 'syncAnnosToRoom', 'makeAnnoId',
+  // 2.1：队友位置/轨迹/绘图三个图例分组 + 新局清队友残留（newraid/peer-reset）
+  '队友位置', '队友轨迹', '队友绘图', 'peer:pos:', 'peer:trail:', 'peer:anno:', 'newraid', 'peer-reset',
+  // 雷达上显示标注（三档）+ 定时自动截图（模拟截图键）
+  'miniAnnos', 'set-mini-annos', 'autoShot', 'set-autoshot', 'AutoShotRunner', 'auto-shot', 'PrintScreen',
+  // 椭圆工具（椭圆取代了老"圆心+半径"的圆）
+  'ellipse', 'annoEllipseFromCorners', 'squareCorner',
   // 雷达出范围贴边方位指示
   'clampToRadar', 'data-off-range', 'peer-offrange-chevron',
   // 2.0.0 界面：改名 + 关于页

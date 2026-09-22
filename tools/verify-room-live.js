@@ -376,7 +376,7 @@ const YAWS = [0, 90, 200, 300];
           arrows: [...document.querySelectorAll('.peer-arrow')].map((a) => a.getAttribute('transform')).join(' | '),
           trails: document.querySelectorAll('.peer-trail').length,
           legend: (() => {
-            const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+            const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友位置');
             return sec ? [...sec.querySelectorAll('.legend-item')].map((r) => r.querySelector('.legend-name').textContent.trim()) : [];
           })(),
         })`);
@@ -385,7 +385,7 @@ const YAWS = [0, 90, 200, 300];
       }
       check(`${c.nick} 地图上画出 ${N - 1} 个队友标记`, !!marks && marks.marks === N - 1,
         marks ? `图标=${marks.initials} 轨迹=${marks.trails} 箭头=${marks.arrows}` : 'none');
-      check(`${c.nick} 右侧「房间成员」一人一行`, !!marks && marks.legend.length === N - 1,
+      check(`${c.nick} 右侧「队友位置」一人一行`, !!marks && marks.legend.length === N - 1,
         marks ? marks.legend.join(' / ') : '-');
     }
 
@@ -410,11 +410,14 @@ const YAWS = [0, 90, 200, 300];
       check(`${c.nick} 雷达上也画出 ${N - 1} 个队友`, !!radar && radar.marks === N - 1,
         radar ? `图标=${radar.initials} 贴边=${radar.off} 朝外箭头=${radar.chevrons}` : 'none');
       check(`${c.nick} 雷达上也有"自己"`, !!radar && radar.self >= 1, `玩家标记=${radar && radar.self}`);
+      // 雷达上的标注开关（默认 all = 我的 + 队友的）
+      const annoMode = await c.ev(`window.api.getConfig().then((cfg) => cfg.miniAnnos || 'all')`);
+      check(`${c.nick} 雷达标注模式默认是"我的 + 队友的"`, annoMode === 'all', String(annoMode));
     }
 
-    // 8) 标注互看：甲画一笔 -> 乙丙那边出现（带 owner，能按人开关）
+    // 8) 标注互看：甲画一笔 -> 乙丙那边出现（带 owner，能按"队友绘图"单独开关）
     const drawn = await clients[0].ev(`(() => {
-      document.querySelector('#btn-anno').click();
+      document.querySelector('.anno-tool[data-tool="pen"]').click();
       const stage = document.querySelector('.mapstage');
       const r = stage.getBoundingClientRect();
       const x1 = r.left + r.width * 0.34, y1 = r.top + r.height * 0.42;
@@ -425,7 +428,7 @@ const YAWS = [0, 90, 200, 300];
         window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x1 + (x2 - x1) * t, clientY: y1 + (y2 - y1) * t }));
       }
       window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x2, clientY: y2, button: 0 }));
-      document.querySelector('#anno-exit').click();
+      document.querySelector('.anno-tool[data-tool="pen"]').click(); // 再点一次 = 退出标注
       const list = window.__view.annos;
       return list.length ? list[list.length - 1].id : null;
     })()`);
@@ -438,6 +441,16 @@ const YAWS = [0, 90, 200, 300];
         await sleep(250);
       }
       check(`${c.nick} 看到了甲画的标注`, n >= 1, `peer-anno=${n}`);
+      // 雷达上也该画出来（默认 miniAnnos=all；受"队友绘图"开关控制）
+      if (c.miniWs) {
+        let rn = 0;
+        for (let i = 0; i < 20; i++) {
+          rn = await c.miniEv(`document.querySelectorAll('.anno-layer .peer-anno').length`);
+          if (rn >= 1) break;
+          await sleep(250);
+        }
+        check(`${c.nick} 雷达上也看到了甲画的标注`, rn >= 1, `雷达 peer-anno=${rn}`);
+      }
     }
 
     // 9) 把视野框到三个人都在（截图好看），然后拍大图 + 雷达图
@@ -593,33 +606,43 @@ const YAWS = [0, 90, 200, 300];
     rover.dropShot(SPOTS[1][1][0], 4.5, SPOTS[1][1][2], YAWS[1]); // 放回原位
     await sleep(1200);
 
-    // 10) 按人开关：甲关掉乙 -> 乙的标记/轨迹/标注在甲的大图和雷达上一起消失，再打开
+    // 10) 按人按类开关：甲关掉乙的「队友位置」-> 乙的标记在甲的大图和雷达上消失，轨迹/绘图不受影响
     const first = clients[0];
     const other = clients[1];
-    const toggle = (on) => first.ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
-      const rows = [...sec.querySelectorAll('.legend-item')];
-      const row = rows.find((r) => /${other.nick}/.test(r.querySelector('.legend-name').textContent));
+    const legendToggle = (label, on, nameRe) => first.ev(`(() => {
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === ${JSON.stringify(label)});
+      if (!sec) return null;
+      const row = [...sec.querySelectorAll('.legend-item')].find((r) => new RegExp(${JSON.stringify(nameRe)}).test(r.querySelector('.legend-name').textContent));
+      if (!row) return null;
       const box = row.querySelector('input');
       if (box.checked !== ${on}) box.click();
       return box.checked;
     })()`);
-    await toggle(false);
+    await legendToggle('队友位置', false, other.nick);
     await sleep(700);
-    const hidden = await first.ev(`({ map: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length })`);
+    const hidden = await first.ev(`({ map: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
     const hiddenRadar = await first.miniEv(`document.querySelectorAll('.peer-mark').length`);
-    check(`${first.nick} 关掉「${other.nick}」后只剩 ${N - 2} 个标记（大图 + 雷达同步）`,
+    check(`${first.nick} 关掉「${other.nick}」的位置后只剩 ${N - 2} 个标记（大图 + 雷达同步）`,
       !!hidden && hidden.map === N - 2 && hiddenRadar === N - 2,
-      `大图=${hidden && hidden.map} 轨迹=${hidden && hidden.trails} 雷达=${hiddenRadar}`);
+      `大图=${hidden && hidden.map} 轨迹=${hidden && hidden.trails} 标注=${hidden && hidden.annos} 雷达=${hiddenRadar}`);
     try {
       await first.shot('live-甲号-hide-乙号.png', 'map');
     } catch (e) {
       check('按人开关的截图', false, e.message);
     }
-    await toggle(true);
+    await legendToggle('队友位置', true, other.nick);
     await sleep(700);
     const back = await first.ev(`document.querySelectorAll('.peer-mark').length`);
     check(`${first.nick} 重新勾上后标记回来`, back === N - 1, `marks=${back}`);
+    // 关掉"队友绘图"只影响笔画，标记照旧（三组各自独立）
+    await legendToggle('队友绘图', false, other.nick);
+    await sleep(600);
+    const onlyAnnoOff = await first.ev(`({ map: document.querySelectorAll('.peer-mark').length, annos: document.querySelectorAll('.peer-anno').length })`);
+    check(`${first.nick} 只关「${other.nick}」的绘图 -> 标记还在、笔画没了`,
+      !!onlyAnnoOff && onlyAnnoOff.map === N - 1 && onlyAnnoOff.annos <= N - 2,
+      JSON.stringify(onlyAnnoOff));
+    await legendToggle('队友绘图', true, other.nick);
+    await sleep(600);
 
     // 11) 提示行说真话（2.0.1 的修复，顺便看一眼）
     const hint = await first.ev(`document.querySelector('#room-hint').textContent`);

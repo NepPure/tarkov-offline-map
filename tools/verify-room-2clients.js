@@ -43,12 +43,20 @@ async function targets(port) {
   return r.json();
 }
 
-function cdp(wsUrl, calls) {
+/** 一次 CDP 调用（带超时：窗口被遮挡时截图会卡住，超时至少能让收尾逻辑跑起来） */
+function cdp(wsUrl, calls, timeoutMs = 15000) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(wsUrl);
     let id = 0;
+    let done = false;
     const pending = new Map();
     const out = [];
+    const hard = setTimeout(() => {
+      if (done) return;
+      done = true;
+      try { ws.close(); } catch {}
+      reject(new Error(`CDP 超时（${timeoutMs}ms）：${calls.map((c) => c[0]).join(',')}`));
+    }, timeoutMs);
     ws.onopen = async () => {
       for (const [method, params] of calls) {
         const myId = ++id;
@@ -57,6 +65,9 @@ function cdp(wsUrl, calls) {
         out.push(await p);
       }
       ws.close();
+      if (done) return;
+      done = true;
+      clearTimeout(hard);
       resolve(out.map((m) => {
         const r = m && m.result;
         if (r && r.exceptionDetails) {
@@ -67,7 +78,12 @@ function cdp(wsUrl, calls) {
         return r && 'result' in r ? r.result.value : m;
       }));
     };
-    ws.onerror = (e) => reject(new Error(`ws error ${e.message || ''}`));
+    ws.onerror = (e) => {
+      if (done) return;
+      done = true;
+      clearTimeout(hard);
+      reject(new Error(`ws error ${e.message || ''}`));
+    };
     ws.onmessage = (ev) => {
       const msg = JSON.parse(ev.data);
       if (msg.id && pending.has(msg.id)) pending.get(msg.id)(msg);
@@ -96,11 +112,15 @@ function makeClient(port, label) {
       return cdp(ws, [['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }]]).then((r) => r[0]);
     },
     async shot(file) {
-      const data = await cdp(ws, [['Page.captureScreenshot', { format: 'png' }]]);
-      if (typeof data[0] === 'string') {
-        fs.mkdirSync(ART, { recursive: true });
-        fs.writeFileSync(path.join(ART, file), Buffer.from(data[0], 'base64'));
-        console.log(`      截图 -> test-artifacts/${file}`);
+      try {
+        const data = await cdp(ws, [['Page.captureScreenshot', { format: 'png' }]], 8000);
+        if (typeof data[0] === 'string') {
+          fs.mkdirSync(ART, { recursive: true });
+          fs.writeFileSync(path.join(ART, file), Buffer.from(data[0], 'base64'));
+          console.log(`      截图 -> test-artifacts/${file}`);
+        }
+      } catch (e) {
+        console.log(`      （截图跳过：${e.message}）`);
       }
     },
     /** 填房间卡片并加入（走界面按钮，不是直接调 API） */
@@ -280,8 +300,8 @@ function makeClient(port, label) {
       await B.shot('room-2clients-peer-on-map.png');
     }
 
-    // 7) 甲画一笔 -> 乙能看到；乙按人关掉甲 -> 那一笔也跟着消失
-    await A.ev(`document.querySelector('#btn-anno').click()`);
+    // 7) 甲画一笔 -> 乙能看到；乙按类关掉甲的"绘图" -> 只有那一笔消失（位置与轨迹还在）
+    await A.ev(`document.querySelector('.anno-tool[data-tool="pen"]').click()`);
     await sleep(300);
     const drawnId = await A.ev(`(() => {
       const stage = document.querySelector('.mapstage');
@@ -297,7 +317,7 @@ function makeClient(port, label) {
       const list = window.__view.annos;
       return list.length ? list[list.length - 1].id : null;
     })()`);
-    await A.ev(`document.querySelector('#anno-exit').click()`);
+    await A.ev(`document.querySelector('.anno-tool[data-tool="pen"]').click()`); // 再点一次 = 退出标注
     const aId = stA.self.id;
     const bSeesAnno = await (async () => {
       for (let i = 0; i < 60; i++) {
@@ -314,32 +334,57 @@ function makeClient(port, label) {
     const bAnnoNodes = await B.ev(`document.querySelectorAll('.peer-anno').length`);
     check('乙的地图上画出来了（.peer-anno）', bAnnoNodes >= 1, `count=${bAnnoNodes}`);
     const legendRow = await B.ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
-      if (!sec) return null;
-      const rows = [...sec.querySelectorAll('.legend-item')].map((r) => ({
-        name: r.querySelector('.legend-name').textContent.trim(),
-        id: r.querySelector('input').dataset.group,
-        checked: r.querySelector('input').checked,
-      }));
-      return rows;
+      const pick = (label) => {
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === label);
+        if (!sec) return null;
+        return [...sec.querySelectorAll('.legend-item')].map((r) => ({
+          name: r.querySelector('.legend-name').textContent.trim(),
+          id: r.querySelector('input').dataset.group,
+          checked: r.querySelector('input').checked,
+        }));
+      };
+      return { pos: pick('队友位置'), trail: pick('队友轨迹'), anno: pick('队友绘图') };
     })()`);
-    check('乙的图例里"甲号"一人一行', !!legendRow && legendRow.some((r) => /甲号/.test(r.name) && r.id === `peer:${aId}`), JSON.stringify(legendRow));
-    // 关掉甲 -> 甲的标记与标注在乙这边一起消失
+    check('乙的图例里"甲号"在位置/轨迹/绘图三组里各有一行',
+      !!(legendRow && legendRow.pos && legendRow.trail && legendRow.anno
+        && legendRow.pos.some((r) => /甲号/.test(r.name) && r.id === `peer:pos:${aId}`)
+        && legendRow.trail.some((r) => /甲号/.test(r.name) && r.id === `peer:trail:${aId}`)
+        && legendRow.anno.some((r) => /甲号/.test(r.name) && r.id === `peer:anno:${aId}`)),
+      JSON.stringify(legendRow));
+    // 只关掉甲的"绘图" -> 只有那一笔消失，标记还在（三组各管各的）
     await B.ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
-      const row = [...sec.querySelectorAll('.legend-item')].find((r) => r.querySelector('input').dataset.group === ${JSON.stringify(`peer:${aId}`)});
-      if (row.querySelector('input').checked) row.querySelector('input').click();
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友绘图');
+      const row = sec && [...sec.querySelectorAll('.legend-item')].find((r) => r.querySelector('input').dataset.group === ${JSON.stringify(`peer:anno:${aId}`)});
+      if (row && row.querySelector('input').checked) row.querySelector('input').click();
       return true;
     })()`);
     await sleep(500);
-    const bAfterOff = await B.ev(`({ marks: document.querySelectorAll('.peer-mark').length, annos: document.querySelectorAll('.peer-anno').length })`);
-    check('乙关掉"甲号"后：他的标记与标注都隐藏', bAfterOff.marks === 0 && bAfterOff.annos === 0, JSON.stringify(bAfterOff));
+    const bAfterOff = await B.ev(`({ marks: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
+    check('乙只关掉"队友绘图"后：甲的标注隐藏，标记与轨迹不受影响',
+      bAfterOff.marks === 1 && bAfterOff.trails >= 1 && bAfterOff.annos === 0, JSON.stringify(bAfterOff));
     await B.ev(`(() => {
-      const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
-      const row = [...sec.querySelectorAll('.legend-item')].find((r) => r.querySelector('input').dataset.group === ${JSON.stringify(`peer:${aId}`)});
-      if (!row.querySelector('input').checked) row.querySelector('input').click();
+      const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友绘图');
+      const row = sec && [...sec.querySelectorAll('.legend-item')].find((r) => r.querySelector('input').dataset.group === ${JSON.stringify(`peer:anno:${aId}`)});
+      if (row && !row.querySelector('input').checked) row.querySelector('input').click();
       return true;
     })()`);
+    await sleep(400);
+    // 三样一起关（位置/轨迹/绘图）-> 甲在乙图上彻底消失；再全开回来
+    const catIds = { '队友位置': `peer:pos:${aId}`, '队友轨迹': `peer:trail:${aId}`, '队友绘图': `peer:anno:${aId}` };
+    const setAllCats = (on) => B.ev(`(() => {
+      const ids = ${JSON.stringify(catIds)};
+      for (const [label, id] of Object.entries(ids)) {
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === label);
+        const row = sec && [...sec.querySelectorAll('.legend-item')].find((r) => r.querySelector('input').dataset.group === id);
+        if (row && row.querySelector('input').checked !== ${on}) row.querySelector('input').click();
+      }
+      return true;
+    })()`);
+    await setAllCats(false);
+    await sleep(500);
+    const bAllOff = await B.ev(`({ marks: document.querySelectorAll('.peer-mark').length, trails: document.querySelectorAll('.peer-trail').length, annos: document.querySelectorAll('.peer-anno').length })`);
+    check('乙把甲的三类都关掉后：标记/轨迹/标注全部隐藏', bAllOff.marks === 0 && bAllOff.trails === 0 && bAllOff.annos === 0, JSON.stringify(bAllOff));
+    await setAllCats(true);
     await sleep(400);
 
     // 7) 甲换图（相当于进新局）：乙这边"他在这张图的点"必须消失，图例改成"他在哪张图"
@@ -347,7 +392,7 @@ function makeClient(port, label) {
     let bMoved = null;
     for (let i = 0; i < 60; i++) {
       bMoved = await B.ev(`(() => {
-        const sec = [...document.querySelectorAll('.legend-section')].find((s) => /房间成员/.test(s.textContent));
+        const sec = [...document.querySelectorAll('.legend-section')].find((s) => (s.querySelector('.legend-group-name') || {}).textContent === '队友位置');
         const row = sec && sec.querySelector('.legend-item');
         return {
           marks: document.querySelectorAll('.peer-mark').length,

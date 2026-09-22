@@ -15,6 +15,7 @@ const state = {
   miniEnabled: null,   // 小地图雷达的**真实**开关（主进程 miniStatus.enabled）；cfg 那份可能是旧的
   season: null,        // 赛季文件刷点数据（data/season-documents.json）
   room: null,          // 房间联机状态（主进程广播过来的快照）
+  autoShotStatus: null, // 定时自动截图的运行状态（主进程广播）
   roomStatusPrev: null, // 上一次的房间状态（用来抓"刚变成 online"这个时刻）
   roomHintManual: null, // 手动写进提示行的那句（探测结果/表单校验），会被状态刷新让位
   roomHintTimer: null,  // 上面那句的到期定时器（到点自动回到"当前状态"该说的话）
@@ -66,9 +67,12 @@ async function init() {
   });
   // 楼层下拉：默认停在"自动"（跟着玩家高度走），手动选层会同时上报主进程
   $('#floor-select').addEventListener('change', (e) => pickFloor(e.currentTarget.value));
+  // 「固定地图方向」= 按钮亮着（默认就是它）。关掉 = 随角色朝向旋转（地图转、人朝上）。
+  // 配置里存的是反过来的 rotateWithHeading，所以按钮态 = !rotateWithHeading。
   onToggle('#btn-rotate', (e) => {
-    const on = e.currentTarget.classList.toggle('active');
-    view.setViewMode({ rotate: on });
+    const fixed = e.currentTarget.classList.toggle('active');
+    view.setViewMode({ rotate: !fixed });
+    api.setConfig({ rotateWithHeading: !fixed }).catch(() => {});
   });
   onToggle('#btn-mini', async () => {
     const visible = await api.toggleMini();
@@ -94,6 +98,30 @@ async function init() {
     if (res && res.error) alert(res.error);
   });
   $('#btn-settings').addEventListener('click', openSettings);
+  // 自动截图的键名捕获：点按钮 -> 在输入框里按下你要用的键（拿 e.code，和主进程那套键名一致）
+  $('#set-autoshot-capture').addEventListener('click', (e) => {
+    e.preventDefault();
+    const input = $('#set-autoshot-key');
+    const btn = $('#set-autoshot-capture');
+    const onKey = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.key === 'Escape') { finish(); return; }
+      const code = ev.code || '';
+      if (!code || code === 'Unidentified') return; // 修饰键之类：继续等
+      input.value = code;
+      finish();
+    };
+    const finish = () => {
+      input.removeEventListener('keydown', onKey, true);
+      btn.textContent = '按下按键捕获';
+      input.blur();
+    };
+    input.focus();
+    input.select();
+    btn.textContent = '按下按键…（Esc 取消）';
+    input.addEventListener('keydown', onKey, true);
+  });
   // 点地图上的队友标记：同图就跳到他那儿，别的图先切过去（他在地图上的位置由截图决定，可能有点旧）
   view.onPeerClick = (peer) => {
     const m = (peer.pos && peer.pos.map) || peer.map;
@@ -138,6 +166,10 @@ async function init() {
   view.setMarkerToggles(state.cfg.markerToggles);
   view.setShowAllHeights(state.cfg.showAllMarkers !== false);
   view.setViewMode({ follow: state.cfg.autoCenter !== false });
+  // 固定地图方向（默认）：配置里存的是 rotateWithHeading，按钮态是它的反面
+  const fixedDirection = state.cfg.rotateWithHeading !== true;
+  $('#btn-rotate').classList.toggle('active', fixedDirection);
+  view.setViewMode({ rotate: !fixedDirection });
   view.setMarkerScale(state.cfg.markerScale || 1);
   view.setLabelScale(state.cfg.labelScale || 1);
   $('#btn-follow').classList.toggle('active', state.cfg.autoCenter !== false);
@@ -289,6 +321,13 @@ function openSettings() {
   $('#set-mini-auto-floor').checked = c.miniAutoFloor !== false;
   $('#set-mini-click-through').checked = !!c.miniClickThrough;
   $('#set-mini-follow').checked = !!c.miniFollowMainZoom;
+  $('#set-mini-annos').value = ['off', 'mine', 'all'].includes(c.miniAnnos) ? c.miniAnnos : 'all';
+  // 自动截图（定时刷新定位）
+  const as = c.autoShot || {};
+  $('#set-autoshot').checked = !!as.enabled;
+  $('#set-autoshot-interval').value = as.intervalSec || 30;
+  $('#set-autoshot-key').value = as.key || 'PrintScreen';
+  renderAutoShot(false);
   $('#set-marker-scale').value = c.markerScale ?? 1;
   $('#set-label-scale').value = c.labelScale ?? 1;
   $('#set-quest-opacity').value = quest.ui.opacity;
@@ -307,6 +346,43 @@ function openSettings() {
   state.roomHintManual = null;
   renderRoomStatus(state.room);
   $('#settings-dialog').showModal();
+}
+
+/**
+ * 定时自动截图的说明：为什么现在按/不按、为什么暂停 —— 一律按主进程广播的真实状态说，
+ * 不写死任何字符串（和房间提示行同一个思路）。
+ */
+const AUTOSHOT_PAUSE = {
+  'no-effect': '连续 3 次没拿到新坐标（多半是键位和游戏里不一致，或已经不在局内）',
+  disabled: '未启用',
+};
+
+function renderAutoShot(updateStatusBar = true) {
+  const st = state.autoShotStatus || null;
+  const el = $('#set-autoshot-hint');
+  if (el) {
+    if (!st) el.textContent = '';
+    else if (!st.enabled) el.textContent = '未启用：勾上上面的开关，并确认截图键和游戏里一致。';
+    else if (st.paused) el.textContent = `已暂停：${AUTOSHOT_PAUSE[st.pauseReason] || st.pauseReason || '原因未知'}（改键名或重开一次开关即恢复）`;
+    else {
+      const bits = [`每 ${st.intervalSec} 秒按一次 ${st.key}`];
+      if (!st.dirOk) bits.push('截图目录不存在：先改上面的“截图目录”');
+      else if (!st.inRaid) bits.push('还没识别到你在局内：进图后才会开始按');
+      else if (st.lastAt) bits.push(`${Math.round((Date.now() - st.lastAt) / 1000)} 秒前按过（共 ${st.presses} 次）`);
+      else bits.push('等待第一次按键…');
+      if (st.dryRun) bits.push('干跑模式：只记状态、不发按键');
+      el.textContent = bits.join(' · ');
+    }
+  }
+  if (!updateStatusBar) return;
+  const row = $('#st-autoshot');
+  if (!row) return;
+  const on = !!(st && st.enabled);
+  row.className = !on ? 'hidden' : st.paused ? 'err' : st.lastResult === 'err' ? 'bad' : 'ok';
+  if (!on) { row.textContent = '自动截图: -'; return; }
+  row.textContent = st.paused
+    ? `自动截图: 已暂停（${AUTOSHOT_PAUSE[st.pauseReason] || st.pauseReason || '原因未知'}）`
+    : `自动截图: 每 ${st.intervalSec}s · ${st.inRaid ? `${Math.ceil((st.nextInMs || 0) / 1000)} 秒后` : '等进图'}`;
 }
 
 /** 从表单读房间配置（供"加入房间"/保存用） */
@@ -421,9 +497,15 @@ async function saveSettings() {
     miniAutoCenter: $('#set-mini-auto-center').checked,
     miniAutoFloor: $('#set-mini-auto-floor').checked,
     miniClickThrough: $('#set-mini-click-through').checked,
+    miniAnnos: $('#set-mini-annos').value,
     markerScale: Number($('#set-marker-scale').value),
     labelScale: Number($('#set-label-scale').value),
     room: roomFormPatch(),
+    autoShot: {
+      enabled: $('#set-autoshot').checked,
+      intervalSec: Number($('#set-autoshot-interval').value) || 30,
+      key: $('#set-autoshot-key').value.trim() || 'PrintScreen',
+    },
   };
   state.cfg = { ...state.cfg, ...patch };
   await api.setConfig(patch);
@@ -462,6 +544,10 @@ async function applyMainState(s) {
   state.roomStatusPrev = statusNow;
   renderRoomStatus(state.room);
   applyRoomView(state.room);
+
+  // 0b) 定时自动截图的真实状态（设置页提示行 + 状态栏）
+  if (s.autoShotStatus !== undefined) state.autoShotStatus = s.autoShotStatus;
+  renderAutoShot();
   // 刚连上（含重连、渲染层重载后重新挂上）：把当前这张图上我画过的标注补发一遍。
   // 补发必须由渲染层做 —— 它手里才是实时的标注列表：主进程那份要等 600ms 防抖才收到，
   // 正好在这窗口里进房的话，那一笔就永远传不出去（此前就是这么漏的）。
@@ -938,19 +1024,10 @@ function legendSwatch(kind, color, initial) {
 }
 
 // ---------------------------------------------------------------------------
-// 手动标注（画笔 / 路径 / 箭头 / 圆 / 矩形；按地图分开存）
+// 手动标注（画笔 / 路径 / 直线 / 箭头 / 椭圆 / 矩形；按地图分开存）
 // ---------------------------------------------------------------------------
 const ANNO_COLORS = ['#f87171', '#fbbf24', '#4ade80', '#38bdf8', '#c084fc', '#ffffff'];
 const ANNO_DEFAULT = { tool: 'pen', color: '#f87171', width: 4 };
-const ANNO_HINTS = {
-  pen: '画笔：按住左键拖动即可画，松开完成',
-  path: '路径：逐点点击，双击或回车结束（规划路线用）',
-  line: '直线：按住左键从起点拖到终点',
-  arrow: '箭头：按住左键从起点拖到终点',
-  circle: '圆：从圆心按住往外拖',
-  rect: '矩形：按住左键拖出对角',
-  erase: '橡皮：点一下要删掉的那一笔',
-};
 const anno = {
   store: {},                 // { mapId: [stroke] }（世界坐标）
   active: false,
@@ -976,12 +1053,6 @@ async function initAnnos() {
   $('#anno-colors').innerHTML = ANNO_COLORS
     .map((c, i) => `<button class="anno-color${i === 0 ? ' active' : ''}" data-color="${c}" style="background:${c}" title="${c}"></button>`)
     .join('');
-
-  $('#btn-anno').addEventListener('click', (e) => {
-    view.setDrawMode(anno.active ? null : { ...anno.style });
-    e.currentTarget.blur();
-  });
-  $('#anno-exit').addEventListener('click', () => view.setDrawMode(null));
   $('#anno-undo').addEventListener('click', () => { view.undoAnno(); renderLegend(); });
   $('#anno-clear').addEventListener('click', () => {
     const n = currentAnnos().length;
@@ -990,13 +1061,19 @@ async function initAnnos() {
     view.clearAnnos();
     renderLegend();
   });
+  // 「取消」= 退出标注模式（和 Esc、再点一次当前工具等价）：地图恢复拖动与自动居中
+  $('#anno-cancel').addEventListener('click', (e) => {
+    view.setDrawMode(null);
+    e.currentTarget.blur();
+  });
+  // 工具常驻顶栏：点一下进入标注（用这个工具），再点同一个工具就退出（等于原来的"完成"）
   for (const btn of document.querySelectorAll('.anno-tool')) {
     btn.addEventListener('click', () => {
       const tool = btn.dataset.tool;
+      if (!state.detail) { btn.blur(); return; } // 还没识别到地图：没地方画
+      const same = view.drawMode && view.drawMode.tool === tool;
       anno.style.tool = tool;
-      document.querySelectorAll('.anno-tool').forEach((b) => b.classList.toggle('active', b === btn));
-      if (!anno.active) view.setDrawMode({ ...anno.style });
-      else view.setDrawMode({ ...anno.style });
+      view.setDrawMode(same ? null : { ...anno.style });
       btn.blur();
     });
   }
@@ -1027,15 +1104,16 @@ async function initAnnos() {
   };
   view.onDrawModeChange = (mode) => {
     anno.active = Boolean(mode);
-    $('#btn-anno').classList.toggle('active', anno.active);
-    $('#anno-bar').classList.toggle('hidden', !anno.active);
+    // 工具条常驻：只切"哪个工具亮着"和「取消」能不能点（退出走「取消」/ Esc / 再点一次当前工具）
+    document.querySelectorAll('.anno-tool').forEach((b) => b.classList.toggle('active', Boolean(mode) && b.dataset.tool === mode.tool));
+    $('#anno-cancel').disabled = !mode;
     if (mode) {
       anno.style = { tool: mode.tool, color: mode.color, width: mode.width };
-      $('#anno-hint').textContent = ANNO_HINTS[mode.tool] || '';
-      document.querySelectorAll('.anno-tool').forEach((b) => b.classList.toggle('active', b.dataset.tool === mode.tool));
       document.querySelectorAll('#anno-widths button').forEach((b) => b.classList.toggle('active', Number(b.dataset.width) === mode.width));
       document.querySelectorAll('.anno-color').forEach((b) => b.classList.toggle('active', b.dataset.color === mode.color));
     }
+    // 标注模式会临时关掉"定位跟随"（见 MapView#setDrawMode），退出时还原 -> 按钮亮灭也要跟上
+    $('#btn-follow').classList.toggle('active', view.follow !== false);
   };
 
   // Ctrl+Z 撤销、回车结束路径（只在标注模式下）

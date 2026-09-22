@@ -8,8 +8,8 @@
  *   - 服务端不认识"任务/赛季文件"这些客户端概念，只转发"位置"和"标注"两样；
  *   - 一切来自客户端的输入都当成不可信：数值必须 finite、字符串必须限长、笔数有点数上限。
  *
- * 客户端 → 服务端：hello / map / pos / anno / ping
- * 服务端 → 客户端：welcome / peer-join / peer-left / peer-map / peer-pos / anno / pong / err
+ * 客户端 → 服务端：hello / map / pos / anno / newraid / ping
+ * 服务端 → 客户端：welcome / peer-join / peer-left / peer-map / peer-pos / peer-reset / anno / pong / err
  */
 const crypto = require('crypto');
 
@@ -26,7 +26,7 @@ const LIMITS = {
   FRAME_MAX: 64 * 1024,  // 单帧上限：超了直接断开（客户端正常一帧最多几 KB）
 };
 
-const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'circle', 'rect']);
+const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'ellipse', 'rect']);
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const ROOM_KEY_RE = /^[0-9a-f]{16,64}$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;

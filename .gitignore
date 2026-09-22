@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# 服务端单文件 exe（tools/make-server-exe.js 的产物）
+dist-server/
 *.log
 !samples/**/*.log
 .DS_Store

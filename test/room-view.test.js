@@ -182,10 +182,19 @@ test('渲染层接线：队友图层、图例分组、点击、雷达同步都�
   assert.ok(mv.includes("import { peerColor, peerInitial, peerLabel, relTime, staleLevel, peerLegendLabel } from './room.js';"));
   assert.ok(mv.includes('setPeers(list)') && mv.includes('setPeerAnnos(list)'), '缺少 setPeers/setPeerAnnos');
   assert.ok(mv.includes('#renderPeers()'), '缺少队友渲染');
-  assert.match(mv, /id: 'g-room',\s*\n\s*label: '房间成员'/, '图例里必须有「房间成员」分组');
-  assert.ok(mv.includes('`peer:${p.id}`'), '每个成员一个图例开关 id');
-  assert.ok(mv.includes("this.#off(`peer:${peer.id}`)"), '队友标记要受图例开关控制');
-  assert.ok(mv.includes("this.#off(`peer:${s.owner}`)"), '队友的标注要受同一个开关控制');
+  // 位置 / 轨迹 / 绘图 三个独立分组，每组一人一行（关掉轨迹他的点还得在）
+  assert.match(mv, /id: 'g-room-pos',\s*\n\s*label: '队友位置'/, '图例里必须有「队友位置」分组');
+  assert.match(mv, /id: 'g-room-trail',\s*\n\s*label: '队友轨迹'/, '图例里必须有「队友轨迹」分组');
+  assert.match(mv, /id: 'g-room-anno',\s*\n\s*label: '队友绘图'/, '图例里必须有「队友绘图」分组');
+  assert.ok(mv.includes('`peer:pos:${p.id}`'), '位置一个人一个开关');
+  assert.ok(mv.includes('`peer:trail:${p.id}`'), '轨迹一个人一个开关');
+  assert.ok(mv.includes('`peer:anno:${p.id}`'), '绘图一个人一个开关');
+  assert.ok(mv.includes('#peerOff(id, kind)'), '缺少按人按类的开关判定');
+  assert.ok(mv.includes("this.#peerOff(peer.id, 'pos')"), '队友标记要受"位置"开关控制');
+  assert.ok(mv.includes("this.#peerOff(peer.id, 'trail')"), '队友轨迹要受"轨迹"开关控制');
+  assert.ok(mv.includes("this.#peerOff(s.owner, 'anno')"), '队友的标注要受"绘图"开关控制');
+  // 老存档里"按人一个开关"要兼容（关过的人升级后不该全冒出来）
+  assert.ok(mv.includes('this.#off(`peer:${kind}:${id}`) || this.#off(`peer:${id}`)'), '缺少老开关兼容');
   assert.ok(mv.includes('data-peer'), '队友标记要带 data-peer（点击跳转用）');
   assert.ok(mv.includes('onPeerClick'), '缺少队友点击回调');
 

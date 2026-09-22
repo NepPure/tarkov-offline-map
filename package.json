@@ -1,7 +1,7 @@
 {
   "name": "tarkov-offline-map",
   "productName": "塔科夫地图",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "塔科夫地图 - 日志自动识别地图 + 截图定位 + 悬浮小地图，默认完全本地运行；房间联机（和队友互看位置与标注）为可选功能",
   "main": "main.js",
   "private": true,
@@ -34,11 +34,15 @@
     "check:upstream": "node tools/check-upstream.js",
     "make:icon": "node tools/make-icon.js",
     "dist": "electron-builder --win portable --publish never",
-    "dist:ci": "electron-builder --win portable --publish never"
+    "dist:ci": "electron-builder --win portable --publish never",
+    "dist:server": "node tools/make-server-exe.js",
+    "dist:server:ci": "node tools/make-server-exe.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6"
   },
   "build": {
     "appId": "com.neppure.tarkov-offline-map",

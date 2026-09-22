@@ -145,9 +145,9 @@ test('标注合并：add 覆盖同 id、del 删掉、owner 过滤', () => {
   assert.strictEqual(annos.woods.length, 1);
   assert.strictEqual(annos.woods[0].owner, 'p1');
   // 同 id 再 add = 覆盖（不是追加）
-  annos = RC.applyAnno(annos, { ...a1, kind: 'circle' });
+  annos = RC.applyAnno(annos, { ...a1, kind: 'ellipse' });
   assert.strictEqual(annos.woods.length, 1);
-  assert.strictEqual(annos.woods[0].kind, 'circle');
+  assert.strictEqual(annos.woods[0].kind, 'ellipse');
   // 别人也画一笔
   annos = RC.applyAnno(annos, { ...a1, id: 's2', owner: 'p2' });
   assert.strictEqual(annos.woods.length, 2);
@@ -414,7 +414,7 @@ test('集成：同房间两个人互相看到地图/位置/轨迹/标注', async
   assert.strictEqual(b.snapshot().annos.shoreline[0].owner, a.cfg.peerId, '要能分辨是谁画的（按人开关图例要用）');
 
   // B 画一笔，两边都有两笔
-  b.sendAnnoAdd({ map: 'shoreline', id: 'b-1', kind: 'circle', color: '#00ff00', width: 2, pts: [{ x: 5, z: 5 }, { x: 6, z: 6 }] });
+  b.sendAnnoAdd({ map: 'shoreline', id: 'b-1', kind: 'ellipse', color: '#00ff00', width: 2, pts: [{ x: 5, z: 5 }, { x: 6, z: 6 }] });
   await sleep(150);
   assert.strictEqual(a.snapshot().annos.shoreline.length, 2);
 
@@ -588,6 +588,35 @@ test('队友换图：他之前那张图上的定位要作废（不能留个假�
   p = c.snapshot().peers.find((x) => x.id === 'p2');
   assert.strictEqual(p.pos.x, 5);
   assert.strictEqual(p.pos.map, 'customs');
+  c.destroy();
+});
+
+test('新一局：本地清掉"进新局之前收到的"队友点，并发 newraid 让服务端清我那份', () => {
+  let clock = 1000;
+  const c = newClient({ now: () => clock });
+  c.applyConfig(CFG);
+  const ws = FakeWS.instances[0];
+  ws.doOpen();
+  ws.doMsg({ t: 'welcome', self: { id: 'me' }, peers: [], annos: {} });
+  ws.doMsg({ t: 'peer-join', peer: { id: 'p2', nick: '小红', map: 'customs' } });
+  ws.doMsg({ t: 'peer-join', peer: { id: 'p3', nick: '小蓝', map: 'customs' } });
+  // p2 的定位是"上一局"收到的（at=1000）；p3 的是新局里刚收到的（at=5000）
+  ws.doMsg({ t: 'peer-pos', id: 'p2', map: 'customs', x: 1, z: 2, hdg: 0, ts: 10, trail: [{ x: 0, z: 0 }, { x: 1, z: 2 }] });
+  clock = 5000;
+  ws.doMsg({ t: 'peer-pos', id: 'p3', map: 'customs', x: 3, z: 4, hdg: 0, ts: 50, trail: [{ x: 0, z: 0 }, { x: 3, z: 4 }] });
+
+  const dropped = c.newRaid(3000); // 新局时间戳 = 3000
+  assert.strictEqual(dropped, 1, '只该清掉进新局之前收到的那一个');
+  const p2 = c.snapshot().peers.find((x) => x.id === 'p2');
+  const p3 = c.snapshot().peers.find((x) => x.id === 'p3');
+  assert.strictEqual(p2.pos, null, '上一局的残留位置必须清掉');
+  assert.strictEqual(p2.map, 'customs', '他"在哪张图"不动（图例还要写清）');
+  assert.ok(p3.pos, '新局里刚发来的定位不能被误清');
+  assert.strictEqual(ws.last.t, 'newraid', '要告诉服务端"我开新局了"');
+
+  // 服务端转达别人的新局 -> 我这边同样把他的点抹掉
+  ws.doMsg({ t: 'peer-reset', id: 'p3' });
+  assert.strictEqual(c.snapshot().peers.find((x) => x.id === 'p3').pos, null);
   c.destroy();
 });
 

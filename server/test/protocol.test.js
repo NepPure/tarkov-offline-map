@@ -119,9 +119,11 @@ test('标注归一化：add 要完整笔画，del 只要 id；颜色/粗细兜�
 });
 
 test('落盘数据读回来也要清洗（文件可能被手改坏）', () => {
-  const ok = P.sanitizeStoredAnno({ id: 'a1', kind: 'circle', color: '#00ff00', width: 3, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }], owner: 'peer1', at: 5 }, 'peer1');
+  const ok = P.sanitizeStoredAnno({ id: 'a1', kind: 'ellipse', color: '#00ff00', width: 3, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }], owner: 'peer1', at: 5 }, 'peer1');
   assert.strictEqual(ok.owner, 'peer1');
-  assert.strictEqual(ok.kind, 'circle');
+  assert.strictEqual(ok.kind, 'ellipse');
+  // 老版本"圆心 + 半径"的 circle 已经不认了（启用 ellipse 后不做旧数据兼容）
+  assert.strictEqual(P.sanitizeStoredAnno({ id: 'a1', kind: 'circle', pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }, 'peer1'), null);
   assert.strictEqual(P.sanitizeStoredAnno({ id: 'a1', kind: 'nope', pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }, 'peer1'), null);
   assert.strictEqual(P.sanitizeStoredAnno({ id: 'a b', kind: 'pen', pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }, 'peer1'), null);
   assert.strictEqual(P.sanitizeStoredAnno({ id: 'a1', kind: 'pen', pts: [{ x: 1, z: 2 }] }, 'peer1'), null);

@@ -14,7 +14,7 @@
 
 ## 一分钟起服务
 
-**方式 A：docker compose（推荐）**
+**方式 A：docker compose（推荐，Linux/NAS/软路由）**
 
 ```bash
 cd server
@@ -27,22 +27,75 @@ docker compose down           # 停
 
 ```bash
 docker run -d --name tarkov-room -p 8787:8787 --restart unless-stopped \
-  ghcr.io/neppure/tarkov-offline-map-server:2.0.2
+  ghcr.io/neppure/tarkov-offline-map-server:2.1.0
 ```
 
-**方式 C：不用 docker，直接裸跑**
+**方式 C：Windows 单文件 exe（不想装 Node / Docker 就用这个）**
+
+从 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
+`tarkov-offline-map-server-<版本>-win-x64.exe`（约 82MB，Node SEA 打出来的单文件，**双击就能开**），
+或者自己构建：
+
+```powershell
+npm ci
+npm run dist:server         # -> dist-server\tarkov-offline-map-server-<版本>-win-x64.exe（自带启动自检）
+node tools/verify-server-exe.js   # 端到端验收：真起 exe + 两个真客户端走一遍联机
+```
+
+双击启动后，窗口里会**直接打印该填什么**：
+
+```
+  塔科夫地图 · 房间服务端 v2.1.0（协议 v2）
+  正在监听：0.0.0.0:8787
+  客户端「设置 → 房间（联机）」里填：
+      服务器地址 = 192.168.31.101   （以太网）  端口 = 8787
+  健康检查 http://127.0.0.1:8787/healthz    状态页 http://127.0.0.1:8787/
+```
+
+命令行开关（等价的环境变量写在括号里，优先级：**命令行 > 环境变量 > 默认值**）：
+
+```powershell
+tarkov-offline-map-server-2.1.0-win-x64.exe                      # 默认 0.0.0.0:8787，纯内存
+tarkov-offline-map-server-2.1.0-win-x64.exe --port 9000          # 换端口
+tarkov-offline-map-server-2.1.0-win-x64.exe --persist --data-dir D:\room-annos   # 标注落盘，重启不丢
+tarkov-offline-map-server-2.1.0-win-x64.exe --max-room-peers 8 --log-level debug
+tarkov-offline-map-server-2.1.0-win-x64.exe --help               # 全部开关
+```
+
+| 开关 | 环境变量 | 默认 | 说明 |
+|---|---|---|---|
+| `--host` | `HOST` | `0.0.0.0` | 监听地址 |
+| `--port` | `PORT` | `8787` | 监听端口（`0` = 让系统挑一个空闲端口） |
+| `--max-room-peers` | `MAX_ROOM_PEERS` | `16` | 单房间人数上限 |
+| `--room-ttl` | `ROOM_TTL` | `600` | 房间空了以后保留多少秒 |
+| `--max-conn-per-ip` | `MAX_CONN_PER_IP` | `8` | 单 IP 并发连接上限 |
+| `--max-annos-per-room` | `MAX_ANNOS_PER_ROOM` | `2000` | 单房间标注总数上限 |
+| `--pos-min-interval-ms` | `POS_MIN_INTERVAL_MS` | `200` | 位置消息最小间隔 |
+| `--save-debounce-ms` | `SAVE_DEBOUNCE_MS` | `5000` | 落盘防抖 |
+| `--persist` | `PERSIST=1` | 关 | 标注落盘（纯内存 vs 重启不丢） |
+| `--data-dir` | `DATA_DIR` | `/data`（Windows 上建议自己指定，例如 `D:\room-annos`） | 落盘目录 |
+| `--log-level` | `LOG_LEVEL` | `info` | `error`/`warn`/`info`/`debug` |
+| `--public-status` / `--public-status=0` | `PUBLIC_STATUS=0` | 开 | 匿名状态页 |
+| `--trust-proxy` | `TRUST_PROXY=1` | 关 | 反代时按 `X-Forwarded-For` 限流 |
+
+> - 端口要放行：队友连不进来，先看 Windows 防火墙（第一次启动会弹"允许访问"）或云安全组
+> - 这个 exe 是**未签名**的：SmartScreen 提示"未知发布者"时选"仍要运行"
+> - 停止：按 `Ctrl+C`；双击启动的话直接关掉那个黑窗口
+> - 它就是个普通进程：想开机自启就丢进"启动"文件夹或做成任务计划（不需要管理员权限）
+
+**方式 D：不用 docker，直接用 Node 裸跑**
 
 ```bash
 cd server
 npm ci --omit=dev
-PORT=8787 node server.js
+PORT=8787 node server.js                 # 也支持命令行： node server.js --port 8787 --persist
 ```
 
 起来之后：
 
 ```bash
 curl http://127.0.0.1:8787/healthz
-# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.0.2","proto":2,"uptime":3,"rooms":0,"peers":0,...}
+# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.1.0","proto":2,"uptime":3,"rooms":0,"peers":0,...}
 ```
 
 浏览器打开 `http://<服务器IP>:8787/` 能看到一行纯文本状态（房间数、在线人数、内存占用，**不含任何房间标识**）。
@@ -136,14 +189,20 @@ room.example.com {
 | ↑ | `hello{v:2,room,nick,pid}` |
 | ↑ | `map{map}` — 我在哪张图（换图/进图各一次） |
 | ↑ | `pos{map,x,y,z,hdg,ts,trail?}` — 定位（按了截图键才有新位置） |
-| ↑ | `anno{op:"add"\|"del",map,id,kind,color,width,pts}` |
+| ↑ | `anno{op:"add"\|"del",map,id,kind,color,width,pts}` — `kind` 取 `pen/path/line/arrow/ellipse/rect` |
+| ↑ | `newraid` — 我开新一局了（上一局的定位作废；不带字段） |
 | ↑ | `ping` |
 | ↓ | `welcome{proto,ver,self,peers[],annos{}}` — 进房快照 |
 | ↓ | `peer-join{peer}` / `peer-left{id}` |
 | ↓ | `peer-map{id,map}` — `peer-*` 系列都**不回给本人**，只表示"别人的状态变了" |
 | ↓ | `peer-pos{id,map,x,y,z,hdg,ts,trail?}` |
+| ↓ | `peer-reset{id}` — 他开新一局了：把他之前的点抹掉（`newraid` 的转达） |
 | ↓ | `anno{op,map,id,...,owner}` — 含回显给发送者 |
 | ↓ | `pong{now}` / `err{code,msg}` |
+
+> 老版本客户端/服务端不认识 `newraid`/`peer-reset`/`ellipse`：服务端对未知消息类型**静默忽略**
+> （不会报错也不会断连），未知 `kind` 的笔画会被丢掉。协议大版本 `PROTO` 仍然是 2，
+> 所以混用版本不会互相拒连；想拿到"新局清队友残留 + 椭圆标注同步"的完整效果，请把两端都更新。
 
 `err` 的 `code`：`bad-version` / `bad-room` / `need-hello` / `room-full` / `too-large` / `bad-json` / `rate-limit` / `anno-limit` / `replaced`。
 
@@ -154,7 +213,9 @@ room.example.com {
 
 ```bash
 cd server
-npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 WebSocket 客户端）+ 8 个守卫行为用例 + 5 个 Dockerfile/compose 一致性用例
+npm test          # 8 个命令行参数用例 + 8 个协议用例 + 15 个真起服务的集成用例
+                  # （真 WebSocket 客户端，含 newraid -> peer-reset）+ 8 个守卫行为用例 +
+                  # 5 个 Dockerfile/compose 一致性用例
 ```
 
 根目录下等价的一条命令：
@@ -163,16 +224,27 @@ npm test          # 8 个协议用例 + 12 个真起服务的集成用例（真 
 npm run test:server     # 只跑服务端
 npm run test:all        # 客户端 + 服务端
 node tools/verify-server-image.js   # 不用 Docker 也能验镜像内容（照 Dockerfile 复刻文件集 + 跑健康检查原命令）
+npm run dist:server                 # 打 Windows 单文件 exe（Node SEA，自带 --version/--help/真起服务的自检）
+node tools/verify-server-exe.js     # exe 的端到端验收（起 exe + 两个真客户端走一遍联机）
 ```
+
+CI（`.github/workflows/server.yml`）里两条交付路径都会构建：
+
+- `image` job：Docker 镜像推到 `ghcr.io/neppure/tarkov-offline-map-server`（`main` → `:latest` 与 `:sha-xxxxxxx`；tag → `:X.Y.Z`）
+- `win-exe` job：Windows 单文件 exe（Node SEA）→ 作为 Actions artifact 上传；
+  推 tag 时会**挂到同一个 GitHub Release**（文件名 `tarkov-offline-map-server-<版本>-win-x64.exe`）
 
 ## 目录
 
 ```
 server/
-├─ server.js             HTTP + WebSocket + 房间表（约 450 行）
+├─ server.js             HTTP + WebSocket + 房间表 + 命令行参数/启动横幅（约 700 行）
 ├─ protocol.js           纯函数：房间号、帧解析、位置/标注校验
-├─ test/                 单测 + 集成测试
+├─ test/                 单测 + 集成测试（含命令行参数）
 ├─ Dockerfile            node:22-alpine，非 root，自带 HEALTHCHECK
 ├─ docker-compose.yml    一条命令起服务
 └─ package.json          唯一依赖 ws
 ```
+
+Windows 单文件 exe 的构建脚本在仓库根部：`tools/make-server-exe.js`（esbuild 打包 → SEA blob →
+注入 node.exe），产物落在 `dist-server/`（已 gitignore）。

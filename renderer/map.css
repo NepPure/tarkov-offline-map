@@ -20,6 +20,22 @@ body {
   user-select: none;
 }
 
+/* ---------- 滚动条 ----------
+   暗色面板上原生滚动条又宽又亮（浅灰轨道 + 方角滑块），很扎眼。这里统一成
+   "细一点、圆角、悬停才亮"的样式（Electron = Chromium，只用 ::-webkit-scrollbar 最可控；
+   注意别同时写 scrollbar-width/scrollbar-color —— 那会让下面这些规则被浏览器忽略）。 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #2d3a4f;                       /* 平时低调 */
+  border: 3px solid transparent;             /* 用透明边框把滑块"收窄"，看着更细 */
+  background-clip: content-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: #3f5474; background-clip: content-box; }
+::-webkit-scrollbar-thumb:active { background: var(--accent); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 /* ---------- 顶栏 ---------- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
@@ -59,6 +75,9 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
   .brand .tag { display: none; }
   button { padding: 3px 7px; font-size: 11px; }
   .legend-panel { width: 210px; }
+  /* 标注工具条常驻顶栏：窄屏省掉"标注"标签，保证地图可视面积 */
+  .anno-tag { display: none; }
+  .anno-bar { padding-top: 5px; margin-top: 5px; }
 }
 @media (max-width: 980px) {
   .brand { display: none; }
@@ -78,7 +97,10 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
 .marker-toggles .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
 /* ---------- 地图 ---------- */
-#map-root { flex: 1; position: relative; overflow: hidden; }
+/* 顶栏下面那一块（左任务栏 / 地图 / 右图例）。侧栏是这一层里的绝对定位浮窗，
+   所以它们的上沿 = 顶栏下沿（顶栏有两行：工具行 + 常驻标注工具条，将来再加行也不会盖住） */
+.workarea { flex: 1; position: relative; display: flex; min-height: 0; }
+#map-root { flex: 1; position: relative; overflow: hidden; min-width: 0; }
 .mapstage { position: absolute; inset: 0; cursor: grab; }
 .mapstage.dragging { cursor: grabbing; }
 .mapstage-svg { width: 100%; height: 100%; display: block; }
@@ -112,6 +134,7 @@ button.toggle.warn { border-color: var(--yellow); color: var(--yellow); }
 .statusbar span.ok::before { content: "●"; color: var(--green); margin-right: 4px; }
 .statusbar span.bad::before { content: "●"; color: var(--yellow); margin-right: 4px; }
 .statusbar span.err::before { content: "●"; color: var(--red); margin-right: 4px; }
+.statusbar span.hidden { display: none; }
 
 /* ---------- 提示 ---------- */
 .tooltip {
@@ -183,7 +206,7 @@ body.quest-open .info-card { left: 332px; }
 
 /* ---------- 图例面板 ---------- */
 .legend-panel {
-  position: absolute; top: 58px; right: 0; bottom: 34px;
+  position: absolute; top: 0; right: 0; bottom: 0;
   width: 244px; z-index: 20;
   background: rgba(13, 17, 24, 0.94);
   border-left: 1px solid var(--line);
@@ -312,7 +335,7 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 
 /* ---------- 任务侧边栏（左侧） ---------- */
 .quest-panel {
-  position: absolute; top: 58px; left: 0; bottom: 34px;
+  position: absolute; top: 0; left: 0; bottom: 0;
   width: 310px; z-index: 21;
   display: flex; flex-direction: column;
   background: rgba(13, 17, 24, 0.94);
@@ -440,17 +463,15 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .quest-layer .quest-dot { pointer-events: auto; cursor: pointer; }
 .quest-layer .quest-spot { pointer-events: auto; }
 
-/* ---------- 手动标注工具条 ---------- */
+/* ---------- 手动标注工具条（常驻顶栏第二行，不再悬浮在地图上） ---------- */
 .anno-bar {
-  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-  z-index: 26; max-width: 94%;
-  display: flex; flex-direction: column; gap: 6px;
-  background: rgba(13, 17, 24, 0.95); border: 1px solid var(--line);
-  border-radius: 8px; padding: 7px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  flex-basis: 100%; width: 100%;
+  padding: 6px 0 0; margin-top: 6px;
+  border-top: 1px dashed var(--line);
 }
-.anno-bar.hidden { display: none; }
 .anno-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.anno-tool, .anno-widths button, #anno-undo, #anno-clear, #anno-exit {
+.anno-tag { font-size: 11px; color: var(--accent); font-weight: 600; margin-right: 2px; }
+.anno-tool, .anno-widths button, #anno-undo, #anno-clear, #anno-cancel {
   padding: 3px 8px; font-size: 11px; border-radius: 6px; cursor: pointer;
   background: var(--panel2); color: var(--text); border: 1px solid var(--line);
 }
@@ -458,11 +479,15 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
   background: rgba(34,211,238,0.16); color: var(--accent); border-color: var(--accent);
 }
 .anno-tool:hover, .anno-widths button:hover,
-#anno-undo:hover, #anno-clear:hover, #anno-exit:hover { border-color: var(--accent); color: var(--accent); }
-.anno-colors { display: flex; gap: 3px; margin-right: 4px; }
+#anno-undo:hover, #anno-clear:hover, #anno-cancel:hover { border-color: var(--accent); color: var(--accent); }
+/* 「取消」= 退出标注：有工具选着时才可点（没在标注模式时点它没有意义） */
+#anno-cancel { margin-left: 2px; }
+#anno-cancel:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+#anno-cancel:disabled { opacity: 0.45; cursor: default; }
+#anno-cancel:disabled:hover { border-color: var(--line); color: var(--text); }
+.anno-colors { display: flex; gap: 3px; margin: 0 4px; }
 .anno-color { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
 .anno-color.active { border-color: #fff; }
-.anno-hint { font-size: 10.5px; color: var(--muted); }
 .mapstage.drawing { cursor: crosshair; }
 /* 任务详情卡里的按钮行 */
 .info-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

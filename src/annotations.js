@@ -1,11 +1,15 @@
 'use strict';
 
 /**
- * 手动标注存储（画笔/路径/箭头/圆/矩形）。
+ * 手动标注存储（画笔/路径/直线/箭头/椭圆/矩形）。
  *
  * 存在 userData/annotations.json，结构：
  *   { "<mapId>": [ { kind, color, width, pts: [{x, z}, ...] }, ... ] }
  * 坐标是**世界坐标**（和截图定位同一套），所以缩放/旋转/换图都不会跑位。
+ *
+ * 椭圆/矩形：pts = 外接矩形的两个对角点（拖拽的两个角）。
+ * 老版本那种"圆心 + 半径"的 `circle` 笔画**不保留**（2026-09 起用 `ellipse` 取代）：
+ * 读入清洗时会被丢掉，不再显示。
  *
  * 这里只做"清洗 + 读写"：不接受非法 kind/颜色/NaN 坐标，并对数量设上限，
  * 免得一个坏文件把渲染层拖死。
@@ -14,7 +18,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { readJsonFile } = require('./json-file');
 
-const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'circle', 'rect']);
+const KINDS = new Set(['pen', 'path', 'line', 'arrow', 'ellipse', 'rect']);
 const MAX_STROKES_PER_MAP = 400;   // 每张图最多多少笔
 const MAX_POINTS_PER_STROKE = 3000; // 单笔最多多少点（自由画笔会很长）
 const MAX_MAPS = 200;

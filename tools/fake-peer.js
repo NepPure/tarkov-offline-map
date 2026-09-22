@@ -92,17 +92,15 @@ function main() {
       client.sendAnnoAdd({
         map: detail.id,
         id: `fake${Date.now().toString(36)}`,
-        kind: 'circle',
+        kind: 'ellipse',
         color: '#f472b6',
         width: 3,
         pts: [
           { x: x - 25, z: z - 25 },
-          { x: x + 25, z: z - 25 },
           { x: x + 25, z: z + 25 },
-          { x: x - 25, z: z + 25 },
         ],
       });
-      console.log('[假队友] 画了一个圈（队友应该能看到，右侧图例里也能单独关掉我）');
+      console.log('[假队友] 画了一个椭圆（队友应该能看到，右侧图例里也能单独关掉我）');
     }
   }, 2000);
 

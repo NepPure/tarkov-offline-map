@@ -1,8 +1,10 @@
-name: Server image (ghcr)
+name: Server (image + Windows exe)
 
-# 房间服务端：跑单测 → 构建镜像 → 推到 ghcr。
-#   push 到 main（server/** 有改动）-> 推 :latest 与 :sha-xxxxxxx
-#   push tag v1.2.3                 -> 额外推 :1.2.3 与 :1.2
+# 房间服务端两条交付路径：
+#   1) Docker 镜像 -> ghcr（Linux/群晖/软路由都能跑）
+#   2) **Windows 单文件 exe**（Node SEA）-> Actions artifact，tag 时挂到 Release（不想装 docker 的人双击就能开）
+#   push 到 main（server/** 有改动）-> 镜像推 :latest 与 :sha-xxxxxxx + 产出 exe 产物
+#   push tag v1.2.3                 -> 镜像额外推 :1.2.3 与 :1.2；exe 挂到 GitHub Release
 #   PR                              -> 只跑测试 + 只构建，不推
 on:
   push:
@@ -11,11 +13,19 @@ on:
     paths:
       - 'server/**'
       - 'src/room-key.js'
+      - 'tools/make-server-exe.js'
+      - 'tools/verify-server-exe.js'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/server.yml'
   pull_request:
     paths:
       - 'server/**'
       - 'src/room-key.js'
+      - 'tools/make-server-exe.js'
+      - 'tools/verify-server-exe.js'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/server.yml'
   workflow_dispatch:
 
@@ -47,6 +57,78 @@ jobs:
       - name: Unit + integration tests
         working-directory: server
         run: npm test
+
+  # Windows 单文件服务端 exe（Node SEA：node.exe + 服务端 blob）
+  win-exe:
+    name: Windows server exe
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # 挂 Release 资产要写权限（顶层是 read：只有这一条路需要写）
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # 根依赖只用到 esbuild + postject（打 SEA 用），server 依赖是运行时那个 ws
+      - name: Install deps
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix server ci --no-audit --no-fund
+
+      # 构建 + 自带自检（--version / --help / 真起一个实例打 /healthz）
+      - name: Build exe (Node SEA)
+        run: npm run dist:server
+
+      # 再用仓库里的真客户端连这个 exe 走一遍：进房 / 位置轨迹 / 椭圆标注 / 新局清残留 / 离开
+      - name: End-to-end acceptance
+        run: node tools/verify-server-exe.js
+
+      - name: Collect artifact & checksums
+        shell: bash
+        run: |
+          set -e
+          mkdir -p release
+          VERSION=$(node -p "require('./server/package.json').version")
+          SRC=$(ls dist-server/*.exe | head -n 1)
+          echo "产物: $SRC ($(du -h "$SRC" | cut -f1))"
+          # Release 资源文件名统一 ASCII（和客户端 exe 一样，避免中文名被转义/截断）
+          cp "$SRC" "release/tarkov-offline-map-server-${VERSION}-win-x64.exe"
+          cd release
+          sha256sum *.exe > SHA256SUMS-server.txt
+          ls -lh
+          cat SHA256SUMS-server.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarkov-offline-map-server-win-x64
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+      # tag 推送时：build.yml 会为同一个 tag 建 Release，这里**只挂资产**（不碰正文，
+      # 免得两边互相覆盖 release notes），所以先等它把 Release 建出来
+      - name: Attach exe to Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+          for i in $(seq 1 60); do
+            if gh release view "$TAG" >/dev/null 2>&1; then break; fi
+            echo "等 build.yml 建 Release（$i/60）…"
+            sleep 5
+          done
+          gh release upload "$TAG" release/* --clobber
+          gh release view "$TAG" --json assets --jq '.assets[].name'
 
   image:
     name: Build & push image
