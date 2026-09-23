@@ -261,6 +261,20 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
+// 渲染层是直接 fetch('app://data/maps-dump.json') 拿地图数据的（不走 IPC），
+// 所以人工补录点位（data/manual-extracts.json）必须在这里也合并一次，否则
+// 主进程内存里有、画面上却没有。序列化结果缓存起来，避免每次换图重算 7MB。
+let mergedDumpBuffer = null;
+function mergedDump() {
+  if (mergedDumpBuffer) return mergedDumpBuffer;
+  const file = path.join(DATA_DIR, 'maps-dump.json');
+  const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+  const stat = mapsData.applyOverlay(raw.maps, DATA_DIR);
+  mergedDumpBuffer = Buffer.from(JSON.stringify(raw), 'utf-8');
+  appLog(`maps-dump 合并人工补录: +${stat.applied}（跳过 ${stat.skipped}）`);
+  return mergedDumpBuffer;
+}
+
 function registerAppProtocol() {
   protocol.handle('app', async (request) => {
     const url = new URL(request.url);
@@ -270,6 +284,12 @@ function registerAppProtocol() {
     const full = path.normalize(path.join(REPO_ROOT, rel));
     if (!full.startsWith(REPO_ROOT)) return new Response('forbidden', { status: 403 });
     try {
+      if (rel === 'data/maps-dump.json') {
+        return new Response(mergedDump(), {
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+          status: 200,
+        });
+      }
       const st = fs.statSync(full);
       const type = full.endsWith('.html') ? 'text/html'
         : full.endsWith('.css') ? 'text/css'
@@ -557,15 +577,44 @@ function startMiniWatchdog() {
 
 function createMainWindow() {
   const wa = screen.getPrimaryDisplay().workAreaSize;
+
+  // 录屏辅助：`--record-size=WxH` 时**不最大化**，把窗口客户区钉死在这个物理尺寸。
+  //
+  // 为什么必须这么做（用户诊断出来的）：
+  //   `--force-device-scale-factor=1` 让 **窗口 CSS 视口 = 窗口物理尺寸**。
+  //   而下面的 `mainWin.maximize()` 会把窗口撑满**所在那块屏**，于是同一份录制脚本
+  //   在不同机器上录出来的界面完全不同：
+  //       远程时屏 2868x1320 -> CSS 视口 2868x1214
+  //       本机 4K  屏 3840x2160 -> CSS 视口 3840x2054     <- 差了 1000 多像素
+  //   录屏脚本再用 Emulation 把 inner 改成 1760x880 也没用 —— 那只是让**页面以为**
+  //   自己在 1760x880，窗口实体仍是 4K，两层机制打架，所以"缩放看着不对"。
+  //
+  //   渲染层解决不了：`window.resizeTo` 被 Electron 忽略；
+  //   `Browser.getWindowForTarget` / `Browser.setWindowBounds` 这套浏览器域方法 Electron 也没有。
+  //   所以只能在主进程加这一个 flag 门控的分支 —— **不带这个参数时行为完全不变**。
+  const recArg = process.argv.find((x) => x.startsWith('--record-size='));
+  const recSize = (() => {
+    if (!recArg) return null;
+    const m = /^(\d+)x(\d+)$/.exec(recArg.split('=')[1] || '');
+    return m ? { w: Number(m[1]), h: Number(m[2]) } : null;
+  })();
+
   mainWin = new BrowserWindow({
-    width: Math.min(1600, Math.max(1100, wa.width - 80)),
-    height: Math.min(1000, Math.max(700, wa.height - 80)),
+    width: recSize ? recSize.w : Math.min(1600, Math.max(1100, wa.width - 80)),
+    height: recSize ? recSize.h : Math.min(1000, Math.max(700, wa.height - 80)),
     minWidth: 900, minHeight: 560,
     backgroundColor: '#0b0e13',
     title: APP_TITLE,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
-  mainWin.maximize(); // 高 DPI 缩放下最大化，保证足够的 CSS 视口
+  if (recSize) {
+    // setContentSize：构造参数算的是**外框**，Windows 上还差着标题栏高度；
+    // 要的是**客户区**（= 渲染层视口）精确等于目标。
+    mainWin.setContentSize(recSize.w, recSize.h);
+    appLog(`[record] 客户区固定为 ${recSize.w}x${recSize.h}（跳过 maximize）`);
+  } else {
+    mainWin.maximize(); // 高 DPI 缩放下最大化，保证足够的 CSS 视口
+  }
   mainWin.loadURL('app://renderer/map.html');
   // 关闭主窗口 = 退出程序（同时销毁悬浮小地图，避免残留进程）
   mainWin.on('closed', () => {
@@ -1264,7 +1313,8 @@ function pushPosition() {
 // 可视化自检（开发者工具）
 // ---------------------------------------------------------------------------
 async function runVisualTest() {
-  const outDir = path.join(REPO_ROOT, 'test-artifacts');
+  // 截图输出目录可用 TAKOV_VISUAL_OUT 覆盖（自检时不污染 test-artifacts 里已有的工件）
+  const outDir = process.env.TAKOV_VISUAL_OUT || path.join(REPO_ROOT, 'test-artifacts');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
   const errors = [];
   mainWin.webContents.on('console-message', (event, level, message) => {
@@ -1780,6 +1830,10 @@ async function runVisualTest() {
 app.whenReady().then(() => {
   settings = loadSettings();
   mapsData.load(path.join(DATA_DIR, 'maps-dump.json'), { dataRoot: DATA_DIR });
+  // 人工补录点位（上游缺漏，见 data/manual-extracts.json）
+  const manual = mapsData.manualStats();
+  if (manual && manual.applied) appLog(`manual overlay: +${manual.applied} 个点位（${manual.maps.join(', ')}）`);
+  else if (manual && manual.skipped) appLog(`manual overlay: 上游已补全，跳过 ${manual.skipped} 条`);
   // 手动标注（世界坐标，独立文件）
   annotations.load(ANNOTATIONS_FILE);
   appLog(`annotations loaded: ${JSON.stringify(annotations.stats())}`);

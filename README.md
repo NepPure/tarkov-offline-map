@@ -98,6 +98,7 @@ tarkov-offline-map/
 │  └─ minimap.html|js        圆形小地图悬浮窗
 ├─ data/
 │  ├─ maps-dump.json         15 张地图完整配置（投影/楼层/撤离点/boss/物资/BTR…）
+│  ├─ manual-extracts.json   人工补录点位（上游缺漏：灯塔载具撤离点等 5 条；加载时合并，不会被抓取覆盖）
 │  ├─ maps/*.svg             各图 SVG 底图（内含全部楼层 data-layer）
 │  ├─ tiles/                 实验室/迷宫/破冰船的瓦片底图（z=3，每层 8×8，约 1230 张 PNG / 10MB）
 │  ├─ season-documents.json  赛季文件刷点（419 个点 / 14 张图 / 8 类文件，含中文元数据与参考截图路径）
@@ -598,7 +599,7 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm run test:all         # 客户端 151 项 + 服务端 45 项
+npm run test:all         # 客户端 156 项 + 服务端 45 项
 npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 +
                          # 标注清洗与命中判定（含椭圆/Shift 正圆几何）+ 转移点文字 + 关于页 +
                          # 房间连接层/探活/身份保持/地址归一化/换图清点/新局清队友残留/入站数据防御与模糊测试 +
@@ -607,7 +608,8 @@ npm test                 # 客户端单测（解析器/投影/映射 + 赛季数
                          # （左右浮窗挂在 #workarea 下、永远贴在顶栏下沿，不会再压住标注工具条）
                          # + 标注工具条接线（常驻顶栏 /「取消」退出 / 没有多余提示行）
                          # + 顶栏「固定地图方向」按钮（默认选中、反相逻辑、落盘、切换后立刻重画）
-                         # + 滚动条美化（细/圆角/悬停变亮，别用原生那种又宽又亮的）），151 个用例
+                         # + 滚动条美化（细/圆角/悬停变亮，别用原生那种又宽又亮的）
+                         # + 人工补录点位 overlay（合并生效/幂等/上游补齐后自动跳过/文件缺失不影响加载）），156 个用例
 npm run test:server      # 房间服务端：命令行参数 8 项 + 协议纯函数 8 项 + 真起服务的集成测试 15 项（含 newraid -> peer-reset）+
                          # 守卫行为 8 项 + 模糊测试 2 项 + Dockerfile/compose 一致性 5 项
 node tools/preflight.js                 # 发布前闸门：工作区/版本三处一致/tag 是否已存在/测试/打包产物是否过期/asar 内容
@@ -645,6 +647,7 @@ node tools/scan-privacy.js                 # 开源前扫描样例里的账号ID
 ```bash
 npm i socket.io-client           # 首次
 npm run fetch:data               # 重新拉取地图配置与 SVG（默认站台版本见 tools/fetch-all.js）
+                                 # 注意：抓取只覆盖 data/maps-dump.json，人工补录在 data/manual-extracts.json 里不受影响
 npm run fetch:tiles              # 重新下载无 SVG 地图的瓦片底图（实验室/迷宫/破冰船）
 npm run fetch:quests             # 重新拉取任务/目标/区域坐标 + 中文名（写入 data/quests-dump.json，约 560KB）
 npm run fetch:season             # 重新拉取赛季文件刷点 + 类型图标
@@ -662,6 +665,22 @@ node tools/diff-dump.js          # 与旧快照逐点 diff（撤离点/危险区
 - 点位数据：灯塔新增 **8 个 BTR 站点**（1.1.5.0 重做）、森林 8 个、街区 6 个；立交桥撤离点
   10→9、实验室撤离点 6→7；新增 `btrTracking`（BTR 实时位置，需联网，本项目不使用）
 - 赛季文件刷点：419 个（赛季 1），覆盖除码头外 14 张图；`码头` 无刷点
+
+### 人工补录点位（上游缺漏）
+
+上游（kaedeori 站台，与 tarkov.dev 同源）的撤离点表本身有缺漏。**灯塔**实测确认游戏内有
+**通往军事基地的路（载具撤离点）**（付费载具撤离，单次、约 5000 卢布/人），但两家上游都没有，
+连带着还缺 南部大路(PMC)、隧道（合作撤离点）、厂区大门(Scav)、浮动码头下方的藏身处(Scav)。
+
+补录写在 **`data/manual-extracts.json`**，由 `src/maps-data.js` 的 `applyOverlay()` 在加载时合并：
+主进程走一遍，`app://data/maps-dump.json`（渲染层是直接 fetch 这个文件的）也走一遍。
+这样 `npm run fetch:data` 重新抓取不会把补录冲掉；上游将来自己补齐同 `id` 时会被自动跳过。
+
+坐标来源：tarkov-market 的标记点坐标与我们的坐标系差了轴交换 + 约 4° 旋转，
+用两边都有的 108 个标记做 ICP 对齐（66 个内点、RMS 3.7m）后换算，再逐点放大对着底图核对
+（载具撤离点落在通往储备站那条路上、藏身处落在浮动码头上）。条目里带 `sourceName`/`sourceUrl`/`note` 便于追溯。
+
+`node tools/check-upstream.js` 会把人工补录单独列出来（`＋人工补录`），不计入"上游差异"。
 
 ## 目录说明补充
 

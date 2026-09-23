@@ -1,0 +1,111 @@
+{
+  "_note": "上游地图数据（kaedeori 站台 / tarkov.dev，两家同源）里缺失的点位，人工补录。maps-dump.json 会被 npm run fetch:data 覆盖，所以缺失项一律写在这里，加载时由 src/maps-data.js 合并进 detail。",
+  "_sources": {
+    "TarkovMarket": "https://tarkov-market.com/maps/lighthouse （标记点名称/类型/费用；坐标经 ICP 对齐换算）",
+    "Tarkov Wiki": "逃离塔科夫官方 Wiki / 2021 灯塔上线资料（撤离点条目与条件）"
+  },
+  "_coordinateMethod": "tarkov-market 的 marker 坐标与我们快照坐标系夹角/翻转不同，用两边都有的 108 个标记做 ICP 对齐（66 个内点，RMS 3.7m），再换算过来；灯塔载具撤离点换算结果落在「通往储备站」转移点旁 45m，符合“通往军事基地那条路”的位置。",
+  "version": 1,
+  "maps": {
+    "5704e4dad2720bb55b8b4567": {
+      "_mapName": "灯塔 / lighthouse",
+      "extracts": [
+        {
+          "id": "manual-lighthouse-vex-military-base",
+          "name": "通往军事基地的路（载具撤离点）",
+          "enName": "Road to Military Base V-Ex (Paid)",
+          "faction": "pmc",
+          "switches": [],
+          "position": { "x": -338.56, "y": 0, "z": -782.37 },
+          "outline": [
+            { "x": -348.56, "y": 0, "z": -792.37 },
+            { "x": -348.56, "y": 0, "z": -772.37 },
+            { "x": -328.56, "y": 0, "z": -772.37 },
+            { "x": -328.56, "y": 0, "z": -792.37 }
+          ],
+          "top": 5,
+          "bottom": -5,
+          "sourceName": "TarkovMarket",
+          "sourceUrl": "https://tarkov-market.com/maps/lighthouse",
+          "note": "付费载具撤离：单次、约 5000 卢布/人（最多 4 人），撤离后 Scav 好感 +。上游两家都没有这条，1.1.5.0 重做后游戏内仍在（实测确认）。"
+        },
+        {
+          "id": "manual-lighthouse-extract-southern-road",
+          "name": "南部大路",
+          "enName": "Southern Road",
+          "faction": "pmc",
+          "switches": [],
+          "position": { "x": -267.71, "y": 0, "z": 420.21 },
+          "outline": [
+            { "x": -277.71, "y": 0, "z": 410.21 },
+            { "x": -277.71, "y": 0, "z": 430.21 },
+            { "x": -257.71, "y": 0, "z": 430.21 },
+            { "x": -257.71, "y": 0, "z": 410.21 }
+          ],
+          "top": 5,
+          "bottom": -5,
+          "sourceName": "TarkovMarket",
+          "sourceUrl": "https://tarkov-market.com/maps/lighthouse",
+          "note": "PMC 的南部大路，与 Scav 的「南部大路塌方处」是两个不同点位。上游缺失。"
+        },
+        {
+          "id": "manual-lighthouse-extract-side-tunnel",
+          "name": "隧道（合作撤离点）",
+          "enName": "Side Tunnel (Co-Op)",
+          "faction": "shared",
+          "switches": [],
+          "position": { "x": -57.82, "y": 0, "z": 322.52 },
+          "outline": [
+            { "x": -67.82, "y": 0, "z": 312.52 },
+            { "x": -67.82, "y": 0, "z": 332.52 },
+            { "x": -47.82, "y": 0, "z": 332.52 },
+            { "x": -47.82, "y": 0, "z": 312.52 }
+          ],
+          "top": 5,
+          "bottom": -5,
+          "sourceName": "TarkovMarket",
+          "sourceUrl": "https://tarkov-market.com/maps/lighthouse",
+          "note": "需要 PMC + Scav 各一名一起撤离。上游缺失。"
+        },
+        {
+          "id": "manual-lighthouse-extract-industrial-gates",
+          "name": "厂区大门",
+          "enName": "Industrial Zone Gates",
+          "faction": "scav",
+          "switches": [],
+          "position": { "x": -149.5, "y": 0, "z": -789.53 },
+          "outline": [
+            { "x": -159.5, "y": 0, "z": -799.53 },
+            { "x": -159.5, "y": 0, "z": -779.53 },
+            { "x": -139.5, "y": 0, "z": -779.53 },
+            { "x": -139.5, "y": 0, "z": -799.53 }
+          ],
+          "top": 5,
+          "bottom": -5,
+          "sourceName": "TarkovMarket",
+          "sourceUrl": "https://tarkov-market.com/maps/lighthouse",
+          "note": "Scav 撤离点。上游缺失。"
+        },
+        {
+          "id": "manual-lighthouse-extract-landing-stage",
+          "name": "浮动码头下方的藏身处",
+          "enName": "Hideout Under the Landing Stage",
+          "faction": "scav",
+          "switches": [],
+          "position": { "x": 131.44, "y": 0, "z": 288 },
+          "outline": [
+            { "x": 121.44, "y": 0, "z": 278 },
+            { "x": 121.44, "y": 0, "z": 298 },
+            { "x": 141.44, "y": 0, "z": 298 },
+            { "x": 141.44, "y": 0, "z": 278 }
+          ],
+          "top": 5,
+          "bottom": -5,
+          "sourceName": "TarkovMarket",
+          "sourceUrl": "https://tarkov-market.com/maps/lighthouse",
+          "note": "Scav 撤离点。上游缺失。"
+        }
+      ]
+    }
+  }
+}

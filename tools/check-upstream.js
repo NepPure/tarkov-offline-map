@@ -4,6 +4,7 @@
  *  1. tarkov.dev GraphQL：maps 查询、GameMode 枚举、每张地图的 svgPath / 数据摘要
  *  2. 与本地 data/maps/*.svg 对比 sha256（判断底图是否更新）
  *  3. 与本地 data/maps-dump.json 对比（判断点位/撤离点/图例是否更新）
+ *     —— 人工补录（data/manual-extracts.json）单独列出来，不计入"差异"
  * 用法: node tools/check-upstream.js [--gameMode regular|pve|season] [--json]
  */
 const fs = require('fs');
@@ -64,6 +65,19 @@ const MAP_FIELDS = `
   const local = JSON.parse(fs.readFileSync(path.join(REPO, 'data', 'maps-dump.json'), 'utf8'));
   const localByKey = new Map(local.maps.map((m) => [m.detail.key, m]));
 
+  // 人工补录点位（data/manual-extracts.json）要算进"本地"，否则永远报假差异。
+  // 上游将来自己补齐同 id 后，加载时会被跳过，这里的计数也就自然回落。
+  let overlay = { maps: {} };
+  const overlayPath = path.join(REPO, 'data', 'manual-extracts.json');
+  if (fs.existsSync(overlayPath)) {
+    try { overlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8')); } catch (e) { console.warn('[warn] manual-extracts.json 解析失败:', e.message); }
+  }
+  const overlayCount = (detailId, field) => {
+    const perMap = (overlay.maps || {})[detailId];
+    const list = perMap && perMap[field];
+    return Array.isArray(list) ? list.length : 0;
+  };
+
   const report = [];
   for (const m of data.maps) {
     const key = m.normalizedName;
@@ -92,6 +106,7 @@ const MAP_FIELDS = `
       local: localM
         ? {
             svg: localM.detail.svgPath ? localM.detail.svgPath.split('/').pop() : null,
+            // counts 只算快照本身（与上游逐项可比）；人工补录单独列在 manual 里
             counts: {
               extracts: (localM.detail.extracts || []).length,
               transits: (localM.detail.transits || []).length,
@@ -104,6 +119,9 @@ const MAP_FIELDS = `
               spawns: (localM.detail.spawns || []).length,
               stationaryWeapons: (localM.detail.stationaryWeapons || []).length,
             },
+            manual: Object.fromEntries(
+              ['extracts', 'transits', 'locks', 'switches'].map((k) => [k, overlayCount(localM.detail.id, k)]).filter(([, v]) => v > 0),
+            ),
           }
         : null,
       svgChanged: null,
@@ -111,12 +129,15 @@ const MAP_FIELDS = `
     report.push(row);
     const c = row.upstream.counts;
     const l = row.local?.counts;
+    const man = row.local?.manual || {};
+    const manKeys = Object.keys(man);
     const diffKeys = l ? Object.keys(c).filter((k) => c[k] !== l[k]) : [];
     console.log(
       `\n[map] ${m.name} (${key})`,
       `\n  上游: ${Object.entries(c).map(([k, v]) => `${k}=${v}`).join(' ')}`,
       l ? `\n  本地: ${Object.entries(l).map(([k, v]) => `${k}=${v}`).join(' ')}` : '\n  本地: 缺失',
-      diffKeys.length ? `\n  ⚠ 差异: ${diffKeys.map((k) => `${k} ${l[k]}→${c[k]}`).join(', ')}` : l ? '\n  ✓ 计数一致' : ''
+      diffKeys.length ? `\n  ⚠ 差异: ${diffKeys.map((k) => `${k} ${l[k]}→${c[k]}`).join(', ')}` : l ? '\n  ✓ 计数一致' : '',
+      manKeys.length ? `\n  ＋人工补录(manual-extracts.json): ${manKeys.map((k) => `${k}=${man[k]}`).join(' ')}（上游缺这些点位，不是本地多出来的错）` : ''
     );
   }
 
