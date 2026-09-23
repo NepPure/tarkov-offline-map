@@ -657,13 +657,51 @@ node tools/check-svg-pack.js     # 对比上游素材包，确认底图是否真
 node tools/diff-dump.js          # 与旧快照逐点 diff（撤离点/危险区/BTR 等）
 ```
 
-### 已知上游状态（2026-09-14 核查）
+```bash
+# 站台当前版本（比对 tools/fetch-all.js 里的 VERSION）
+curl -s https://member.kaedeori.com/ | grep -o 'static/[0-9.]*' | head -1
+# 素材包清单（每份快照的 sha256，换了就知道）
+curl -s https://cdn.kaedeori.com/uploads/tarkov/interactive-map/<版本>/manifest.json
+# tarkov.dev 镜像（点位主源；注意别设 user-agent）
+curl -s -o build/tarkovdev-pve-maps.json https://json.tarkov.dev/pve/maps
+```
 
-- 站台静态版本 **4.10.7**（此前快照为 4.10.2），互动地图素材包更新为 `interactive-map/2026-09-13.1`
-- 底图：仅 `Reserve.svg` 变化；`Lighthouse.svg` 与 tarkov.dev 上游一致（其最后更新为 2025-11，
-  **尚未重画 1.1.5.0 灯塔重做后的地形**，官方/社区底图同步前以游戏内实际地形为准）
-- 点位数据：灯塔新增 **8 个 BTR 站点**（1.1.5.0 重做）、森林 8 个、街区 6 个；立交桥撤离点
-  10→9、实验室撤离点 6→7；新增 `btrTracking`（BTR 实时位置，需联网，本项目不使用）
+### 数据源清单（按数据类型，2026-09 实测）
+
+| 数据类型 | 主源 | 备源 / 兜底 | 怎么检测它更新了 |
+|---|---|---|---|
+| 点位（撤离点/转移点/Boss/出生点/钥匙/开关/危险区/物资/BTR） | **tarkov.dev JSON 镜像** `https://json.tarkov.dev/{pve\|regular\|season}/maps`（一次 8.2MB，字段与我们所用完全对应，含 `transferItem`、新转移点、修正过的坐标） | `https://api.tarkov.dev/graphql`（支持 `lang: zh`，但 2026-09 实测常报 `GraphQL server unavailable`）；补漏用 Tarkov Market / wiki（见下） | 按 ID 逐图 diff（用 `node tools/check-upstream.js`，或自己拉镜像比 `extracts/transits/...` 的 ID 集合与坐标） |
+| 点位中文名 | kaedeori 站台（`lang: zh`） | GraphQL `lang: zh` | 站台静态版本号变化 |
+| 底图 SVG | kaedeori 素材包 `interactive-map/<版本>/assets/maps/*.svg` | 官方仓库 **the-hideout/tarkov-dev-svg-maps**（每张图单独文件、有提交历史，可精确定位哪张重画了） | `manifest.json` 的 sha256 一比即可；官方仓库看单文件 commit |
+| 瓦片底图（实验室/迷宫/破冰船） | kaedeori CDN（固定 z=3，每层 8×8） | — | `npm run fetch:tiles` 前后比对文件数/大小 |
+| 任务 + 目标坐标 + 中文 | `json.tarkov.dev/{mode}/tasks` + `tasks_zh` | 同源 GraphQL | `npm run fetch:quests` 后看任务数变化 |
+| 赛季文件刷点 | kaedeori 站台（上游无等价数据） | — | `npm run fetch:season` |
+| 图标 | kaedeori CDN（`map-icons/`、`assets/tarkov/images/`） | tarkov-dev 仓库 `public/maps/interactive/*.png` | `npm run fetch:icons` |
+| BTR 站点/线路 | 站台快照 `btrStops`（灯塔/森林源自 TarkovBTR 手工数据） | tarkovbtr.com（纯前端、无公开接口，数据在 JS bundle 里） | 站台数据变化 |
+| 官方改动说明（语义对照） | `escapefromtarkov.com/news`（如 [1.1.5.0](https://www.escapefromtarkov.com/news/id/408) 灯塔重做） | 17173/官方论坛中文转载 | 手动，补丁日看一眼 |
+
+**访问姿势（实测踩过的坑）**：`json.tarkov.dev` 前面挂着 Cloudflare——
+用 **默认 fetch 头**（不设 `user-agent`、不加 `accept: application/json`）稳定 200；
+伪装浏览器 UA 反而会超时/403。单个文件要留 60s+ 超时，`HEAD` 请求一律 403（别用 HEAD 探测）。
+另外 Electron 里加载外部站点时**不要带 `HTTP_PROXY`**（会 `ERR_CONNECTION_CLOSED`）。
+
+**可靠性分级**：
+- 可自动、可复现：tarkov.dev 镜像、官方 SVG 仓库、站台素材包 manifest / socket 接口
+- 需要人工确认：Tarkov Market（撤离点最全，但坐标要挂浏览器钩子才拿得到）、wiki、官方新闻
+
+**推荐分工**：点位以 **tarkov.dev 镜像**为准（比站台新、字段全），中文名/底图/瓦片/赛季继续用**站台**，
+两边都缺的点位走 `data/manual-extracts.json` 人工补录（带来源标注）。点位的 ID 两边一致
+（如灯塔 `cc16b27f…`＝装甲列车），所以"镜像取字段 + 站台取中文名"可以按 ID 合并。
+
+### 已知上游状态（2026-09-14 站台 / 2026-09-22 tarkov.dev 核查）
+
+- 站台静态版本 **4.10.7 → 4.11.0**（互动地图素材包 `interactive-map/2026-09-13.1`）；
+  但 **4.11.0 的地图数据与 4.10.7 逐图零差异**（15 张图、所有点位字段都比过），版本号不等于数据更新
+- 底图：官方 `Lighthouse.svg` 最后更新 2024-01-30，**尚未重画 1.1.5.0 灯塔重做后的地形**
+- tarkov.dev 相对我们快照**确实更新过**：灯塔新增转移点 `id=51`（→破冰船，气垫船，需 Sudak-tudak 维修包）、
+  山间小路/湖边小径坐标修正（60m/80m）、湖边小径补 `transferItem`（Minefield map）、
+  储备站 +1（装甲列车）、实验室 −1（医疗区电梯）、新增两张图（`ground-zero-tutorial`、`the-lab-dark`）
+- **两家上游都缺**：灯塔 5 条撤离点（含载具撤离点）——见下一节
 - 赛季文件刷点：419 个（赛季 1），覆盖除码头外 14 张图；`码头` 无刷点
 
 ### 人工补录点位（上游缺漏）
