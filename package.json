@@ -32,6 +32,7 @@
     "fetch:season": "node tools/fetch-season.js",
     "fetch:season:images": "node tools/fetch-season-images.js",
     "check:upstream": "node tools/check-upstream.js",
+    "changelog": "node tools/make-changelog.js",
     "make:icon": "node tools/make-icon.js",
     "dist": "electron-builder --win portable --publish never",
     "dist:ci": "electron-builder --win portable --publish never",

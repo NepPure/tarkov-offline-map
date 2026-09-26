@@ -79,6 +79,7 @@ Boss、出生点、散落物资、BTR 站点、**赛季文件刷点**、地名�
 tarkov-offline-map/
 ├─ main.js                   Electron 主进程（窗口 + 日志/截图监听 + 状态广播 + app:// 协议）
 ├─ preload.js                contextBridge API
+├─ CHANGELOG.md              更新日志（按提交记录手工整理；npm run changelog 可按区间草拟）
 ├─ src/
 │  ├─ constants.js           bundle→raidCode→地图 映射表、正则
 │  ├─ maps-data.js           data/maps-dump.json 加载与查询（含本地瓦片底图可用性）
@@ -140,6 +141,7 @@ tarkov-offline-map/
 │  ├─ preflight.js           发布前闸门（版本一致性/tag/测试/打包产物是否过期/镜像内容）
 │  ├─ fake-peer.js           假队友脚本（一台电脑也能看联机效果）
 │  ├─ input.ps1              系统级鼠标输入助手（SetCursorPos / mouse_event）
+│  ├─ make-changelog.js      按提交记录生成更新日志 / Release 正文（npm run changelog）
 │  └─ simulate.js            用 samples 跑完整管线验证
 ├─ server/                   房间服务端（v2.0+，可选功能，见 server/README.md）
 │  ├─ server.js              HTTP + WebSocket + 房间表 + 命令行参数（纯内存，--persist 才落盘）
@@ -609,7 +611,7 @@ node tools/verify-room-2clients.js        # 21 项：互看/真定位同步/轨�
 ### 验收
 
 ```bash
-npm run test:all                       # 客户端 182 项 + 服务端 47 项
+npm run test:all                       # 客户端 188 项 + 服务端 47 项
 node tools/verify-room.js              # 界面验收 57 项：进房（保存/加入房间两条路）/队友标记与箭头/轨迹/图例分组/按人开关/点标记跳转/
                                        # 雷达上也有队友 + 出范围贴边方位指示/队友换图后旧点消失/我的标注同步（含离线补发）/删除同步
                                        # + 状态提示行不说假话（重复点"加入房间"不会卡在"正在加入…"）+ 收尾还原用户配置
@@ -675,7 +677,7 @@ git tag v1.2.1 && git push origin main --tags
 ## 验证
 
 ```bash
-npm run test:all         # 客户端 182 项 + 服务端 47 项
+npm run test:all         # 客户端 188 项 + 服务端 47 项
 npm test                 # 客户端单测（解析器/投影/映射 + 赛季数据 + 地图几何/地名文字/拖动平移 + 日志监听 + 任务数据 +
                          # 标注清洗与命中判定（含椭圆/Shift 正圆几何）+ 转移点文字 + 关于页 +
                          # 房间连接层/探活/身份保持/地址归一化/换图清点/新局清队友残留/入站数据防御与模糊测试 +
@@ -700,7 +702,9 @@ npm test                 # 客户端单测（解析器/投影/映射 + 赛季数
                          # + 队友共享勾选任务（协议清洗/去重/限量、能力协商 caps、整份覆盖发送、
                          #   人走了清他的勾选、指纹顺序无关、合并显示与「XX勾选的任务」图例接线）
                          # + 主窗口「图钉化（置顶）」已删除的回归（按钮/接线/IPC/preload 四处都不许回来）
-                         # + 任务面板的队友勾选（新 chip 与交集语义 / 我·队友角标 / 展开写具体是谁 / 统计行）），182 个用例
+                         # + 任务面板的队友勾选（新 chip 与交集语义 / 我·队友角标 / 展开写具体是谁 / 统计行）
+                         # + 更新日志生成器（约定式提交的解析与分类 / 正文要点整理与上限 / 分节与完整提交列表 /
+                         #   破坏性变更标记 / 真仓库冒烟：v2.1.0..v2.2.0 真提交能生成出来）），188 个用例
 npm run test:server      # 房间服务端：命令行参数 8 项 + 协议纯函数 8 项 + 勾选任务转发 2 项 +
                          # 真起服务的集成测试 14 项（含 newraid -> peer-reset）+ 守卫行为 8 项 +
                          # 模糊测试 2 项 + Dockerfile/compose 一致性 5 项
@@ -753,6 +757,19 @@ node tools/scan-privacy.js                 # 开源前扫描样例里的账号ID
 这两次验收抓出了三个真问题，都已修：给窗口重载兜底的 `raidAlert` 曾经"粘"在状态里（后续每条推送都重带一遍）、
 图例里「XX勾选的任务」的计数没跟着"只被他勾"的开关变化、以及写验收脚本时踩到的
 "渲染层还没注册 onState 就 selectMap → 广播被丢掉"（脚本里已加"渲染层就绪"闸门）。
+
+### 更新日志 / 版本说明
+
+每个版本都打 tag（`v2.2.0`）并发布 Release，逐版说明见 [`CHANGELOG.md`](CHANGELOG.md)。
+它是**按提交记录手工整理**的（提交正文里写清了"改了什么、为什么、怎么验"），要草拟下一版说明：
+
+```bash
+npm run changelog                                # 上一个 tag..HEAD，打到屏幕
+npm run changelog -- --from v2.1.0 --out /tmp/next.md   # 指定区间 + 落盘
+```
+
+`tools/make-changelog.js` 会按 `type(scope): 标题` 分节（新功能 / 修复与性能 / 重构 / 文档 / 测试 /
+构建与 CI），把提交正文里的 `- 要点` 整理成子项，并附上"完整提交"列表与对比链接。
 
 ## 数据更新（游戏大版本更新后）
 
