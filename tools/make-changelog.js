@@ -60,11 +60,17 @@ function bodyBullets(body, maxBullets = 12) {
   const out = [];
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) continue;
     const m = line.match(/^\s*[-*]\s+(.*)$/);
-    if (!m) continue;
+    if (!m) {
+      // 不是要点行：**缩进的续行**（中文提交正文里经常折行）并到上一条，
+      // 否则要点看着像被截断（"…广播后立即清空 raidAlert，"就是这么来的）
+      if (out.length && /^\s+\S/.test(line)) out[out.length - 1] += ` ${line.trim().replace(/\s+/g, ' ')}`;
+      continue;
+    }
     const text = m[1].replace(/\s+/g, ' ').trim();
     if (!text || /^[-*]+$/.test(text)) continue;
-    // 提交正文里常见的"续行"（缩进更深的解释）并到上一条
+    // 二级要点（缩进更深的 - x）也并进上一条
     if (/^\s{2,}\S/.test(line) && out.length) out[out.length - 1] += ` ${text}`;
     else out.push(text);
   }

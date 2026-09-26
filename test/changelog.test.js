@@ -30,15 +30,19 @@ test('parseConventional：type(scope)!: 标题 的解析与宽容', () => {
 test('bodyBullets：只留要点、压空白、超长截断、上限加提示', () => {
   const body = [
     '开头这句不是要点，丢掉',
-    '- 第一条要点',
-    '  - 缩进更深的二级要点要并进上一条',
+    '- 第一条要点，后面这句在提交正文里折了行',
+    '  所以它其实属于上一条（不能丢，否则要点看着像被截断）',
+    '  - 缩进更深的二级要点也要并进上一条',
     '',
     '-    多余空格   压成一个',
     '-',
     '结尾说明也丢掉',
   ].join('\n');
   const out = CL.bodyBullets(body, 10);
-  assert.deepStrictEqual(out, ['第一条要点 缩进更深的二级要点要并进上一条', '多余空格 压成一个']);
+  assert.deepStrictEqual(out, [
+    '第一条要点，后面这句在提交正文里折了行 所以它其实属于上一条（不能丢，否则要点看着像被截断） 缩进更深的二级要点也要并进上一条',
+    '多余空格 压成一个',
+  ]);
   assert.deepStrictEqual(CL.bodyBullets('', 5), []);
   assert.deepStrictEqual(CL.bodyBullets(null, 5), []);
   // 上限：超了就截断并说明还剩几条
