@@ -27,7 +27,7 @@ docker compose down           # 停
 
 ```bash
 docker run -d --name tarkov-room -p 8787:8787 --restart unless-stopped \
-  ghcr.io/neppure/tarkov-offline-map-server:2.1.0
+  ghcr.io/neppure/tarkov-offline-map-server:2.2.0
 ```
 
 **方式 C：Windows 单文件 exe（不想装 Node / Docker 就用这个）**
@@ -45,7 +45,7 @@ node tools/verify-server-exe.js   # 端到端验收：真起 exe + 两个真客�
 双击启动后，窗口里会**直接打印该填什么**：
 
 ```
-  塔科夫地图 · 房间服务端 v2.1.0（协议 v2）
+  塔科夫地图 · 房间服务端 v2.2.0（协议 v2）
   正在监听：0.0.0.0:8787
   客户端「设置 → 房间（联机）」里填：
       服务器地址 = 192.168.31.101   （以太网）  端口 = 8787
@@ -55,11 +55,11 @@ node tools/verify-server-exe.js   # 端到端验收：真起 exe + 两个真客�
 命令行开关（等价的环境变量写在括号里，优先级：**命令行 > 环境变量 > 默认值**）：
 
 ```powershell
-tarkov-offline-map-server-2.1.0-win-x64.exe                      # 默认 0.0.0.0:8787，纯内存
-tarkov-offline-map-server-2.1.0-win-x64.exe --port 9000          # 换端口
-tarkov-offline-map-server-2.1.0-win-x64.exe --persist --data-dir D:\room-annos   # 标注落盘，重启不丢
-tarkov-offline-map-server-2.1.0-win-x64.exe --max-room-peers 8 --log-level debug
-tarkov-offline-map-server-2.1.0-win-x64.exe --help               # 全部开关
+tarkov-offline-map-server-2.2.0-win-x64.exe                      # 默认 0.0.0.0:8787，纯内存
+tarkov-offline-map-server-2.2.0-win-x64.exe --port 9000          # 换端口
+tarkov-offline-map-server-2.2.0-win-x64.exe --persist --data-dir D:\room-annos   # 标注落盘，重启不丢
+tarkov-offline-map-server-2.2.0-win-x64.exe --max-room-peers 8 --log-level debug
+tarkov-offline-map-server-2.2.0-win-x64.exe --help               # 全部开关
 ```
 
 | 开关 | 环境变量 | 默认 | 说明 |
@@ -95,7 +95,7 @@ PORT=8787 node server.js                 # 也支持命令行： node server.js 
 
 ```bash
 curl http://127.0.0.1:8787/healthz
-# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.1.0","proto":2,"uptime":3,"rooms":0,"peers":0,...}
+# {"ok":true,"name":"tarkov-offline-map-server","ver":"2.2.0","proto":2,"uptime":3,"rooms":0,"peers":0,...}
 ```
 
 浏览器打开 `http://<服务器IP>:8787/` 能看到一行纯文本状态（房间数、在线人数、内存占用，**不含任何房间标识**）。
@@ -190,19 +190,23 @@ room.example.com {
 | ↑ | `map{map}` — 我在哪张图（换图/进图各一次） |
 | ↑ | `pos{map,x,y,z,hdg,ts,trail?}` — 定位（按了截图键才有新位置） |
 | ↑ | `anno{op:"add"\|"del",map,id,kind,color,width,pts}` — `kind` 取 `pen/path/line/arrow/ellipse/rect` |
+| ↑ | `quests{ids:[...]}` — 我勾选的任务 id（**整份覆盖**，最多 200 个；空数组 = 全取消。服务端不认识任务内容，只校验+转发） |
 | ↑ | `newraid` — 我开新一局了（上一局的定位作废；不带字段） |
 | ↑ | `ping` |
-| ↓ | `welcome{proto,ver,self,peers[],annos{}}` — 进房快照 |
+| ↓ | `welcome{proto,ver,caps,self,peers[],annos{},quests{}}` — 进房快照（`caps:['quests']` 表示服务端支持共享勾选） |
 | ↓ | `peer-join{peer}` / `peer-left{id}` |
 | ↓ | `peer-map{id,map}` — `peer-*` 系列都**不回给本人**，只表示"别人的状态变了" |
 | ↓ | `peer-pos{id,map,x,y,z,hdg,ts,trail?}` |
 | ↓ | `peer-reset{id}` — 他开新一局了：把他之前的点抹掉（`newraid` 的转达） |
+| ↓ | `peer-quests{id,ids}` — 他改了勾选（整份；空数组 = 他全取消了） |
 | ↓ | `anno{op,map,id,...,owner}` — 含回显给发送者 |
 | ↓ | `pong{now}` / `err{code,msg}` |
 
-> 老版本客户端/服务端不认识 `newraid`/`peer-reset`/`ellipse`：服务端对未知消息类型**静默忽略**
+> 老版本客户端/服务端不认识 `newraid`/`peer-reset`/`ellipse`/`quests`：服务端对未知消息类型**静默忽略**
 > （不会报错也不会断连），未知 `kind` 的笔画会被丢掉。协议大版本 `PROTO` 仍然是 2，
-> 所以混用版本不会互相拒连；想拿到"新局清队友残留 + 椭圆标注同步"的完整效果，请把两端都更新。
+> 所以混用版本不会互相拒连；想拿到"新局清队友残留 + 椭圆标注同步 + 共享勾选任务"的完整效果，
+> 请把两端都更新。**加能力走 `welcome.caps`，不升 `PROTO`**：客户端只会发两端都声明过的能力，
+> 新客户端连老服务端时"共享勾选"静默关闭，位置/标注照旧。
 
 `err` 的 `code`：`bad-version` / `bad-room` / `need-hello` / `room-full` / `too-large` / `bad-json` / `rate-limit` / `anno-limit` / `replaced`。
 
@@ -213,9 +217,9 @@ room.example.com {
 
 ```bash
 cd server
-npm test          # 8 个命令行参数用例 + 8 个协议用例 + 15 个真起服务的集成用例
-                  # （真 WebSocket 客户端，含 newraid -> peer-reset）+ 8 个守卫行为用例 +
-                  # 5 个 Dockerfile/compose 一致性用例
+npm test          # 8 个命令行参数用例 + 8 个协议用例 + 2 个勾选任务转发用例 +
+                  # 14 个真起服务的集成用例（真 WebSocket 客户端，含 newraid -> peer-reset）+
+                  # 8 个守卫行为用例 + 5 个 Dockerfile/compose 一致性用例
 ```
 
 根目录下等价的一条命令：
