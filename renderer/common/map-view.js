@@ -66,6 +66,69 @@ const DEFAULT_TILE_SIZE = 256;
 const MINI_MARKER_CAP = 260;
 /** 小地图"舒适区"：超过这个数量就按重要度丢弃次要标记（否则小圆盘里全是重叠的图标） */
 const MINI_SOFT_CAP = 90;
+/** 小地图上最多给几个标记写名字（赛季文件/撤离点/Boss/BTR/转移点） */
+const MINI_LABEL_MAX = 6;
+
+/**
+ * 小地图标记优先级（数字越小越重要）。
+ * 上限裁剪与"该给谁写名字"都按它排序，保证任何情况下先丢的都是散落物资/物资箱/地名这类背景点。
+ * @param {string} group 标记分组（见 MARKER_GROUPS / loot:* / season:*）
+ */
+export function miniMarkerRank(group) {
+  const g = String(group || '');
+  if (g.startsWith('season:')) return 0;
+  if (g.startsWith('extract')) return 1;
+  if (g === 'boss') return 2;
+  if (g === 'btrStop') return 3;
+  if (g === 'transit') return 4;
+  if (g === 'lock' || g === 'switch' || g === 'hazard' || g === 'weapon') return 5;
+  if (g === 'loose' || g === 'spawn') return 7;
+  if (g.startsWith('loot:')) return 8;
+  return 6; // 地名等
+}
+
+/**
+ * 小地图上限裁剪：按"优先级 + 离视野中心的距离"（标记上的 `_miniD`，由 #visibleMarkers 填）
+ * 挑出该留的，但**按原数组顺序**返回 —— 画上去的先后不变，重叠时谁压谁是稳定的。
+ *
+ * 注意：旧实现是"整类整类地丢"（第一刀先把全部地名丢掉），于是走进密集区时会出现
+ * "雷达上的字整体消失"这种一眼可见的跳变；现在改成丢"最不重要的、最远的"。
+ */
+export function trimMiniMarkers(picks, cap) {
+  const list = Array.isArray(picks) ? picks : [];
+  const max = Number(cap);
+  if (!Number.isFinite(max) || max <= 0 || list.length <= max) return list;
+  const sorted = list.slice().sort((a, b) =>
+    miniMarkerRank(a && a.group) - miniMarkerRank(b && b.group) ||
+    (Number(a && a._miniD) || 0) - (Number(b && b._miniD) || 0));
+  const keep = new Set(sorted.slice(0, max));
+  return list.filter((m) => keep.has(m));
+}
+
+/** 小地图上"值得写名字"的标记类型（与 #visibleMarkers 里那批关键标记一致） */
+function miniLabelWorthy(group) {
+  const g = String(group || '');
+  return g.startsWith('season:') || g.startsWith('extract') || g === 'boss' || g === 'btrStop' || g === 'transit';
+}
+
+/**
+ * 小地图上该给哪些标记写名字：只标关键目标（赛季文件/撤离点/Boss/BTR/转移点），最多 max 个，
+ * 否则圆盘会糊成一团。
+ *
+ * 超过上限时取"最重要的 + 最近的"前 max 个，**绝不返回空集合**：
+ * 旧实现在超过 6 个时直接返回 null（一个名字都不写），所以把雷达半径调大、或者走进
+ * 撤离点/赛季文件密集的区域，就会出现"一定位、字全没了"的现象（而且来回跳）。
+ */
+export function pickMiniLabeled(markers, max = MINI_LABEL_MAX) {
+  const list = Array.isArray(markers) ? markers : [];
+  const key = list.filter((m) => m && miniLabelWorthy(m.group));
+  const cap = Number.isFinite(Number(max)) && Number(max) > 0 ? Number(max) : MINI_LABEL_MAX;
+  if (key.length <= cap) return new Set(key);
+  const sorted = key.slice().sort((a, b) =>
+    miniMarkerRank(a.group) - miniMarkerRank(b.group) ||
+    (Number(a._miniD) || 0) - (Number(b._miniD) || 0));
+  return new Set(sorted.slice(0, cap));
+}
 
 /**
  * 任务标记的颜色/尺寸：统一用图例里那个橘色，样式也跟图例 swatch 对齐 ——
@@ -1093,12 +1156,38 @@ export class MapView {
 
   /**
    * 设置要画的任务区域。
-   * items: [{ id, label, color, zones: [{x,z,top,bottom,outline:[[x,z],...]}], spots: [{x,z}] }]
+   * items: [{ id, label, color, zones: [{x,z,top,bottom,outline:[[x,z],...]}], spots: [{x,z}],
+   *           mine?: boolean,            // 我自己也勾了
+   *           peers?: string[],          // 勾了这个任务的队友 id（合并显示：同一个任务只画一次）
+   *           ownersText?: string }]     // "你 + 阿甘"（鼠标悬停时看是谁勾的）
    * 只传"当前地图"的部分，切图/换楼层由调用方重新算。
    */
   setQuests(items) {
     this.questItems = Array.isArray(items) ? items : [];
+    // 队友勾选任务的图例项：每人一个开关（id = quest:peer:<peerId>）
+    const byPeer = new Map();
+    for (const it of this.questItems) {
+      for (const pid of it.peers || []) {
+        if (!pid) continue;
+        const cur = byPeer.get(pid) || { id: pid, count: 0 };
+        cur.count += 1;
+        byPeer.set(pid, cur);
+      }
+    }
+    this.questPeers = byPeer;
     this.#renderOverlay();
+  }
+
+  /**
+   * 队友勾选的任务是否可见：自己勾的永远画；只被队友勾的看他那个开关。
+   * 合并显示的前提就在这里 —— 同一个任务只画一次，只要还有一方可见就画。
+   */
+  #questVisible(item) {
+    if (!item) return false;
+    const peers = Array.isArray(item.peers) ? item.peers : [];
+    if (!peers.length) return true;      // 只可能是"我勾的"（老调用方/自己勾的）
+    if (item.mine) return true;
+    return peers.some((id) => !this.#off(`quest:peer:${id}`));
   }
 
   /**
@@ -1143,34 +1232,51 @@ export class MapView {
     const showSpots = !this.#off('quest:spot');
     const op = this.questOpacity;
     const py = this.player ? this.player.y : null;
+    // 雷达：圆盘外的任务区域/刷新点不画（透明小窗最怕无谓的 DOM；主窗口 cullR=0，不裁）
+    const cullR = this.#miniDiscRadius();
     const frag = document.createDocumentFragment();
     // 任务标记统一用图例里那个橘色（#f59e0b）：区域 = 橘色半透明面 + 橘色边框，
     // 地点 = 橘色半透明小框，刷新点 = 橘色虚线圈 —— 跟图例 swatch 一模一样。
     // （以前每个任务按 id 分到一个颜色，地图上出现绿圆点/紫圆点，和图例对不上）
     const color = QUEST_COLOR;
     for (const item of items) {
+      if (!this.#questVisible(item)) continue;
+      // 鼠标悬停能看到"是谁勾选的"（自己 + 队友，合并显示时都列出来）
+      const ownerTip = item.ownersText ? `（${item.ownersText} 勾选）` : '';
       for (const z of showZones ? item.zones || [] : []) {
         // 不在当前楼层的区域淡化（有定位时才有意义）——不隐藏，因为有些区域跨层
         const offFloor = py != null && z.top != null && z.bottom != null && (z.top < py - 1.5 || z.bottom > py + 1.5);
+        const pc = this.proj.project(z.x, z.z);
+        // 地点标记（小框）在圆盘内才画；区域另按"整块包围盒是否压到圆盘"判定
+        let boxNear = cullR <= 0 || Math.hypot(pc.x - this.view.cx, pc.y - this.view.cy) <= cullR + QUEST_BOX;
         if (z.outline && z.outline.length >= 3) {
           const pts = [];
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
           for (const q of z.outline) {
             const pr = this.proj.project(q[0], q[1]);
+            if (pr.x < minX) minX = pr.x;
+            if (pr.x > maxX) maxX = pr.x;
+            if (pr.y < minY) minY = pr.y;
+            if (pr.y > maxY) maxY = pr.y;
             const s = this.#worldToScreen(pr.x, pr.y);
             pts.push(`${s.x.toFixed(1)},${s.y.toFixed(1)}`);
           }
-          const poly = document.createElementNS(ns(), 'polygon');
-          poly.setAttribute('points', pts.join(' '));
-          poly.setAttribute('fill', color);
-          poly.setAttribute('fill-opacity', String(offFloor ? op * 0.4 : op));
-          poly.setAttribute('stroke', color);
-          poly.setAttribute('stroke-opacity', offFloor ? '0.35' : '0.95');
-          poly.setAttribute('stroke-width', '1.8');
-          if (offFloor) poly.setAttribute('stroke-dasharray', '4 4');
-          poly.setAttribute('pointer-events', 'none'); // 大块区域不吃鼠标，地图照常拖动
-          frag.appendChild(poly);
+          if (this.#boxNearCenter(minX, minY, maxX, maxY, cullR)) {
+            const poly = document.createElementNS(ns(), 'polygon');
+            poly.setAttribute('points', pts.join(' '));
+            poly.setAttribute('fill', color);
+            poly.setAttribute('fill-opacity', String(offFloor ? op * 0.4 : op));
+            poly.setAttribute('stroke', color);
+            poly.setAttribute('stroke-opacity', offFloor ? '0.35' : '0.95');
+            poly.setAttribute('stroke-width', '1.8');
+            if (offFloor) poly.setAttribute('stroke-dasharray', '4 4');
+            poly.setAttribute('pointer-events', 'none'); // 大块区域不吃鼠标，地图照常拖动
+            frag.appendChild(poly);
+          } else {
+            boxNear = false; // 整块区域都在圆盘外：小框也不用画了
+          }
         }
-        const pc = this.proj.project(z.x, z.z);
+        if (!boxNear) continue;
         const sc = this.#worldToScreen(pc.x, pc.y);
         // 地点标记 = 橘色半透明小框（可点，用来弹详情卡）
         const box = document.createElementNS(ns(), 'rect');
@@ -1186,7 +1292,7 @@ export class MapView {
         if (offFloor) box.setAttribute('stroke-dasharray', '3 2');
         box.setAttribute('class', 'quest-dot');
         box.style.cursor = 'pointer';
-        box.appendChild(titleNode(`${item.label || '任务'} · 点击看详情`));
+        box.appendChild(titleNode(`${item.label || '任务'}${ownerTip} · 点击看详情`));
         box.addEventListener('click', (e) => {
           e.stopPropagation();
           if (this.onQuestClick) this.onQuestClick(item, z);
@@ -1195,6 +1301,7 @@ export class MapView {
       }
       for (const sp of showSpots ? item.spots || [] : []) {
         const pr = this.proj.project(sp.x, sp.z);
+        if (cullR > 0 && Math.hypot(pr.x - this.view.cx, pr.y - this.view.cy) > cullR + QUEST_BOX) continue;
         const s = this.#worldToScreen(pr.x, pr.y);
         // 刷新点 = 橘色虚线圈（和图例 swatch 同款，里面不再点实心小点）
         const c = document.createElementNS(ns(), 'circle');
@@ -1208,7 +1315,7 @@ export class MapView {
         c.setAttribute('stroke-dasharray', '4 3');
         c.setAttribute('class', 'quest-spot');
         c.style.cursor = 'pointer';
-        c.appendChild(titleNode(`${item.label || '任务'} · 任务物品可能刷在这里（点击看详情）`));
+        c.appendChild(titleNode(`${item.label || '任务'}${ownerTip} · 任务物品可能刷在这里（点击看详情）`));
         c.addEventListener('click', (e) => {
           e.stopPropagation();
           if (this.onQuestClick) this.onQuestClick(item, sp);
@@ -1359,14 +1466,12 @@ export class MapView {
   }
 
   /**
-   * 小地图里给哪些标记显示名称：只标注关键目标（撤离点/Boss/赛季文件/BTR），
+   * 小地图里给哪些标记显示名称：只标注关键目标（撤离点/Boss/赛季文件/BTR/转移点），
    * 且数量少时才标，否则圆盘会糊成一团。
+   * 超过上限时按"重要度 + 离圆心距离"取最近的若干个——不再"全都不标"（见 pickMiniLabeled）。
    */
   #miniLabelSet(markers) {
-    const key = markers.filter((m) =>
-      m.group.startsWith('season:') || m.group.startsWith('extract') || m.group === 'boss' || m.group === 'btrStop');
-    if (key.length === 0 || key.length > 6) return null;
-    return new Set(key);
+    return pickMiniLabeled(markers);
   }
 
   /**
@@ -1681,47 +1786,49 @@ export class MapView {
     // 透明窗口掉帧/变空白（Windows 上透明表面停止重绘就"看着像消失了"）
     let cullR = 0, ccx = 0, ccy = 0;
     if (this.mini && this.proj) {
-      const r = this.el.getBoundingClientRect();
       // 圆盘半径（不是对角线）再留 8% 余量：圆外标记本来就被裁掉，画了也是浪费
-      cullR = (r.width / 2) / Math.max(this.view.scale, 1e-6) * 1.08;
+      cullR = this.#miniDiscRadius();
       ccx = this.view.cx; ccy = this.view.cy;
     }
-    const picks = [];
+    let picks = [];
     for (const m of this.markerCache) {
       if (this.markerToggles && this.markerToggles[m.group] === false) continue;
       if (!this.showAllHeights && !this.#heightInCurrentFloor(m.y)) continue;
       if (cullR > 0) {
         const p = this.proj.project(m.x, m.z);
-        if (Math.hypot(p.x - ccx, p.y - ccy) > cullR) continue;
+        const d = Math.hypot(p.x - ccx, p.y - ccy);
+        // 距离留在标记上：超限裁剪与"该给谁写名字"都要用它挑最近的
+        m._miniD = d;
+        if (d > cullR) continue;
       }
       picks.push(m);
     }
-    // 小地图：标记密到"糊成一团"时按重要度丢弃次要标记，只留看得清的关键点
-    if (this.mini && picks.length > MINI_SOFT_CAP) {
-      const dropStages = [
-        (m) => m.group === 'label',                                  // 地名文字
-        (m) => m.group === 'loose' || m.group === 'spawn',           // 散落物资 / 出生点
-        (m) => m.group.startsWith('loot:'),                          // 各类物资箱
-      ];
-      for (const drop of dropStages) {
-        if (picks.length <= MINI_SOFT_CAP) break;
-        const kept = picks.filter((m) => !drop(m));
-        picks.length = 0;
-        picks.push(...kept);
-      }
-    }
-    // 兜底上限：极端情况下（还没定位、视野又很宽）优先保留关键标记，避免 DOM 爆掉
-    if (this.mini && picks.length > MINI_MARKER_CAP) {
-      const rank = (m) => {
-        if (m.group.startsWith('season:') || m.group.startsWith('extract') || m.group === 'boss') return 0;
-        if (['btrStop', 'transit', 'lock', 'switch', 'hazard', 'weapon'].includes(m.group)) return 1;
-        if (m.group === 'label') return 3;
-        return 2;
-      };
-      picks.sort((a, b) => rank(a) - rank(b));
-      picks.length = MINI_MARKER_CAP;
+    // 小地图：标记密到"糊成一团"时按重要度丢弃次要标记，只留看得清的关键点。
+    // 注意不能"整类一起丢"：以前第一刀就是全部地名，走进密集区时雷达上的字会整体消失。
+    if (this.mini) {
+      if (picks.length > MINI_SOFT_CAP) picks = trimMiniMarkers(picks, MINI_SOFT_CAP);
+      // 兜底上限：极端情况下（还没定位、视野又很宽）优先保留关键标记，避免 DOM 爆掉
+      if (picks.length > MINI_MARKER_CAP) picks = trimMiniMarkers(picks, MINI_MARKER_CAP);
     }
     return picks;
+  }
+
+  /** 雷达圆盘半径（地图像素，含 8% 余量）。主窗口返回 0 = 不裁剪 */
+  #miniDiscRadius() {
+    if (!this.mini) return 0;
+    const r = this.el.getBoundingClientRect();
+    return (r.width / 2) / Math.max(this.view.scale, 1e-6) * 1.08;
+  }
+
+  /**
+   * 地图像素空间里，一个包围盒是否和圆盘相交（任务区域这种大块图形用它裁剪）。
+   * 视图旋转是绕视野中心转的，点到中心的距离不变，所以不必先换算成屏幕坐标。
+   */
+  #boxNearCenter(minX, minY, maxX, maxY, R) {
+    if (!(R > 0)) return true;
+    const nx = Math.max(minX, Math.min(this.view.cx, maxX));
+    const ny = Math.max(minY, Math.min(this.view.cy, maxY));
+    return Math.hypot(nx - this.view.cx, ny - this.view.cy) <= R;
   }
 
   #heightInCurrentFloor(h) {
@@ -1865,16 +1972,29 @@ export class MapView {
     const groups = [];
 
     // 0) 任务标记（玩家勾选的任务：区域 + 物品刷新点）—— 地图上画了就必须在图例里有
-    const questZones = (this.questItems || []).reduce((n, it) => n + (it.zones || []).length, 0);
-    const questSpots = (this.questItems || []).reduce((n, it) => n + (it.spots || []).length, 0);
-    groups.push({
-      id: 'g-quest',
-      label: '任务标记',
-      items: [
-        { id: 'quest:zone', label: '任务区域', count: questZones, swatch: 'zone', color: '#f59e0b' },
-        { id: 'quest:spot', label: '任务物品刷新点', count: questSpots, swatch: 'spot', color: '#f59e0b' },
-      ],
-    });
+    // 只统计"真的会画出来"的那部分（被队友开关关掉的、或者合并后不可见的都不算）
+    const drawn = (this.questItems || []).filter((it) => this.#questVisible(it));
+    const questZones = drawn.reduce((n, it) => n + (it.zones || []).length, 0);
+    const questSpots = drawn.reduce((n, it) => n + (it.spots || []).length, 0);
+    const questItems = [
+      { id: 'quest:zone', label: '任务区域', count: questZones, swatch: 'zone', color: '#f59e0b' },
+      { id: 'quest:spot', label: '任务物品刷新点', count: questSpots, swatch: 'spot', color: '#f59e0b' },
+    ];
+    // 队友勾选的任务：每人一项「XX勾选的任务」（同一个任务两人都勾了只画一次，计数按任务数）。
+    // 计数只算**真的会画出来**的那些（关掉他那项以后，只被他勾的任务不画了，计数就要跟着掉）
+    for (const [pid] of this.questPeers || []) {
+      const peer = (this.peers || []).find((p) => p && p.id === pid) || null;
+      const name = peer ? peerLegendLabel(peer, this.peers) : pid;
+      const count = drawn.reduce((n, it) => n + ((it.peers || []).includes(pid) ? 1 : 0), 0);
+      questItems.push({
+        id: `quest:peer:${pid}`,
+        label: `${name}勾选的任务`,
+        count,
+        swatch: 'zone',
+        color: peerColor(pid),
+      });
+    }
+    groups.push({ id: 'g-quest', label: '任务标记', items: questItems });
 
     // 0b) 玩家 · 轨迹
     groups.push({

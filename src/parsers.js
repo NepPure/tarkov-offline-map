@@ -112,7 +112,46 @@ function parseLogLine(line) {
     return { type: 'transit', ts, fromRaidCode: transit[1] };
   }
 
+  // 5) 匹配 / 进图阶段（战局提示音只认这几行，见 src/raid-alerts.js）
+  //    实测（1.1.5.1 PvE，4 个会话 6 局）：
+  //      Matching with group id: N        <- 开始匹配（等待服务器）
+  //        +16~28s   LocationLoaded
+  //        +197~209s MatchingCompleted    <- 匹配到了
+  //        +17~18s   GamePrepared/GameCreated -> GamePooled
+  //        +7s       GameRunned -> GameSpawn -> PlayerSpawnEvent
+  //        +10.3s    GameSpawned          <- 倒计时开始（两个会话各两局都是 10.3s）
+  //        +9.4~10.3s GameStarting        <- 倒计时结束 / 开始进入地图
+  //        +12s      GameStarted          <- 已经在局内
+  const phase = line.match(RAID_PHASE_RE);
+  if (phase) {
+    const token = phase[1];
+    if (token.startsWith('Matching with group id')) {
+      return { type: 'matching-start', ts, groupId: phase[2] || null };
+    }
+    return { type: RAID_PHASE_TYPES[token] || 'raid-phase', ts, token };
+  }
+
   return null;
 }
 
-module.exports = { parseScreenshotFilename, parseLogLine, resolveRaidCode };
+/**
+ * 匹配 / 进图阶段的行（战局提示音靠这几行，见 src/raid-alerts.js）。
+ * 只认 "…|application|<token>" 这种消息开头的行，不会误伤正文里提到这些词的其它行。
+ * 注意 GameSpawn: 与 GameSpawned: 靠冒号区分（GameSpawned 不会命中 GameSpawn:）。
+ */
+const RAID_PHASE_RE = /\|application\|(Matching with group id:\s*(\d+)|MatchingCompleted:|GamePrepared:|GameCreated:|GamePooled:|GameRunned:|GameSpawn:|PlayerSpawnEvent:|GameSpawned:|GameStarting:|GameStarted:)/;
+
+const RAID_PHASE_TYPES = {
+  'MatchingCompleted:': 'matching-completed',
+  'GamePrepared:': 'game-prepared',
+  'GameCreated:': 'game-created',
+  'GamePooled:': 'game-pooled',
+  'GameRunned:': 'game-runned',
+  'GameSpawn:': 'game-spawn',
+  'PlayerSpawnEvent:': 'player-spawn',
+  'GameSpawned:': 'game-spawned',
+  'GameStarting:': 'game-starting',
+  'GameStarted:': 'game-started',
+};
+
+module.exports = { parseScreenshotFilename, parseLogLine, resolveRaidCode, RAID_PHASE_TYPES };

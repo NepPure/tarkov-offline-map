@@ -1,8 +1,8 @@
 'use strict';
 
 import { MapView, MARKER_GROUPS, makeProjection } from './common/map-view.js';
-import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation } from './common/quest-filter.js';
-import { peersSignature, peerInitial, roomHint as roomHintFor } from './common/room.js';
+import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation, questBringList, formatBringKeys, questsFingerprint, peerQuestIndex } from './common/quest-filter.js';
+import { peersSignature, peerInitial, peerColor, roomHint as roomHintFor } from './common/room.js';
 
 const $ = (sel) => document.querySelector(sel);
 const api = window.api;
@@ -20,8 +20,10 @@ const state = {
   roomHintManual: null, // 手动写进提示行的那句（探测结果/表单校验），会被状态刷新让位
   roomHintTimer: null,  // 上面那句的到期定时器（到点自动回到"当前状态"该说的话）
   peersSig: null,      // 房间成员的图例指纹（变了才重建图例）
+  roomQuestsSig: null, // 队友勾选任务的指纹（变了才重算任务图层）
   lastMapId: null,
   lastPosFile: null,
+  lastAlertAt: null,   // 上一次战局提示音的时间戳（避免同一条状态重复响）
 };
 
 const view = new MapView($('#map-root'));
@@ -97,6 +99,11 @@ async function init() {
     const res = await api.pickScreenshot();
     if (res && res.error) alert(res.error);
   });
+  // 目录选择 / 打开：设置页里那两个按钮（"选择文件夹…" 只填进输入框，"保存"才落盘）
+  $('#set-logs-pick').addEventListener('click', () => pickDirInto('#set-logs', '选择游戏日志目录（build\\Logs）'));
+  $('#set-logs-open').addEventListener('click', () => openDir($('#set-logs').value.trim()));
+  $('#set-shots-pick').addEventListener('click', () => pickDirInto('#set-shots', '选择截图目录'));
+  $('#set-shots-open').addEventListener('click', () => openDir($('#set-shots').value.trim()));
   $('#btn-settings').addEventListener('click', openSettings);
   // 自动截图的键名捕获：点按钮 -> 在输入框里按下你要用的键（拿 e.code，和主进程那套键名一致）
   $('#set-autoshot-capture').addEventListener('click', (e) => {
@@ -148,11 +155,6 @@ async function init() {
     const on = e.currentTarget.classList.toggle('active');
     view.setMeasureMode(on);
     $('#measure-tip').classList.toggle('hidden', !on);
-  });
-  // 图钉化主窗口
-  onToggle('#btn-pin', async (e) => {
-    const pinned = await api.togglePin();
-    e.currentTarget.classList.toggle('active', pinned);
   });
   // 标记点击 -> 信息卡片
   view.onMarkerClick = (m) => showInfoCard(m);
@@ -302,6 +304,36 @@ function openAbout() {
 // ---------------------------------------------------------------------------
 // 高级设置对话框
 // ---------------------------------------------------------------------------
+/**
+ * 「选择文件夹…」：把选中的目录填进对应的输入框。
+ * 刻意不直接写配置 —— 和手输路径走同一条路（点「保存」才落盘、才重启监听），
+ * 免得"点错一下子就换了目录"。
+ */
+async function pickDirInto(inputSel, title) {
+  const input = $(inputSel);
+  let res = null;
+  try {
+    res = await api.pickFolder({ title, defaultPath: input.value.trim() });
+  } catch (e) {
+    alert(`打开文件夹选择框失败：${e && e.message ? e.message : e}`);
+    return;
+  }
+  if (res && res.error) { alert(res.error); return; }
+  if (res && res.path) input.value = res.path;
+}
+
+/** 「打开文件夹」：在资源管理器里打开输入框里的目录（不存在就把原因说出来） */
+async function openDir(p) {
+  let res = null;
+  try {
+    res = await api.openPath(p);
+  } catch (e) {
+    alert(`打开文件夹失败：${e && e.message ? e.message : e}`);
+    return;
+  }
+  if (res && res.error) alert(res.error);
+}
+
 function openSettings() {
   const c = state.cfg;
   $('#set-logs').value = c.logsPath || '';
@@ -311,6 +343,7 @@ function openSettings() {
   $('#set-all-markers').checked = c.showAllMarkers !== false;
   $('#set-auto-floor').checked = c.autoFloor !== false;
   $('#set-sound').checked = c.sound !== false;
+  $('#set-alert-lead').value = c.alertLeadSec ?? 3;
   $('#set-auto-delete').checked = !!c.autoDeleteScreenshots;
   $('#set-mini').checked = state.miniEnabled != null ? state.miniEnabled : !!c.miniVisible;
   $('#set-map-opacity').value = c.mapOpacity ?? 1;
@@ -342,6 +375,7 @@ function openSettings() {
   $('#set-room-nick').value = r.nick || '';
   $('#set-room-pos').checked = r.sharePos !== false;
   $('#set-room-anno').checked = r.shareAnno !== false;
+  $('#set-room-quests').checked = r.shareQuests !== false;
   // 提示行不留旧话：打开设置时按当前状态重新说一遍（探活结果之类的临时话术不再残留）
   state.roomHintManual = null;
   renderRoomStatus(state.room);
@@ -396,6 +430,7 @@ function roomFormPatch() {
     nick: $('#set-room-nick').value.trim(),
     sharePos: $('#set-room-pos').checked,
     shareAnno: $('#set-room-anno').checked,
+    shareQuests: $('#set-room-quests').checked,
   };
 }
 
@@ -487,6 +522,7 @@ async function saveSettings() {
     showAllMarkers: $('#set-all-markers').checked,
     autoFloor: $('#set-auto-floor').checked,
     sound: $('#set-sound').checked,
+    alertLeadSec: Number($('#set-alert-lead').value) || 3,
     autoDeleteScreenshots: $('#set-auto-delete').checked,
     miniVisible: $('#set-mini').checked,
     mapOpacity: Number($('#set-map-opacity').value),
@@ -537,6 +573,14 @@ async function applyMainState(s) {
   if (!s) return;
   const wantedId = s.mapId;
 
+  // 0a) 战局提示音：主进程按日志判定（开始匹配 / 匹配到了 / 进图倒计时最后几秒）。
+  // 截图定位、队友位置、换图都没有提示音 —— 这里只认主进程广播的 raidAlert。
+  if (s.raidAlert && s.raidAlert.at && s.raidAlert.at !== state.lastAlertAt) {
+    state.lastAlertAt = s.raidAlert.at;
+    // 只响"刚刚发生"的：窗口重载/应用启动时拿到的历史状态不该突然来一声
+    if (Date.now() - s.raidAlert.at < 5000 && state.cfg.sound !== false) beep(s.raidAlert.kind);
+  }
+
   // 0) 房间状态与队友（顶栏胶囊 + 地图上的队友标记 + 右侧"房间成员"图例）
   const statusNow = s.room ? s.room.status : null;
   const justOnline = statusNow === 'online' && state.roomStatusPrev !== 'online';
@@ -565,7 +609,6 @@ async function applyMainState(s) {
         if (sel.value !== entry?.id) sel.value = entry?.id || '';
         renderFloorPicker();
         renderLegend();
-        if (state.cfg.sound !== false) beep('map');
       }
     } catch (e) { console.error('map load failed', e); }
   } else if (!wantedId && state.maps.length) {
@@ -598,7 +641,6 @@ async function applyMainState(s) {
         }
       }
     }
-    if (state.cfg.sound !== false) beep('pos');
   } else if (view.player) {
     // 新一局（进图日志清空了位置）：抹掉上一局的玩家点与轨迹，撤离指引也复位
     view.clearPlayer();
@@ -833,6 +875,11 @@ function showQuestCard(item, zone) {
   const keys = [];
   for (const grp of (obj && obj.requiredKeys) || []) for (const k of grp || []) keys.push(questItemName(k));
   if (keys.length) rows.push(`<div class="row">需要钥匙: ${escapeHtml(keys.join('、'))}</div>`);
+  // 谁勾选了：自己 + 队友（房间共享了勾选才有队友；同一个任务两人都勾了就都列出来）
+  const owners = questOwnersOf(task.id);
+  if (owners.size) {
+    rows.push(`<div class="row">谁勾选了: <b>${escapeHtml(questOwnersText(owners))}</b></div>`);
+  }
   if (obj && obj.itemIds && obj.itemIds.length) {
     const names = obj.itemIds.slice(0, 6).map((i) => questItemName(i));
     rows.push(`<div class="row desc">可交/可拾取（共 ${obj.itemTotal || obj.itemIds.length} 件）: ${escapeHtml(names.join('、'))}${(obj.itemTotal || obj.itemIds.length) > 6 ? ' 等' : ''}</div>`);
@@ -846,6 +893,7 @@ function showQuestCard(item, zone) {
   card.innerHTML = `
     <button class="close" id="info-close">×</button>
     <h4>${escapeHtml(task.name)}</h4>
+    ${questBringHtml(questBringList(task, questItemName))}
     ${rows.join('\n')}
     <div class="info-actions">
       ${zone ? '<button id="qc-goto">定位到这里</button>' : ''}
@@ -940,20 +988,32 @@ function escapeHtml(s) {
 // ---------------------------------------------------------------------------
 // 提示音（Web Audio，无外部资源）
 // ---------------------------------------------------------------------------
+// **只用于战局节奏**：主进程按游戏日志判定后广播 raidAlert（见 src/raid-alerts.js），
+// here 只负责把三种提示发成三种音色：
+//   match-queue = 开始匹配（在等服务器）  match-found = 匹配到了  countdown = 进图倒计时最后几秒
+// 截图定位、队友位置、换图一律不响 —— 这些是常态高频事件，响起来只会烦人。
+const BEEP_TONES = {
+  'match-queue': { notes: [523], gap: 0.12, dur: 0.16, gain: 0.05 },           // 一声低音
+  'match-found': { notes: [659, 880, 1175], gap: 0.11, dur: 0.12, gain: 0.06 }, // 三声上行
+  countdown: { notes: [988], gap: 0.08, dur: 0.07, gain: 0.05 },               // 短促一声（连响 3 次 = 3/2/1）
+};
 let audioCtx = null;
 function beep(kind) {
+  const tone = BEEP_TONES[kind];
+  if (!tone) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    // 窗口在后台时 AudioContext 可能被挂起：先唤醒，否则"该响的时候没响"
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const t = audioCtx.currentTime;
-    const notes = kind === 'map' ? [660, 880] : [880];
-    notes.forEach((freq, i) => {
+    tone.notes.forEach((freq, i) => {
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
       o.type = 'sine'; o.frequency.value = freq;
-      g.gain.setValueAtTime(0.06, t + i * 0.12);
-      g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.1);
+      g.gain.setValueAtTime(tone.gain, t + i * tone.gap);
+      g.gain.exponentialRampToValueAtTime(0.001, t + i * tone.gap + tone.dur);
       o.connect(g); g.connect(audioCtx.destination);
-      o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.1);
+      o.start(t + i * tone.gap); o.stop(t + i * tone.gap + tone.dur);
     });
   } catch {}
 }
@@ -1193,6 +1253,7 @@ function syncAnnosToRoom(mapId, list) {
 // ---------------------------------------------------------------------------
 const QUEST_UI_DEFAULT = {
   open: true, mapOnly: true, locationOnly: true, showKill: false, checkedOnly: false,
+  peerCheckedOnly: false, // 只看队友勾选的任务（房间共享的勾选）
   trader: '', levelMax: 0, query: '', opacity: 0.25, autoOpen: true,
 };
 const MAX_DRAWN_TASKS = 40; // 一张图上同时画太多任务会糊成一片，超出只在列表里提示
@@ -1203,6 +1264,7 @@ const quest = {
   tradersById: new Map(),
   checked: new Set(),
   ui: { ...QUEST_UI_DEFAULT },
+  peerIdx: { ids: new Set(), byTask: new Map(), byPeer: new Map() }, // 队友勾选的任务（房间共享）
   expanded: new Set(),
   collapsedTraders: new Set(),
   collapsedStages: new Set(),
@@ -1263,6 +1325,7 @@ function initQuests() {
   chip('#qc-map', 'mapOnly');
   chip('#qc-loc', 'locationOnly');
   chip('#qc-checked', 'checkedOnly');
+  chip('#qc-peer', 'peerCheckedOnly');
   chip('#qc-kill', 'showKill');
 
   $('#quest-trader').addEventListener('change', (e) => {
@@ -1339,6 +1402,7 @@ function saveQuestCfg() {
         locationOnly: quest.ui.locationOnly !== false,
         showKill: Boolean(quest.ui.showKill),
         checkedOnly: Boolean(quest.ui.checkedOnly),
+        peerCheckedOnly: Boolean(quest.ui.peerCheckedOnly),
         trader: quest.ui.trader || '',
         levelMax: Number(quest.ui.levelMax) || 0,
         opacity: Number(quest.ui.opacity) || 0.18,
@@ -1354,29 +1418,73 @@ function currentMapId() {
 
 /** 当前地图上、已勾选、有地点可画的任务 -> 交给渲染层
  *  注意：这里刻意不受侧边栏的搜索/筛选影响 —— 地图上永远显示"你勾选的全部"，
- *  否则一搜索就会把地图上的标记也一起搜没，很容易以为勾选丢了。 */
+ *  否则一搜索就会把地图上的标记也一起搜没，很容易以为勾选丢了。
+ *  队友勾选的任务也一起画（房间共享）：**同一个任务两人都勾了只画一次**，
+ *  鼠标悬停在标记上能看到是谁勾的。 */
 function syncQuestLayer() {
   const mapId = currentMapId();
   if (!mapId || !quest.dump) {
     view.setQuests([]);
     return 0;
   }
+  // 谁勾了这个任务：'' = 我，其它是队友的 peerId
+  const ownersOf = new Map();
+  const addOwner = (taskId, owner) => {
+    if (!taskId) return;
+    if (!ownersOf.has(taskId)) ownersOf.set(taskId, new Set());
+    ownersOf.get(taskId).add(owner);
+  };
+  for (const id of quest.checked) addOwner(id, '');
+  const peerQuests = (state.room && state.room.quests) || {};
+  for (const [pid, ids] of Object.entries(peerQuests)) {
+    if (!Array.isArray(ids)) continue;
+    for (const id of ids) addOwner(id, pid);
+  }
+
   const items = [];
   for (const task of quest.dump.tasks || []) {
-    if (!quest.checked.has(task.id)) continue;
+    const owners = ownersOf.get(task.id);
+    if (!owners) continue;
     const loc = taskLocation(task, mapId, { showKill: quest.ui.showKill });
     if (!loc.zones.length && !loc.spots.length) continue;
     const tr = quest.tradersById.get(task.trader);
+    const peers = [...owners].filter(Boolean);
     items.push({
       id: task.id,
       label: `${task.name}${tr ? ` · ${tr.name}` : ''}`,
       zones: loc.zones,
       spots: loc.spots,
+      mine: owners.has(''),
+      peers,
+      ownersText: questOwnersText(owners),
     });
     if (items.length >= MAX_DRAWN_TASKS) break;
   }
   view.setQuests(items);
   return items.length;
+}
+
+/** 队友昵称（拿不到就退回 id） */
+function peerNameOf(pid) {
+  const peers = (state.room && state.room.peers) || [];
+  const p = peers.find((x) => x && x.id === pid);
+  return (p && (p.nick || p.id)) || '队友';
+}
+
+/** 角标上的队友名：短名直接用，长的截断（完整名字在 title 与展开明细里） */
+function peerShortName(nick) {
+  const s = String(nick == null ? '' : nick);
+  return s.length > 4 ? `${s.slice(0, 4)}…` : s;
+}
+
+/** "谁勾选了"的可读文字：你 + 队友昵称 */
+function questOwnersText(owners) {
+  const parts = [];
+  if (owners.has('')) parts.push('你');
+  for (const pid of owners) {
+    if (pid) parts.push(peerNameOf(pid));
+  }
+  return parts.join(' + ');
 }
 
 /** 重画侧边栏 + 同步地图图层 */
@@ -1394,6 +1502,9 @@ function refreshQuests({ autoOpen = false } = {}) {
 
   const tasks = quest.dump.tasks || [];
   const mapId = currentMapId();
+  // 队友勾选的任务（房间共享）：筛选「队友勾选」用 ids，列表角标/展开明细用 byTask
+  const peerIdx = peerQuestIndex(state.room && state.room.quests);
+  quest.peerIdx = peerIdx;
   const filtered = filterTasks(tasks, quest.tradersById, {
     query: quest.ui.query,
     traderId: quest.ui.trader,
@@ -1402,6 +1513,8 @@ function refreshQuests({ autoOpen = false } = {}) {
     locationOnly: quest.ui.locationOnly !== false,
     checkedOnly: Boolean(quest.ui.checkedOnly),
     checked: quest.checked,
+    peerCheckedOnly: Boolean(quest.ui.peerCheckedOnly),
+    peerChecked: peerIdx.ids,
     showKill: Boolean(quest.ui.showKill),
     levelMax: Number(quest.ui.levelMax) || 0,
   });
@@ -1417,9 +1530,18 @@ function refreshQuests({ autoOpen = false } = {}) {
   if (!tasks.length) {
     list.innerHTML = '<div class="quest-empty">任务数据是空的。<br>请运行 <code>npm run fetch:quests</code> 重新生成 <code>data/quests-dump.json</code>。</div>';
   } else if (!filtered.length) {
-    const hint = quest.ui.checkedOnly
-      ? '还没有勾选任何任务。<br>取消"已勾选"筛选，搜索任务名后点左侧方框勾选。'
-      : (quest.ui.mapOnly !== false && mapId ? '当前地图没有符合筛选的任务。<br>试试关掉"本图"或"有地点"。' : '没有匹配的任务，换个关键词试试。');
+    let hint;
+    if (quest.ui.checkedOnly && quest.ui.peerCheckedOnly) {
+      hint = '我和队友没有"都勾选"的任务。<br>两个筛选都开着时 = 只看交集（想看我或队友勾的，关掉其中一个）。';
+    } else if (quest.ui.peerCheckedOnly) {
+      hint = peerIdx.ids.size
+        ? '队友勾选的任务里没有符合当前筛选的。<br>试试关掉"本图"或"有地点"。'
+        : '还没有看到队友勾选的任务。<br>需要三件事同时成立：房间联机已连上、服务端支持共享勾选（新服务端）、队友那边确实勾了任务。';
+    } else if (quest.ui.checkedOnly) {
+      hint = '还没有勾选任何任务。<br>取消"已勾选"筛选，搜索任务名后点左侧方框勾选。';
+    } else {
+      hint = (quest.ui.mapOnly !== false && mapId) ? '当前地图没有符合筛选的任务。<br>试试关掉"本图"或"有地点"。' : '没有匹配的任务，换个关键词试试。';
+    }
     list.innerHTML = `<div class="quest-empty">${hint}</div>`;
   } else {
     const groups = groupTasks(filtered, quest.tradersById);
@@ -1446,7 +1568,7 @@ function refreshQuests({ autoOpen = false } = {}) {
     return t && mapId && (t.maps || []).includes(mapId);
   }).length;
   $('#quest-stat').textContent = mapName
-    ? `本图 ${filtered.length} 个 · 已勾选 ${quest.checked.size}（本图 ${checkedOnMap}）· 画了 ${drawn}`
+    ? `本图 ${filtered.length} 个 · 已勾选 ${quest.checked.size}（本图 ${checkedOnMap}）${peerIdx.ids.size ? ` · 队友勾选 ${peerIdx.ids.size}` : ''} · 画了 ${drawn}`
     : `共 ${tasks.length} 个任务 · 已勾选 ${quest.checked.size}（等待识别地图）`;
   const badge = $('#quest-badge');
   badge.textContent = String(quest.checked.size);
@@ -1599,10 +1721,26 @@ function questRow(task, mapId) {
       : '<span class="qbadge nocord" title="公开任务数据里没有这个任务的坐标，只有文字目标">无坐标</span>';
     row.classList.add('no-loc');
   }
+  // 「进图要带」的角标：要钥匙 / 要带物品的任务在折叠状态下也能一眼看出来（黄色）
+  const bring = questBringList(task, questItemName);
+  const bringBadge = bring.empty
+    ? ''
+    : `<span class="qbadge bring" title="展开看「进图要带」：${escapeHtml([formatBringKeys(bring.keys), bring.items.map((i) => i.name).join('、')].filter(Boolean).join(' · '))}">${bring.keys.length ? '🔑' : '📦'}带${bring.keys.length + bring.items.length}</span>`;
+  // 谁勾了这个任务：自己勾的给「我」角标，队友勾的按他的颜色给一个名字角标
+  const mineChecked = quest.checked.has(task.id);
+  const peerOwners = [...questOwnersOf(task.id)].filter(Boolean);
+  const ownerBadge = (mineChecked ? '<span class="qbadge mine" title="我自己勾选的">我</span>' : '')
+    + peerOwners.map((pid) => {
+      const nm = peerNameOf(pid);
+      const col = peerColor(pid);
+      return `<span class="qbadge peer" style="color:${col};border-color:${col}99" title="${escapeHtml(nm)} 勾选的（展开看详情）">${escapeHtml(peerShortName(nm))}</span>`;
+    }).join('');
   badges.innerHTML = `
     <span class="qbadge lv">Lv${task.level || 0}</span>
     <span class="qbadge stage">${st.label}${task.stage ? ` · 链${task.stage}` : ''}</span>
     ${task.kappa ? '<span class="qbadge kappa">Kappa</span>' : ''}
+    ${ownerBadge}
+    ${bringBadge}
     ${locBadge}`;
   text.append(name, sub, badges);
   main.append(box, text);
@@ -1625,6 +1763,23 @@ function questRow(task, mapId) {
 function questDetail(task, mapId) {
   const wrap = document.createElement('div');
   wrap.className = 'quest-detail';
+  // 最上面先给「进图要带」：钥匙 / 要带进图放置·使用的物品（黄色高亮，一眼能看到）
+  const bring = questBringList(task, questItemName);
+  if (!bring.empty) wrap.appendChild(questBringBox(bring));
+  // 谁勾选的（自己 + 队友，房间共享了勾选才有队友）——展开就能看到具体是谁
+  const owners = questOwnersOf(task.id);
+  if (owners.size) {
+    const row = document.createElement('div');
+    row.className = 'quest-obj quest-owner';
+    const tag = document.createElement('span');
+    tag.className = 'quest-obj-type';
+    tag.textContent = '谁勾选';
+    const txt = document.createElement('span');
+    txt.className = 'quest-obj-text';
+    txt.textContent = questOwnersText(owners);
+    row.append(tag, txt);
+    wrap.appendChild(row);
+  }
   const loc = taskLocation(task, mapId, { showKill: quest.ui.showKill });
   const located = [...loc.zones.map((z) => z), ...loc.spots.map((s) => s)];
   for (const o of task.objectives || []) {
@@ -1688,6 +1843,43 @@ function questDetail(task, mapId) {
   return wrap;
 }
 
+/**
+ * 「进图要带」块的 HTML（信息卡片用 innerHTML，侧边栏用 DOM 节点，样式是同一套）。
+ * 只列真正要带进战局的东西：钥匙（同组是"或"关系）+ 放置/使用类任务物品。
+ */
+function questBringHtml(bring) {
+  if (!bring || bring.empty) return '';
+  const rows = [];
+  if (bring.keys.length) {
+    rows.push(`<div class="qb-row qb-keys"><span class="qb-tag">钥匙</span>${escapeHtml(formatBringKeys(bring.keys))}</div>`);
+  }
+  if (bring.items.length) {
+    const txt = bring.items.map((it) => escapeHtml(it.name) + (it.count > 1 ? ` ×${it.count}` : '')).join('、');
+    rows.push(`<div class="qb-row qb-items"><span class="qb-tag">物品</span>${txt}</div>`);
+  }
+  return `<div class="quest-bring"><div class="qb-title">进图要带</div>${rows.join('')}</div>`;
+}
+
+/**
+ * 「进图要带」黄色高亮块（任务明细最上面那一块）。
+ */
+function questBringBox(bring) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = questBringHtml(bring);
+  return wrap.firstElementChild || wrap;
+}
+
+/** 这个任务被谁勾选了：'' = 我，其余是队友 peerId（合并显示时全都列出来） */
+function questOwnersOf(taskId) {
+  const owners = new Set();
+  if (quest.checked.has(taskId)) owners.add('');
+  const peerQuests = (state.room && state.room.quests) || {};
+  for (const [pid, ids] of Object.entries(peerQuests)) {
+    if (Array.isArray(ids) && ids.includes(taskId)) owners.add(pid);
+  }
+  return owners;
+}
+
 /** 侧边栏里点某个任务（或点地图上的区域点）：展开并滚动到它 */
 function focusQuest(taskId) {
   if (!taskId || !quest.dump) return;
@@ -1721,8 +1913,17 @@ function applyRoomView(roomState) {
   const mine = (annosByMap[mapId] || []).filter((a) => a && a.owner !== myId);
   view.setPeers(peers);
   view.setPeerAnnos(mine);
+  // 队友的勾选任务变了：任务图层要重算（合并显示 + 图例里的「XX勾选的任务」）
+  const quests = (roomState && roomState.quests) || {};
+  const qSig = questsFingerprint(quests);
+  const questsChanged = qSig !== state.roomQuestsSig;
+  if (questsChanged) {
+    state.roomQuestsSig = qSig;
+    // 队友的勾选变了：地图图层、图例、以及**列表里的「谁勾选」角标和「队友勾选」筛选**都要跟着更新
+    if (quest.dump) refreshQuests();
+  }
   const sig = peersSignature(peers, mapId, annosByMap);
-  if (sig !== state.peersSig) {
+  if (sig !== state.peersSig || questsChanged) {
     state.peersSig = sig;
     renderLegend();
   }

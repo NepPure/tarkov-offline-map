@@ -21,6 +21,7 @@ const { readJsonFile } = require('./src/json-file');
 const { LogWatcher } = require('./src/log-watcher');
 const { ScreenshotWatcher } = require('./src/screenshot-watcher');
 const { AutoShotRunner, createKeyPressHelper, normalizeKeyName, clampIntervalSec, dryRunRequested } = require('./src/auto-shot');
+const { createRaidAlerts, MIN_LEAD_SEC, MAX_LEAD_SEC } = require('./src/raid-alerts');
 const roomClientModule = require('./src/room-client');
 const { RoomClient, probeServer, randomPeerId } = roomClientModule;
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
@@ -120,7 +121,8 @@ function loadSettings() {
     autoCenter: true,           // 定位自动居中
     showAllMarkers: true,       // 表层显示全部标记
     autoFloor: true,            // 自动切换地图图层
-    sound: true,                // 声音提示
+    sound: true,                // 声音提示（只用于战局：开始匹配 / 匹配到了 / 进图倒计时最后几秒）
+    alertLeadSec: 3,            // 进图倒计时"最后几秒"开始提示（1~10 秒）
     autoDeleteScreenshots: false, // 自动删除截图文件
     markerScale: 1,             // 标记大小乘数
     labelScale: 1,              // 地名文字大小乘数
@@ -133,6 +135,7 @@ function loadSettings() {
       locationOnly: true,       // 只看有地点的
       showKill: false,          // 显示击杀/刷怪区（默认关：区域很大很糊）
       checkedOnly: false,       // 只看已勾选
+      peerCheckedOnly: false,   // 只看队友勾选的（房间共享的勾选）
       trader: '',               // 商人过滤（空 = 全部）
       levelMax: 0,              // 等级上限（0 = 不限）
       opacity: 0.25,            // 区域填充透明度
@@ -148,6 +151,7 @@ function loadSettings() {
       peerId: '',               // 身份标识（自动生成，用来固定颜色与图例开关）
       sharePos: true,           // 共享我的定位
       shareAnno: true,          // 共享我的标注
+      shareQuests: true,        // 共享我勾选的任务（服务端支持能力协商时才发）
     },
   };
   let merged = defaults;
@@ -175,6 +179,13 @@ function loadSettings() {
       merged.autoShot.key = key;
     }
     merged.autoShot.intervalSec = clampIntervalSec(merged.autoShot.intervalSec);
+  }
+  // 战局提示音"最后几秒"：手改坏/老存档没有这个字段都要兜住（夹到 1~10）
+  {
+    const n = Math.round(Number(merged.alertLeadSec));
+    merged.alertLeadSec = Number.isFinite(n)
+      ? Math.max(MIN_LEAD_SEC, Math.min(MAX_LEAD_SEC, n))
+      : defaults.alertLeadSec;
   }
   // 雷达上显示标注的模式：认不出来就回默认（老配置里没有这个字段）。
   // 渲染层还有一份等价的归一化（renderer/common/map-view.js#normalizeMiniAnnoMode），
@@ -218,6 +229,7 @@ const state = {
   appVersion: null,   // 关于页面显示用（app.getVersion()）
   annosAt: null,      // 标注数据最后一次变更的时间戳（雷达靠它决定要不要重取）
   autoShotStatus: null, // 定时自动截图的运行状态（见 src/auto-shot.js#stats）
+  raidAlert: null,    // 最近一次战局提示音 {kind, at, remain}（渲染层按 at 变化响一次）
 };
 
 let lastStateWrite = 0;
@@ -312,7 +324,46 @@ function registerAppProtocol() {
 // ---------------------------------------------------------------------------
 // 状态流转
 // ---------------------------------------------------------------------------
+// 战局提示音：只认"开始匹配 / 匹配到了 / 进图倒计时最后几秒"（见 src/raid-alerts.js）。
+// 截图定位、队友位置、换图一律不响 —— 渲染层那边也不再有对应的 beep 调用。
+let raidAlerts = null;
+let raidAlertTimer = null;
+
+function broadcastRaidAlerts(list) {
+  for (const a of list) {
+    appLog(`[alert] 响铃 ${a.kind}${a.remain ? `（还剩 ${a.remain} 秒）` : ''}`);
+    broadcast({ raidAlert: { kind: a.kind, at: a.at, remain: a.remain || 0 } });
+    // 提示音是**事件**不是状态：广播完就清掉，别让后续每一条状态推送
+    // （定位/换图/日志摘要…）都把同一条提示音再带一遍 —— 那会让窗口重载后
+    // 还可能补响一次，也让"到底响了几次"没法从状态里看出来。
+    state.raidAlert = null;
+  }
+}
+
+/** 把下一个待响的提示排成定时器（倒计时的几声落在两条日志之间，只能靠定时器） */
+function scheduleRaidAlert() {
+  if (raidAlertTimer) { clearTimeout(raidAlertTimer); raidAlertTimer = null; }
+  if (!raidAlerts) return;
+  const at = raidAlerts.nextAt();
+  if (at == null) return;
+  raidAlertTimer = setTimeout(() => {
+    raidAlertTimer = null;
+    if (!raidAlerts) return;
+    const due = raidAlerts.due();
+    if (due.length) broadcastRaidAlerts(due);
+    scheduleRaidAlert();
+  }, Math.max(0, at - Date.now()));
+}
+
+function feedRaidAlerts(ev) {
+  if (!raidAlerts) return;
+  const immediate = raidAlerts.feed(ev);
+  if (immediate.length) broadcastRaidAlerts(immediate);
+  scheduleRaidAlert();
+}
+
 function applyLogEvent(ev) {
+  feedRaidAlerts(ev);
   let raidCode = null;
   let newRaid = false;
   if (ev.type === 'scene-preset') { raidCode = ev.raidCode; newRaid = true; }
@@ -387,7 +438,6 @@ let mainWin = null;
 let miniWin = null;
 let miniWatchdog = null;
 let miniHidden = false; // 小地图当前是否处于"隐藏"意图（hide() 与 blur 事件有竞态，靠它兜住）
-let pinnedState = null; // 图钉化时的原窗口状态
 const MINI_SIZE = 300;  // 小地图窗口边长（CSS px）
 
 // ---------------------------------------------------------------------------
@@ -915,7 +965,7 @@ function setupIpc() {
   // 初次加载也要带上房间快照（broadcast 里就带着它）。
   // 少这一口的话，窗口刚打开/刷新时如果已经在房间里，顶栏胶囊和设置页的提示行
   // 要等到"下一个状态事件"才会出现 —— 队友不动、你也不按截图键，那就一直空着。
-  ipcMain.handle('state:get', () => ({ ...state, room: room ? room.snapshot() : null }));
+  ipcMain.handle('state:get', () => ({ ...state, config: settings, room: room ? room.snapshot() : null }));
   ipcMain.handle('config:get', () => settings);
   ipcMain.handle('config:set', (_e, patch) => {
     const roomChanged = patch && Object.prototype.hasOwnProperty.call(patch, 'room');
@@ -943,6 +993,10 @@ function setupIpc() {
     // 截图目录变了要重算"目录在不在"（不在就不按了）
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'screenshotsPath')) syncAutoShotContext();
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniClickThrough')) applyMiniClickThrough();
+    // 进图倒计时提示的"提前几秒"：立刻生效（不用重开日志监听）
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'alertLeadSec') && raidAlerts) raidAlerts.setLeadSec(patch.alertLeadSec);
+    // 勾选任务变了：同步给房间（队友的图上就有你的勾选）
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'quests')) pushQuests();
     // 小地图开关同理：设置页勾/去勾必须立刻开/关窗口，不能只改配置
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniVisible')) applyMiniVisible();
     // 房间配置变了（开关/地址/房间号/昵称/共享项）才重新握手
@@ -998,24 +1052,6 @@ function setupIpc() {
     return state;
   });
   ipcMain.handle('floor:set', (_e, floor) => { broadcast({ floor }); return state; });
-  ipcMain.handle('window:pin', () => {
-    if (!mainWin) return false;
-    if (!pinnedState) {
-      pinnedState = mainWin.getBounds();
-      const wa = screen.getPrimaryDisplay().workArea;
-      mainWin.setMinimumSize(360, 440);
-      mainWin.setSize(430, 580);
-      mainWin.setPosition(wa.x + wa.width - 470, wa.y + 90);
-      mainWin.setAlwaysOnTop(true, 'screen-saver');
-    } else {
-      mainWin.setMinimumSize(1080, 680);
-      mainWin.setSize(pinnedState.width, pinnedState.height);
-      mainWin.setPosition(pinnedState.x, pinnedState.y);
-      mainWin.setAlwaysOnTop(false);
-      pinnedState = null;
-    }
-    return !!pinnedState;
-  });
   ipcMain.handle('mini:toggle', () => {
     // 状态自愈：如果配置是"开着"但窗口其实已经不见（被系统吞掉/崩溃/隐藏），
     // 点一次就直接恢复，而不是先关再开
@@ -1102,6 +1138,37 @@ function setupIpc() {
     applyPosition({ ...parsed, at: Date.now() });
     return parsed;
   });
+  // 设置页的"游戏日志目录 / 截图目录"：直接弹系统文件夹选择框。
+  // 只选目录（properties: openDirectory），不碰文件；选完由渲染层填进输入框，点「保存」才落盘。
+  ipcMain.handle('util:pick-folder', async (_e, opts) => {
+    const title = opts && typeof opts.title === 'string' ? opts.title.slice(0, 80) : '选择文件夹';
+    const def = opts && typeof opts.defaultPath === 'string' ? opts.defaultPath.trim() : '';
+    let defaultPath = null;
+    if (def) {
+      try { if (fs.statSync(def).isDirectory()) defaultPath = def; } catch {}
+    }
+    const r = await dialog.showOpenDialog(mainWin, {
+      title,
+      properties: ['openDirectory', 'createDirectory'],
+      ...(defaultPath ? { defaultPath } : {}),
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    return { path: r.filePaths[0] };
+  });
+  // 在资源管理器里打开某个目录（设置页那两个「打开文件夹」按钮）。
+  // 只认确实存在的路径：目录 -> 用系统默认方式打开，文件 -> 选中它。
+  ipcMain.handle('util:open-path', (_e, p) => {
+    const target = String(p || '').trim();
+    if (!target) return { error: '路径是空的：先点「选择文件夹…」选一个目录' };
+    let st = null;
+    try { st = fs.statSync(target); } catch { return { error: `目录不存在：${target}` }; }
+    if (st.isDirectory()) {
+      shell.openPath(target).then((err) => { if (err) appLog(`[open-path] 打开失败 ${target}: ${err}`); }).catch(() => {});
+      return { ok: true };
+    }
+    if (st.isFile()) { shell.showItemInFolder(target); return { ok: true }; }
+    return { error: '这个路径打不开' };
+  });
   // 任务详情卡里的"打开 Wiki"：只放行 https，其它一律忽略
   ipcMain.handle('util:open-external', (_e, url) => {
     const u = String(url || '');
@@ -1156,6 +1223,11 @@ function syncWatchers() {
 }
 
 function startWatchers() {
+  // 战局提示音（匹配等待服务器 / 匹配到了 / 进图倒计时最后几秒）：纯状态机，日志事件喂给它
+  raidAlerts = createRaidAlerts({
+    leadSec: settings.alertLeadSec,
+    log: (m) => appLog(m),
+  });
   logWatcher = new LogWatcher(settings.logsPath, (ev) => applyLogEvent(ev), (s) => {
     if (s.state === 'watching') appLog(`log session: ${s.session} (${s.version}) root=${s.root}`);
     else if (s.state === 'unknown-map') appLog(`UNKNOWN map bundle: ${s.bundle} (rcid=${s.rcid}) sample=${s.sample}`);
@@ -1286,6 +1358,8 @@ function syncRoom() {
         // 要等渲染层 600ms 防抖，正好在这窗口里进房就会漏掉最新那一笔。
         room.setMap(state.mapId);
         pushPosition();
+        // 勾选任务也补一遍（整份覆盖，几 KB；服务端没有这个能力时会自己跳过）
+        pushQuests();
       },
     });
   }
@@ -1307,6 +1381,16 @@ function pushPosition() {
     ts: state.positionAt || Date.now(),
     trail: (state.trail || []).map((p) => ({ x: p.x, z: p.z })),
   });
+}
+
+/**
+ * 把"我勾选的任务"推给房间（整份覆盖）。
+ * 勾选状态存在 settings.quests.checked 里，渲染层每次改动都会 config:set 回来，
+ * 所以这里只负责转发；服务端没声明 quests 能力时会静默跳过。
+ */
+function pushQuests() {
+  if (!room || !settings) return;
+  room.sendQuests((settings.quests && settings.quests.checked) || []);
 }
 
 // ---------------------------------------------------------------------------

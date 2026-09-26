@@ -4,6 +4,7 @@
  * 圆形小地图悬浮窗：跟随玩家 + 车头朝上 + 缩放
  */
 import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini } from './common/map-view.js';
+import { taskLocation, questsFingerprint } from './common/quest-filter.js';
 
 const api = window.api;
 
@@ -23,6 +24,18 @@ let miniAnnosMode = 'all';
 let myAnnos = [];            // 当前地图上我画的笔画
 let myAnnosMapId = null;     // 上面这份属于哪张图
 let lastAnnosAt = null;      // 主进程广播的"标注变更时间戳"（变了才重取，不做每秒 IPC）
+
+// 任务点：和主窗口用**同一份** quests-dump.json + 同一份勾选状态（配置里的 quests.checked），
+// 所以主地图上画了什么，雷达上就有同样的东西（区域多边形 / 物品刷新点）。
+// 数据是 880KB 的静态文件，只在第一次需要时取一次；勾选状态没变就不重算图层。
+let questCfg = { checked: [], showKill: false };
+let questKey = null;         // 地图 + checked + showKill 的指纹（变了才重算图层）
+let questDump = null;
+let questLoading = null;
+const MAX_MINI_QUESTS = 40;  // 与主窗口一致（一张图同时画太多任务会糊成一片）
+
+// 地图 id -> 中文名（转移点文字要用：数据里 description 只写"前往"时靠它补目的地）
+let mapNames = null;
 
 // 雷达视野偏移（地图像素）：Ctrl 拖动圆盘 = 平移圆盘里的地图，而不是移动悬浮窗。
 // 偏移叠加在"跟随玩家居中"之上——玩家照旧跟随，只是不再固定在圆心（相当于往某侧多看一点）。
@@ -45,16 +58,101 @@ async function getDetail(mapId) {
 }
 
 /**
- * 本地瓦片底图清单（实验室/迷宫/破冰船这类没有 SVG 的图）。
- * 主进程扫盘后经 listMaps 下发；只取一次，之后换图直接查。
+ * 地图清单（主进程扫盘后经 listMaps 下发）：本地瓦片底图清单 + 地图中文名。
+ * 只取一次，之后换图/换标注直接查。
  */
-let tileMeta = null;
-async function tileDirsFor(mapId) {
-  if (tileMeta === null) {
-    try { tileMeta = await api.listMaps(); } catch { tileMeta = []; }
+let mapList = null;
+async function listMapsCached() {
+  if (mapList === null) {
+    try { mapList = await api.listMaps(); } catch { mapList = []; }
   }
-  const m = tileMeta.find((x) => x.id === mapId);
+  return mapList;
+}
+
+async function tileDirsFor(mapId) {
+  const m = (await listMapsCached()).find((x) => x.id === mapId);
   return (m && m.tiles) || null;
+}
+
+/** 转移点文字要用"地图 id -> 中文名"（与主窗口同一份逻辑，否则雷达上只写"前往"） */
+async function mapNamesDictionary() {
+  if (mapNames) return mapNames;
+  mapNames = new Map();
+  for (const m of await listMapsCached()) {
+    if (m && m.id && m.name && !mapNames.has(m.id)) mapNames.set(m.id, m.name);
+  }
+  return mapNames;
+}
+
+/** 任务库（data/quests-dump.json）：只在第一次需要时取一次；失败允许下次重试 */
+function ensureQuestDump() {
+  if (questDump) return Promise.resolve(questDump);
+  if (questLoading) return questLoading;
+  questLoading = (async () => {
+    const dump = await (await fetch('app://data/quests-dump.json')).json();
+    questDump = dump;
+    return dump;
+  })();
+  questLoading.catch(() => { questLoading = null; });
+  return questLoading;
+}
+
+/**
+ * 主窗口勾选的任务 -> 雷达图层。
+ * 与 renderer/map.js#syncQuestLayer 同一套算法（同一份数据、同一份勾选），
+ * 这样"地图上看到的"和"雷达上看到的"永远一致。
+ */
+async function syncQuestLayer(mapId) {
+  const items = [];
+  try {
+    const dump = await ensureQuestDump();
+    // 谁勾了这个任务：'' = 我，其余是队友（房间共享的勾选）；同一个任务只画一次
+    const ownersOf = new Map();
+    const addOwner = (taskId, owner) => {
+      if (!taskId) return;
+      if (!ownersOf.has(taskId)) ownersOf.set(taskId, new Set());
+      ownersOf.get(taskId).add(owner);
+    };
+    for (const id of questCfg.checked) addOwner(id, '');
+    for (const [pid, ids] of Object.entries(questCfg.peerQuests || {})) {
+      if (!Array.isArray(ids)) continue;
+      for (const id of ids) addOwner(id, pid);
+    }
+    const traders = new Map((dump.traders || []).map((t) => [t.id, t]));
+    for (const task of dump.tasks || []) {
+      const owners = ownersOf.get(task.id);
+      if (!owners) continue;
+      const loc = taskLocation(task, mapId, { showKill: questCfg.showKill });
+      if (!loc.zones.length && !loc.spots.length) continue;
+      const tr = traders.get(task.trader);
+      const peers = [...owners].filter(Boolean);
+      items.push({
+        id: task.id,
+        label: `${task.name}${tr ? ` · ${tr.name}` : ''}`,
+        zones: loc.zones,
+        spots: loc.spots,
+        mine: owners.has(''),
+        peers,
+        ownersText: owners.has('') ? '我勾选的' : '队友勾选的',
+      });
+      if (items.length >= MAX_MINI_QUESTS) break;
+    }
+  } catch (e) {
+    console.warn('雷达读取任务数据失败（不影响使用）', e);
+  }
+  // 取数据期间又换图了：这份结果作废（否则会把上一张图的任务画到新图上）
+  if (detail && detail.id === mapId) view.setQuests(items);
+}
+
+/**
+ * 需要时才重算任务图层：换图、勾选状态/击杀区开关变了、或者队友的勾选变了。
+ * 状态推送很频繁（每次定位、拖动都会来一条），这里靠指纹挡住重复计算。
+ */
+async function maybeSyncQuests(mapId) {
+  const want = `${mapId}|${questCfg.checked.slice().sort().join(',')}|${questCfg.showKill ? 1 : 0}|${questsFingerprint(questCfg.peerQuests)}`;
+  if (want === questKey) return;
+  questKey = want; // 先记下：同一张图/同一份勾选的并发推送只算一次
+  await syncQuestLayer(mapId);
 }
 
 /** 以 (x,z) 为中心时，让半径 RADIUS_M 正好铺满圆盘的缩放（小地图的"标准视野"） */
@@ -101,6 +199,8 @@ async function applyState(s) {
   // 配置先落地（RADIUS_M 影响标准视野的缩放）
   if (s.config) {
     view.setMarkerToggles(s.config.markerToggles);
+    // "表层显示全部标记"与主窗口一致：关掉后雷达也只画当前楼层的标记
+    view.setShowAllHeights(s.config.showAllMarkers !== false);
     view.setMarkerScale(s.config.markerScale || 1);
     view.setLabelScale(s.config.labelScale || 1);
     RADIUS_M = s.config.miniRadius || 55;
@@ -109,6 +209,14 @@ async function applyState(s) {
     miniAutoCenter = s.config.miniAutoCenter !== false;
     miniAutoFloor = s.config.miniAutoFloor !== false;
     miniAnnosMode = normalizeMiniAnnoMode(s.config.miniAnnos);
+    // 任务点：同一份勾选状态 + 同一套透明度（主地图上什么样，雷达上就什么样）
+    const q = s.config.quests || {};
+    questCfg = {
+      checked: Array.isArray(q.checked) ? q.checked : [],
+      showKill: !!q.showKill,
+      peerQuests: (s.room && s.room.quests) || {},
+    };
+    view.setQuestOpacity(q.opacity ?? 0.25);
     api.setMiniOpacity(s.config.miniOpacity ?? 0.9);
     setClickThrough(!!s.config.miniClickThrough);
   }
@@ -123,12 +231,16 @@ async function applyState(s) {
       try { svgText = await (await fetch(`app://data/maps/${file}`)).text(); } catch {}
     }
     await view.setMap(detail, svgText, { tileDirs: await tileDirsFor(s.mapId) });
+    // 转移点文字要用中文目的地（不然雷达上只剩"前往"两个字）
+    view.setMapNames(await mapNamesDictionary());
     // 赛季文件刷点（离线快照）：小地图上也标出来，找文件时不用切回主窗口
     await seasonReady;
     if (seasonData) view.setSeasonDocuments(seasonData, detail.id);
     // 还没定位过 -> 先给一个标准视野（地图中心 + 半径尺度），避免整图缩略时的标记糊成一团
     if (!view.player) centerOnMap();
   }
+  // 勾选的任务点：换图或勾选变了才重算（与主窗口画的是同一批）
+  await maybeSyncQuests(detail.id);
   if (s.position && s.quaternion) {
     view.rotate = miniRotate;
     const wasNull = !view.player;

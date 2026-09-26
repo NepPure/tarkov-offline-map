@@ -83,3 +83,22 @@ test('滚动条：暗色主题自定义（细/圆角/悬停变亮），别用原
   assert.ok(!/scrollbar-width\s*:/.test(css), '别同时写 scrollbar-width（会让上面的规则失效）');
   assert.ok(!/scrollbar-color\s*:/.test(css), '别同时写 scrollbar-color（会让上面的规则失效）');
 });
+
+test('主窗口没有"图钉化（置顶）"功能：按钮 / 渲染层 / IPC / preload 四处都不许回来', () => {
+  const js = read('renderer/map.js');
+  const main = read('main.js');
+  const pre = read('preload.js');
+  // 按钮没了
+  assert.ok(!html.includes('btn-pin'), 'map.html 里不该再有 #btn-pin');
+  assert.ok(!html.includes('图钉化'), 'map.html 里不该再出现"图钉化"');
+  // 渲染层接线没了
+  assert.ok(!js.includes("'#btn-pin'"), 'map.js 里不该再有 #btn-pin 的接线');
+  assert.ok(!js.includes('togglePin'), 'map.js 里不该再调 togglePin');
+  // 主进程不再提供置顶 IPC
+  assert.ok(!main.includes("'window:pin'"), 'main.js 里不该再注册 window:pin');
+  assert.ok(!main.includes('pinnedState'), 'main.js 里不该再有 pinnedState');
+  assert.ok(!/mainWin\.setAlwaysOnTop\(/.test(main), '主窗口不该再被置顶（setAlwaysOnTop 只属于悬浮雷达）');
+  assert.ok(!pre.includes('togglePin'), 'preload 不该再暴露 togglePin');
+  // 雷达的置顶必须保留（那是悬浮窗能显示在游戏上的前提）
+  assert.ok(main.includes("miniWin.setAlwaysOnTop(true, 'screen-saver')"), '雷达仍要置顶');
+});

@@ -63,6 +63,17 @@ const need = [
   //        + 楼层改下拉框（#floor-select）
   'satelliteLayout', 'raster-base', 'app://data/tiles/', 'hasBasemap', 'applyMiniVisible', 'readJsonFile',
   'floor-select',
+  // 2.1.1：战局提示音（匹配等待服务器 / 匹配到了 / 进图倒计时最后几秒）
+  'raidAlert', 'BEEP_TONES', 'match-queue', 'match-found', 'MatchingCompleted', 'GameSpawned', 'GameStarting',
+  'alertLeadSec', 'set-alert-lead',
+  // 2.1.1：队友共享勾选任务（合并显示 + 「XX勾选的任务」图例 + 悬停看是谁勾的）
+  'quest:peer:', 'peer-quests', 'sendQuests', 'shareQuests', 'set-room-quests', 'questsFingerprint',
+  // 2.1.1：任务列表里能看出是谁勾的（我/队友角标）+「队友勾选」筛选 + 展开看具体是谁
+  'qc-peer', 'peerQuestIndex', 'peerCheckedOnly', '队友勾选', 'qbadge mine', 'quest-owner',
+  // 2.1.1：任务明细里的「进图要带」黄色高亮
+  '进图要带', 'questBringList', 'quest-bring',
+  // 2.1.1：设置页目录按钮
+  'util:pick-folder', 'util:open-path', 'set-logs-pick',
 ];
 for (const n of need) ok(has(n), `含 ${n}`);
 
@@ -71,6 +82,8 @@ const bad = [
   '<span class="tag">纯本地</span>', '塔科夫离线地图',
   // 2.0.2 改名：游戏叫「逃离塔科夫」，"塔可夫"是错别字，包里不许再出现
   '塔可夫',
+  // 2.1.1：主窗口的"图钉化（缩小并置顶）"整个功能已删除，不许回潮
+  'btn-pin', 'window:pin', 'togglePin', '图钉化',
 ];
 for (const n of bad) ok(!has(n), `不应含 ${n}`);
 

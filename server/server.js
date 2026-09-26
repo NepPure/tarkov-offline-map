@@ -239,6 +239,17 @@ function createRoomServer(opts = {}) {
   function peerPublic(peer) {
     const out = { id: peer.id, nick: peer.nick, map: peer.map || null };
     if (peer.pos) out.pos = peer.pos;
+    // 勾选的任务：随成员信息一起发（新加入的人立刻就能看到，不用等下一次变更）
+    if (peer.quests && peer.quests.length) out.quests = peer.quests;
+    return out;
+  }
+
+  /** 房间里所有人的勾选任务：{peerId: [taskId]}（只含非空的） */
+  function questsFor(room) {
+    const out = {};
+    for (const p of room.peers.values()) {
+      if (p.quests && p.quests.length) out[p.id] = p.quests;
+    }
     return out;
   }
 
@@ -288,6 +299,7 @@ function createRoomServer(opts = {}) {
       room,
       map: null,
       pos: null,
+      quests: null,   // 他勾选的任务 id 列表（整份覆盖，服务端只转发）
       joinedAt: Date.now(),
       lastSeen: Date.now(),
       lastPosAt: 0,
@@ -302,9 +314,11 @@ function createRoomServer(opts = {}) {
       t: 'welcome',
       proto: P.PROTO,
       ver: SERVER_VERSION,
+      caps: P.CAPS,
       self: { id: pid, nick },
       peers: [...room.peers.values()].filter((p) => p.id !== pid).map(peerPublic),
       annos: annosFor(room),
+      quests: questsFor(room),
     });
     broadcast(room, { t: 'peer-join', peer: peerPublic(peer) }, pid);
     log('info', `join ${short(key)} nick=${nick} id=${pid} 人数=${room.peers.size}`);
@@ -393,6 +407,18 @@ function createRoomServer(opts = {}) {
     broadcast(room, { t: 'anno', op: 'del', map: a.map, id: a.id, owner: peer.id });
   }
 
+  /**
+   * 勾选任务：整份覆盖，服务端只做校验 + 广播（不认识任务内容）。
+   * 空数组是合法值（= 他全取消了），要广播出去，否则队友那边的图例会一直挂着他的旧勾选。
+   */
+  function onQuests(peer, m) {
+    const ids = P.sanitizeQuests(m);
+    if (!ids) return;
+    peer.quests = ids.length ? ids : null;
+    // 不回给发送者本人：他自己就有这份勾选
+    broadcast(peer.room, { t: 'peer-quests', id: peer.id, ids }, peer.id);
+  }
+
   function onMessage(ws, raw) {
     const parsed = P.parseFrame(raw, P.LIMITS.FRAME_MAX);
     if (!parsed.ok) {
@@ -422,6 +448,8 @@ function createRoomServer(opts = {}) {
         return onNewRaid(peer);
       case 'anno':
         return onAnno(peer, m);
+      case 'quests':
+        return onQuests(peer, m);
       default:
         return; // 未知类型静默忽略：以后加消息类型时老服务端不会炸
     }

@@ -15,6 +15,14 @@ const crypto = require('crypto');
 
 const PROTO = 2; // 协议大版本：不一致直接拒（客户端会提示"服务端版本不匹配"）
 
+/**
+ * 服务端能力清单（写在 welcome 里）。
+ * 客户端只会用两端都声明过的能力，所以**加能力不用动 PROTO**：
+ * 新客户端连老服务端 = 该功能静默关闭，老客户端连新服务端 = 忽略不认识的字段。
+ * quests = 允许客户端共享"我勾选的任务"（整份任务 id 列表，服务端只做校验与转发）。
+ */
+const CAPS = ['quests'];
+
 const LIMITS = {
   NICK_MAX: 16,
   MAP_ID_MAX: 64,
@@ -23,6 +31,7 @@ const LIMITS = {
   PTS_MAX: 3000,         // 单笔标注最多多少个点（和客户端 src/annotations.js 保持一致）
   STROKES_PER_MAP: 400,  // 每张图最多多少笔（同上）
   ROOM_ANNOS_MAX: 2000,  // 单个房间所有图加起来最多多少笔
+  QUESTS_MAX: 200,       // 一个人最多共享多少个勾选任务（和客户端 src/room-client.js 一致）
   FRAME_MAX: 64 * 1024,  // 单帧上限：超了直接断开（客户端正常一帧最多几 KB）
 };
 
@@ -31,6 +40,8 @@ const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const ROOM_KEY_RE = /^[0-9a-f]{16,64}$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 const MAP_RE = /^[A-Za-z0-9_-]{1,64}$/;
+// 任务 id：比通用 id 稍严（数据源是 hex，但允许 - 与 _ 便于以后换源）
+const QUEST_ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
 
 // ---------------------------------------------------------------------------
 // 房间号
@@ -175,6 +186,33 @@ function sanitizeAnno(msg) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// 勾选任务（"我勾选了哪些任务"，整份覆盖）
+// ---------------------------------------------------------------------------
+/**
+ * 归一化一份任务 id 列表：去重、限量、按 id 规则过滤。
+ * 任务 id 是 tarkov.dev 的 24 位 hex，但这里只按"通用安全 id"校验（不写死长度，
+ * 免得哪天数据源换 id 规则就得改协议）；服务端**不认识任务内容**，只负责转发。
+ * @returns {string[]|null} 非法输入返回 null（调用方忽略这一帧）
+ */
+function sanitizeQuests(msg) {
+  if (!msg || typeof msg !== 'object') return null;
+  if (!Array.isArray(msg.ids)) return null;
+  const out = [];
+  const seen = new Set();
+  for (const v of msg.ids) {
+    if (out.length >= LIMITS.QUESTS_MAX) break;
+    const s = typeof v === 'string' ? v : '';
+    if (!QUEST_ID_RE.test(s) || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  // 规范化顺序：同一份集合无论客户端按什么顺序发，服务端存/转发的都是同一个列表
+  // （客户端也这么排，于是"内容没变"能直接按字符串比出来）
+  out.sort();
+  return out;
+}
+
 /** 从落盘文件里读回来的笔画也要过一遍（文件可能被手改坏） */
 function sanitizeStoredAnno(raw, owner) {
   if (!raw || typeof raw !== 'object' || !KINDS.has(raw.kind)) return null;
@@ -196,6 +234,7 @@ function sanitizeStoredAnno(raw, owner) {
 
 module.exports = {
   PROTO,
+  CAPS,
   LIMITS,
   KINDS,
   roomKey,
@@ -205,6 +244,7 @@ module.exports = {
   parseFrame,
   sanitizePos,
   sanitizeAnno,
+  sanitizeQuests,
   sanitizeStoredAnno,
   clampWidth,
 };

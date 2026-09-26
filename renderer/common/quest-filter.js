@@ -111,6 +111,90 @@ export function taskHasLocation(task, mapId, opts = {}) {
   return loc.zones.length > 0 || loc.spots.length > 0;
 }
 
+/** 要"带进图"的目标类型：放置类（要塞进某处）与使用类 */
+const BRING_TYPES = new Set(['plantItem', 'plantQuestItem', 'useItem']);
+
+/**
+ * 「进图要带」清单：把任务目标里那些**必须带进战局**的东西挑出来。
+ *
+ * - 钥匙：目标上的 `requiredKeys`（一个数组 = 一组"任意一把即可"的替代钥匙）
+ * - 物品：放置类 / 使用类目标上的 `item`（任务物品），带数量
+ * 注意 `findItem/findQuestItem` 是"进图去捡"，`giveItem/giveQuestItem` 是在任务界面交，
+ * 都不算"要带进去"——所以刻意不列它们（免得清单越看越长、还把玩家误导了）。
+ *
+ * @param {object} task 任务（data/quests-dump.json 里的一条）
+ * @param {(id:string)=>string} [itemName] 物品 id -> 中文名（渲染层传 questItemName）
+ * @returns {{keys: string[][], items: Array<{name:string,count:number}>, empty: boolean}}
+ */
+export function questBringList(task, itemName = (id) => String(id)) {
+  const keys = [];
+  const items = [];
+  const seenKey = new Set();
+  const seenItem = new Set();
+  const nameOf = (id) => {
+    let n;
+    try { n = itemName(id); } catch { n = null; }
+    const s = n == null || n === '' ? String(id == null ? '' : id) : String(n);
+    return s.trim();
+  };
+  for (const o of task && Array.isArray(task.objectives) ? task.objectives : []) {
+    if (!o || typeof o !== 'object') continue;
+    for (const grp of o.requiredKeys || []) {
+      const names = [];
+      for (const id of grp || []) {
+        const n = nameOf(id);
+        if (!n || seenKey.has(n) || names.includes(n)) continue;
+        seenKey.add(n);
+        names.push(n);
+      }
+      if (names.length) keys.push(names);
+    }
+    if (BRING_TYPES.has(o.type) && o.item) {
+      const n = nameOf(o.item);
+      if (n && !seenItem.has(n)) {
+        seenItem.add(n);
+        items.push({ name: n, count: Math.max(1, Number(o.count) || 1) });
+      }
+    }
+  }
+  return { keys, items, empty: keys.length === 0 && items.length === 0 };
+}
+
+/** 钥匙组 -> 一行文字：组内"或"（替代钥匙），组间"、" */
+export function formatBringKeys(keys) {
+  return (Array.isArray(keys) ? keys : [])
+    .map((g) => (Array.isArray(g) ? g.join(' 或 ') : String(g)))
+    .filter(Boolean)
+    .join('、');
+}
+
+/**
+ * 房间快照里"队友勾选的任务"的指纹（顺序无关的哈希和）：内容没变就不要重算任务图层/重建图例。
+ * 每次状态推送都会带一份 room.quests（跨进程传输后对象引用会变，不能按引用比），
+ * 而人加入/离开会让对象键的顺序也变，所以**人顺序与 id 顺序都必须无关**。
+ * @param {object} quests {peerId: [taskId]}
+ */
+export function questsFingerprint(quests) {
+  const hash = (s) => {
+    let h = 2166136261;
+    const str = String(s);
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+  const src = quests && typeof quests === 'object' ? quests : {};
+  let acc = 0;   // 加法可交换 -> 与遍历顺序无关
+  let n = 0;
+  for (const [pid, ids] of Object.entries(src)) {
+    if (!Array.isArray(ids) || !ids.length) continue;
+    n += 1;
+    for (const id of ids) acc = (acc + hash(`${pid}\u0000${id}`)) >>> 0;
+  }
+  return `${n}:${acc.toString(16)}`;
+}
+
 /**
  * 任务在**每张图**上各有多少可画的东西（与当前地图无关）。
  * 用来回答"我勾了这个任务，为什么地图上什么都没有"——因为它的位置在别的图。
@@ -154,16 +238,48 @@ export function matchesQuery(task, query, trader) {
 }
 
 /**
+ * 队友勾选任务的索引（房间共享的那份 {peerId: [taskId]}）。
+ * - `ids`：有人勾了的任务 id 集合（筛选「队友勾的」用）
+ * - `byTask`：taskId -> [peerId, ...]（列表角标、展开明细里"具体谁勾的"用）
+ * - `byPeer`：peerId -> Set(taskId)（图例/统计用）
+ * @param {object} quests 房间快照里的 room.quests
+ */
+export function peerQuestIndex(quests) {
+  const ids = new Set();
+  const byTask = new Map();
+  const byPeer = new Map();
+  const src = quests && typeof quests === 'object' ? quests : {};
+  for (const [pid, list] of Object.entries(src)) {
+    if (!pid || !Array.isArray(list) || !list.length) continue;
+    const set = new Set();
+    for (const id of list) {
+      const t = String(id == null ? '' : id);
+      if (!t) continue;
+      ids.add(t);
+      set.add(t);
+      if (!byTask.has(t)) byTask.set(t, []);
+      if (!byTask.get(t).includes(pid)) byTask.get(t).push(pid);
+    }
+    if (set.size) byPeer.set(pid, set);
+  }
+  return { ids, byTask, byPeer };
+}
+
+/**
  * 过滤任务。
- * opts: { query, traderId, mapId, mapOnly, locationOnly, checkedOnly, checked, showKill, levelMax }
+ * opts: { query, traderId, mapId, mapOnly, locationOnly, checkedOnly, checked,
+ *         peerCheckedOnly, peerChecked, showKill, levelMax }
+ * 两个"勾选"筛选是**与**关系：只开「已勾选」= 只看我勾的，只开「队友勾选」= 只看队友勾的，
+ * 两个都开 = 只看我和队友**都**勾了的（想找"一起做"的任务时用）。
  */
 export function filterTasks(tasks, tradersById, opts = {}) {
-  const { query = '', traderId = '', mapId = null, mapOnly = true, locationOnly = true, checkedOnly = false, checked = null, showKill = false, levelMax = 0 } = opts;
+  const { query = '', traderId = '', mapId = null, mapOnly = true, locationOnly = true, checkedOnly = false, checked = null, peerCheckedOnly = false, peerChecked = null, showKill = false, levelMax = 0 } = opts;
   const out = [];
   for (const task of tasks) {
     if (traderId && task.trader !== traderId) continue;
     if (levelMax && (task.level || 0) > levelMax) continue;
     if (checkedOnly && !(checked && checked.has(task.id))) continue;
+    if (peerCheckedOnly && !(peerChecked && peerChecked.has(task.id))) continue;
     if (mapOnly && mapId && !(task.maps || []).includes(mapId)) continue;
     const trader = tradersById.get(task.trader);
     if (!matchesQuery(task, query, trader)) continue;

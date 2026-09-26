@@ -138,6 +138,8 @@ const EMPTY_STATE = () => ({
   self: null,         // {id, nick}
   peers: [],          // [{id, nick, map, pos, at}]
   annos: {},          // mapId -> [笔画]（只含别人的）
+  quests: {},         // peerId -> [任务 id]（只含别人的勾选；服务端支持才非空）
+  caps: [],           // 服务端声明的能力（含 'quests' 才会共享勾选的任务）
   roomHint: null,     // 房间标识前 6 位（排查用，不是暗号）
   onlineSince: null,
   attempts: 0,
@@ -164,6 +166,8 @@ class RoomClient {
     this.pendingPos = null;   // 被节流挡住、等着补发的位置
     this.lastPosAt = 0;
     this.lastPingAt = 0;
+    this.myQuests = [];       // 我勾选的任务（共享给队友的那份）
+    this.lastQuestsSent = null; // 上一次真的发出去的指纹（内容没变就不重复发）
     this.closedByUs = false;
   }
 
@@ -356,12 +360,40 @@ class RoomClient {
     return this.send({ t: 'anno', op: 'del', map: mapId, id });
   }
 
+  /**
+   * 共享"我勾选的任务"（整份覆盖：任务 id 列表，最多 QUEST_IDS_MAX 个，几 KB 以内）。
+   * 勾选是"整份状态"而不是增量，所以不做 add/del —— 每次变更直接发全量，简单且自愈。
+   * 服务端没声明 quests 能力（老服务端）时静默跳过，不影响位置与标注。
+   */
+  sendQuests(ids) {
+    const list = sanitizeQuestIds(ids) || [];
+    const key = list.join(',');
+    this.myQuests = list;
+    // 内容没变就什么都不做：勾选是集合（顺序已规范化），"我又点了一下"不该产生一次广播
+    if (key === this.lastQuestsSent) return false;
+    this.lastQuestsSent = null; // 内容变了：允许再发一次（还没上线就等 welcome 后补发）
+    return this.flushQuests();
+  }
+
+  /** 把当前这份勾选发给服务端（上线时/内容变化时各调一次；内容没变就不重复发） */
+  flushQuests() {
+    if (!this.cfg || !this.cfg.shareQuests) return false;
+    if (!Array.isArray(this.state.caps) || !this.state.caps.includes('quests')) return false;
+    if (!this.ws || this.ws.readyState !== 1) return false;
+    const list = sanitizeQuestIds(this.myQuests) || [];
+    const key = list.join(',');
+    if (key === this.lastQuestsSent) return false;
+    this.lastQuestsSent = key;
+    return this.send({ t: 'quests', ids: list });
+  }
+
   /** 给设置页/状态栏看的快照 */
   snapshot() {
     return {
       ...this.state,
       peers: this.state.peers.map((p) => ({ ...p })),
       annos: this.state.annos,
+      quests: this.state.quests,
     };
   }
 
@@ -422,6 +454,8 @@ class RoomClient {
     this.state.attempts = 0;
     this.setState({ status: 'online', error: null, onlineSince: this.now() });
     this.startPing();
+    // 刚进房：把"我勾选的任务"整份发一遍（caps 里没有 quests 的服务端会自动跳过）
+    this.flushQuests();
     if (this.onOnline) this.onOnline();
   }
 
@@ -458,17 +492,20 @@ class RoomClient {
       case 'welcome': {
         this.state.self = m.self || null;
         this.state.roomHint = null;
-        this.state.peers = (m.peers || []).map((p) => ({ id: p.id, nick: p.nick, map: p.map || null, pos: p.pos || null, at: this.now() }));
+        this.state.caps = Array.isArray(m.caps) ? m.caps.filter((c) => typeof c === 'string').slice(0, 16) : [];
+        this.state.peers = (m.peers || []).map((p) => ({ id: p.id, nick: p.nick, map: p.map || null, pos: p.pos || null, at: this.now(), quests: sanitizeQuestIds(p.quests) || [] }));
         this.state.annos = normalizeAnnos(m.annos);
+        this.state.quests = normalizeQuests(m.quests);
         this.onHello();
-        this.onLog(`已在房间里：${(m.peers || []).length} 个队友，${countAnnos(m.annos)} 笔标注`);
+        this.onLog(`已在房间里：${(m.peers || []).length} 个队友，${countAnnos(m.annos)} 笔标注${this.state.caps.includes('quests') ? '，服务端支持共享勾选任务' : ''}`);
         this.emit();
         return;
       }
       case 'peer-join': {
         const p = m.peer || {};
         if (!p.id || p.id === (this.state.self && this.state.self.id)) return;
-        this.state.peers = [...this.state.peers.filter((x) => x.id !== p.id), { id: p.id, nick: p.nick, map: p.map || null, pos: p.pos || null, at: this.now() }];
+        this.state.peers = [...this.state.peers.filter((x) => x.id !== p.id), { id: p.id, nick: p.nick, map: p.map || null, pos: p.pos || null, at: this.now(), quests: sanitizeQuestIds(p.quests) || [] }];
+        if (p.quests) this.state.quests = { ...this.state.quests, [p.id]: sanitizeQuestIds(p.quests) || [] };
         this.onLog(`队友加入：${p.nick}`);
         this.emit();
         return;
@@ -478,7 +515,14 @@ class RoomClient {
         this.state.peers = this.state.peers.filter((x) => x.id !== m.id);
         // 人走了，他的标注也一并从本地视图里去掉（服务端的标注在房间回收前还留着）
         this.state.annos = dropOwner(this.state.annos, m.id);
+        this.state.quests = dropQuestOwner(this.state.quests, m.id);
         if (before !== this.state.peers.length) this.onLog(`队友离开：${m.id}`);
+        this.emit();
+        return;
+      }
+      case 'peer-quests': {
+        // 队友改了勾选：整份覆盖（含空数组 = 他全取消了）
+        if (m.id) this.state.quests = { ...this.state.quests, [m.id]: sanitizeQuestIds(m.ids) || [] };
         this.emit();
         return;
       }
@@ -535,7 +579,7 @@ class RoomClient {
     });
     if (!hit) {
       // 没见过的 id（比如刚重连、peer-join 丢了）：先占个位置，等下一帧补齐昵称
-      this.state.peers = [...this.state.peers, { id, nick: '队友', map: patch.map || null, pos: patch.pos || null, at: this.now() }];
+      this.state.peers = [...this.state.peers, { id, nick: '队友', map: patch.map || null, pos: patch.pos || null, at: this.now(), quests: this.state.quests[id] || [] }];
     }
   }
 
@@ -550,7 +594,7 @@ class RoomClient {
     }
     this.state.attempts += 1;
     const delay = backoffDelay(this.state.attempts - 1);
-    this.setState({ status: 'reconnecting', error: null, peers: [], annos: {} });
+    this.setState({ status: 'reconnecting', error: null, peers: [], annos: {}, quests: {}, caps: [] });
     this.onLog(`${why}，${Math.round(delay / 1000)}s 后重连（第 ${this.state.attempts} 次）`);
     this.timers.reconnect = setTimeout(() => {
       this.timers.reconnect = null;
@@ -598,6 +642,7 @@ function normalizeConfig(raw) {
     pass: String(cfg.pass == null ? '' : cfg.pass),
     sharePos: cfg.sharePos !== false,
     shareAnno: cfg.shareAnno !== false,
+    shareQuests: cfg.shareQuests !== false,
     ver: cfg.ver || null,
   };
 }
@@ -708,6 +753,50 @@ function countAnnos(raw) {
   return Object.values(raw).reduce((n, list) => n + (Array.isArray(list) ? list.length : 0), 0);
 }
 
+// ---------------------------------------------------------------------------
+// 勾选任务（共享给队友）
+// ---------------------------------------------------------------------------
+const QUEST_IDS_MAX = 200; // 一个人最多共享多少个勾选任务（服务端同一条上限）
+// 任务 id 的规则要和服务端 server/protocol.js 的 QUEST_ID_RE 一致（≥6 位），
+// 否则客户端会把服务端一定会丢掉的垃圾 id 也发出去。
+const QUEST_ID_RE = /^[A-Za-z0-9_-]{6,40}$/;
+
+/** 任务 id 列表：去重、排序（两端对同一份集合得到同一个指纹）、限长、过滤脏数据 */
+function sanitizeQuestIds(raw) {
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  const seen = new Set();
+  for (const v of raw) {
+    if (out.length >= QUEST_IDS_MAX) break;
+    const s = String(v == null ? '' : v);
+    if (!QUEST_ID_RE.test(s) || DANGEROUS_KEYS.has(s) || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  // 顺序无关：勾选是集合，"我又点了一下"不该被当成内容变化（省掉无意义的重发）
+  out.sort();
+  return out;
+}
+
+/** 服务端发来的 "peerId -> [任务 id]" 映射：逐项过一遍过滤 */
+function normalizeQuests(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [owner, ids] of Object.entries(raw)) {
+    if (!ID_RE.test(owner) || DANGEROUS_KEYS.has(owner)) continue;
+    const list = sanitizeQuestIds(ids);
+    if (list && list.length) out[owner] = list;
+  }
+  return out;
+}
+
+function dropQuestOwner(quests, owner) {
+  if (!quests || !Object.prototype.hasOwnProperty.call(quests, owner)) return quests;
+  const out = { ...quests };
+  delete out[owner];
+  return out;
+}
+
 module.exports = {
   RoomClient,
   parseServer,
@@ -717,9 +806,13 @@ module.exports = {
   normalizeAnnos,
   applyAnno,
   dropOwner,
+  sanitizeQuestIds,
+  normalizeQuests,
+  dropQuestOwner,
   randomPeerId,
   PROTO,
   DEFAULT_PORT,
   POS_MIN_INTERVAL_MS,
   MAX_BACKOFF_MS,
+  QUEST_IDS_MAX,
 };

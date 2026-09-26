@@ -26,7 +26,6 @@
       <button id="btn-legend" class="toggle active" title="标记点图例，可配置图钉显示">标记点</button>
       <button id="btn-quests" class="toggle active" title="任务清单：搜索/勾选，勾选的任务地点会画在地图上">任务</button>
       <button id="btn-measure" class="toggle" title="尺子：在地图上点两点测距（Esc 取消）">尺子</button>
-      <button id="btn-pin" class="toggle" title="图钉化地图：缩小主窗口并置顶">图钉化</button>
       <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
       <button id="btn-settings" title="高级设置">设置</button>
       <button id="btn-about" title="关于：版本、开源地址与功能简介">关于</button>
@@ -90,7 +89,8 @@
         <div class="quest-chips">
           <button class="chip active" id="qc-map" title="只显示当前地图有内容的任务">本图</button>
           <button class="chip active" id="qc-loc" title="只显示能在地图上画出来的任务">有地点</button>
-          <button class="chip" id="qc-checked" title="只看已勾选的任务">已勾选</button>
+          <button class="chip" id="qc-checked" title="只看我自己勾选的任务">已勾选</button>
+          <button class="chip" id="qc-peer" title="只看队友勾选的任务（房间联机 + 服务端支持共享勾选才有；两个筛选都开会变成「只看我和队友都勾了的」）">队友勾选</button>
           <button class="chip" id="qc-kill" title="击杀类目标给的是刷怪区，默认不画（很大很糊）">击杀区</button>
         </div>
         <div class="quest-selects">
@@ -155,6 +155,7 @@
           </div>
           <label class="row"><input type="checkbox" id="set-room-pos" /> 共享我的定位（按截图键时更新，带轨迹）</label>
           <label class="row"><input type="checkbox" id="set-room-anno" /> 共享我画的标注（进房时会把当前这张图上你画过的补发一次）</label>
+          <label class="row"><input type="checkbox" id="set-room-quests" /> 共享我勾选的任务（队友图上会画出你勾的任务，重复的会自动合并）</label>
           <div class="room-actions">
             <button type="button" id="room-test">测试连接</button>
             <button type="button" id="room-connect">加入房间</button>
@@ -167,7 +168,17 @@
         <section class="settings-card">
           <h3>目录</h3>
           <label>游戏日志目录 <input id="set-logs" type="text" /></label>
+          <div class="dir-row">
+            <button type="button" id="set-logs-pick" title="打开文件夹选择框，选完记得点下面的「保存」">选择文件夹…</button>
+            <button type="button" id="set-logs-open" title="在资源管理器里打开这个目录">打开文件夹</button>
+          </div>
           <label>截图目录 <input id="set-shots" type="text" /></label>
+          <div class="dir-row">
+            <button type="button" id="set-shots-pick" title="打开文件夹选择框，选完记得点下面的「保存」">选择文件夹…</button>
+            <button type="button" id="set-shots-open" title="在资源管理器里打开这个目录">打开文件夹</button>
+          </div>
+          <div class="hint">日志目录用来识别进图与地图，截图目录用来读坐标（<code>&lt;x&gt;, &lt;y&gt;, &lt;z&gt;, &lt;q&gt;.png</code>）。
+            「选择文件夹」只把路径填进上面的输入框，点下面的「保存」才会生效。</div>
         </section>
         <section class="settings-card">
           <h3>定位与显示</h3>
@@ -191,7 +202,11 @@
 
         <section class="settings-card">
           <h3>提示与行为</h3>
-          <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：进图/定位时播放提示音</label>
+          <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：只用于战局节奏（开始匹配 / 匹配到了 / 进图倒计时最后几秒）</label>
+          <label class="row">进图倒计时提示：最后 <input type="number" id="set-alert-lead" min="1" max="10" step="1" style="width:70px" /> 秒开始响</label>
+          <div class="hint">这三个时刻都是从游戏日志里读出来的：<code>Matching with group id</code>（开始匹配、等服务器）、
+            <code>MatchingCompleted</code>（匹配到了）、<code>GameSpawned → GameStarting</code>（进图倒计时，实测约 10 秒）。
+            <b>截图定位、队友位置、换图都不会响</b>，免得一直在响。</div>
           <label class="row"><input type="checkbox" id="set-auto-delete" /> 自动删除截图文件：读取坐标后删除对应文件</label>
         </section>
         <section class="settings-card">

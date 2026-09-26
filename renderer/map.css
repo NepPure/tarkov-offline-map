@@ -281,6 +281,9 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .settings-form input[type=text] { width: 100%; margin-top: 4px; }
 .settings-form input[type=checkbox] { accent-color: var(--accent); }
 .settings-form .hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
+/* 目录选择：「选择文件夹…」/「打开文件夹」两个小按钮紧跟对应的输入框（设置页里的次要按钮） */
+.settings-form .dir-row { display: flex; gap: 6px; margin: -4px 0 8px; }
+.settings-form .dir-row button { padding: 2px 8px; font-size: 11px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .dialog-actions .dialog-left { margin-right: auto; }
 
@@ -426,7 +429,33 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .qbadge.kappa { color: #f0abfc; border-color: rgba(240,171,252,0.4); }
 .qbadge.elsewhere { color: #fdba74; border-color: rgba(253,186,116,0.45); }
 .qbadge.nocord { color: var(--muted); border-style: dashed; }
+/* 谁勾选的：自己是青色「我」，队友用他在地图上的颜色 + 昵称 */
+.qbadge.mine { color: var(--accent); border-color: rgba(34,211,238,0.55); background: rgba(34,211,238,0.10); }
+.qbadge.peer { background: rgba(255,255,255,0.04); }
+.quest-obj.quest-owner .quest-obj-type { color: var(--accent); border-color: rgba(34,211,238,0.45); }
+.quest-obj.quest-owner .quest-obj-text { color: var(--text); }
+/* 「进图要带」角标：折叠状态下也能一眼看出这任务要钥匙 / 要带物品 */
+.qbadge.bring { color: #fde047; border-color: rgba(250,204,21,0.6); background: rgba(250,204,21,0.12); }
 .quest-row.no-loc .quest-row-name { opacity: 0.72; }
+
+/* 「进图要带」：任务明细最上面的黄色高亮块（钥匙 / 要带进图放置·使用的物品） */
+.quest-bring {
+  margin: 2px 0 8px; padding: 6px 8px;
+  background: rgba(250,204,21,0.13);
+  border: 1px solid rgba(250,204,21,0.55);
+  border-left-width: 3px;
+  border-radius: 6px;
+}
+.quest-bring .qb-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--yellow); margin-bottom: 3px;
+}
+.quest-bring .qb-row { font-size: 11.5px; line-height: 1.6; color: #fde68a; word-break: break-word; }
+.quest-bring .qb-tag {
+  display: inline-block; min-width: 28px; margin-right: 5px; padding: 0 4px;
+  border-radius: 4px; background: rgba(250,204,21,0.22); color: var(--yellow);
+  font-size: 10px; font-weight: 700; text-align: center;
+}
 /* "勾了任务但本图没有位置"的横幅：给出可点的切图按钮 */
 .quest-hint {
   margin: 0 6px 6px; padding: 6px 8px;
