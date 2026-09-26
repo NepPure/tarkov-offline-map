@@ -13,11 +13,16 @@
  * 你真实的 settings.json / 截图文件夹 / 日常那份客户端一律不受影响。
  *
  * 用法：
- *   node tools/verify-room-live.js --url=wss://example.invalid --port=443 --room=联机自检
+ *   node tools/verify-room-live.js --url=<你的服务端地址> --port=443 --room=联机自检
  *   node tools/verify-room-live.js --url=192.168.1.10 --port=8787 --room=123 --clients=4
  *   node tools/verify-room-live.js ... --keep      # 跑完不关客户端，留着自己点着玩
  *
  * 跑完截图在 test-artifacts/live-*.png
+ *
+ * ⚠️ **不要在这里写死任何真实服务器地址**。
+ * 这个文件是**公开仓库**的一部分：曾经把开发者的私有服务端域名写成 --url 的默认值，
+ * 于是它随源码一起公开了（连通性自检脚本的默认值尤其容易被忽略 —— 谁也不会
+ * 去读一个测试工具的默认参数）。现在改成**必须显式传 --url**，没传就报错退出。
  */
 const fs = require('node:fs');
 const os = require('node:os');
@@ -30,7 +35,13 @@ const arg = (n, d) => {
   return a && a.includes('=') ? a.split('=').slice(1).join('=') : d;
 };
 const HAS = (f) => process.argv.includes(f);
-const SRV_URL = arg('url', 'wss://example.invalid');
+const SRV_URL = arg('url', '');
+if (!SRV_URL) {
+  console.error('缺少 --url：请显式指定你要连的服务端地址，例如');
+  console.error('  node tools/verify-room-live.js --url=127.0.0.1 --port=8787 --room=联机自检');
+  console.error('（这个脚本连的是**你自己的**服务端，所以没有默认值，也不该有。）');
+  process.exit(2);
+}
 const SRV_PORT = Number(arg('port', 443));
 const ROOM = arg('room', `联机自检-${Date.now().toString(36)}`);
 const PASS = arg('pass', '');

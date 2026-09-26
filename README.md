@@ -720,7 +720,8 @@ node tools/verify-exe-cdp.js               # 打包版深检（需 exe 带 --rem
 node tools/verify-about.js                 # 关于页面验收（15 项：标题改名/纯本地徽标移除/版本号/GitHub 地址/设置入口）
 node tools/verify-room.js                  # 房间联机界面验收（62 项：脚本自起真服务端 + 一个真队友客户端 + 假队友脚本；
                                            # 含三组队友图例按人按类开关、队友开新局后旧点消失、离线标注补发、收尾还原）
-node tools/verify-room-live.js             # 连真实服务端的多客户端自检（见上面「房间联机」一节；带 --url/--port/--room 参数）
+node tools/verify-room-live.js             # 连真实服务端的多客户端自检（见上面「房间联机」一节；**--url 必填**，
+                                           # 脚本里没有任何默认地址 —— 公开仓库里不许写死真实服务器地址）
 node tools/verify-room-2clients.js         # 真·多客户端联机验收（21 项：自起服务端 + 两个真客户端，含截图->定位->房间->对方地图真链路）
 node tools/verify-raid-reset.js            # 新一局清场验收（11 项：假日志+假截图走完整管线，验玩家点/轨迹被清、旧进图行不误清）
 node tools/verify-annotations.js           # 手动标注验收（21 项：常驻工具条/六种工具落笔/椭圆对角拖拽/Shift 正圆/橡皮/撤销/图例开关/换图不串味/重载后仍在/
