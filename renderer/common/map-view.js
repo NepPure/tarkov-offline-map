@@ -2247,6 +2247,33 @@ export function shouldRecenterOnPosition(prev, next, autoCenter) {
   return Math.abs(next.x - prev.x) > POS_EPS || Math.abs(next.z - prev.z) > POS_EPS;
 }
 
+/**
+ * 这次状态推送是不是「新的一次定位」？决定要不要把 Ctrl 平移出来的视野偏移归零。
+ *
+ * 主进程每处理一张**新截图**都会刷新 state.positionAt —— 哪怕你站着没动、坐标一模一样。
+ * 所以以它为准：只比坐标的话，「拖动雷达之后在原地再按一次截图键」会被当成普通状态推送，
+ * 偏移不归零、玩家停在偏心位置（用户报的那条）。反过来，拖动窗口 / 切图例 / 改设置推的是
+ * 同一份 positionAt，不会把刚平移出来的视野拉回去。
+ *
+ * positionAt 缺失时（老主进程 / 单测构造的状态）退回坐标比较。
+ *
+ * @param {number|null} prevAt 上一次的 positionAt
+ * @param {number|null} nextAt 本次的 positionAt
+ * @param {object|null} prevPos 上一次的玩家位置
+ * @param {object|null} nextPos 本次的玩家位置
+ * @param {boolean} autoCenter 「定位后自动居中」是否开着
+ */
+export function isNewLocation(prevAt, nextAt, prevPos, nextPos, autoCenter) {
+  if (autoCenter === false) return false;   // 开关关着：任何推送都不抢视野
+  const at = Number(nextAt);
+  if (nextAt != null && Number.isFinite(at)) {
+    const was = Number(prevAt);
+    if (prevAt == null || !Number.isFinite(was)) return true; // 第一次定位
+    return at !== was;                                      // 新截图 -> 新事件（坐标是否变都算）
+  }
+  return shouldRecenterOnPosition(prevPos, nextPos, autoCenter);
+}
+
 /** 归一化雷达标注模式：认不出来的一律回默认 'all'（老配置里没这个字段） */
 export function normalizeMiniAnnoMode(v) {
   const s = String(v == null ? '' : v).trim().toLowerCase();

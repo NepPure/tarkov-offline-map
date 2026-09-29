@@ -51,6 +51,9 @@ function makeProfile() {
 /** 假截图名（游戏真实格式），坐标不同 = 新的一次定位 */
 const shotName = (x, z, y = 3.2) =>
   `2026-09-18[22-00]_${x}, ${y}, ${z}_0.01518, 0.90924, -0.03197, 0.41476_15.47 (0).png`;
+/** 同坐标、不同时间前缀 = 又按了一次截图键（新文件、新的一次定位事件） */
+const shotNameAt = (x, z, time, y = 3.2) =>
+  `2026-09-18[${time}]_${x}, ${y}, ${z}_0.01518, 0.90924, -0.03197, 0.41476_15.47 (0).png`;
 
 async function main() {
   const prof = makeProfile();
@@ -277,6 +280,73 @@ async function main() {
     check('再定位 -> 视野偏移归零、玩家回到圆心（用户报的第 1 条）',
       !!c3, c3 ? `偏移 ${c3.dx.toFixed(2)},${c3.dy.toFixed(2)}（pan=${JSON.stringify(c3.pan)}）`
         : `没回中：${JSON.stringify(await centered())}`);
+
+    // 用户报的第 1 条还有一个更常见的变体：拖动完**站在原地**再按一次截图键，
+    // 坐标一模一样，只是新的一张图。主进程每处理一张新截图都会刷新 state.positionAt，
+    // 所以必须按它判"新的一次定位"——只比坐标的话这里不会回中。
+    await miniEval(`(window.__mini.setPan(70, -40), true)`);
+    await sleep(300);
+    const atBeforeSame = await mapEval('window.api.getState().then((s) => s.positionAt)');
+    fs.writeFileSync(path.join(prof.shots, shotNameAt('-160.75', '238.50', '22-44')), PNG_1X1);
+    const atChanged = await wait(async () => {
+      const at = await mapEval('window.api.getState().then((s) => s.positionAt)');
+      return at && at !== atBeforeSame ? at : null;
+    }, 8000, 200);
+    check('原地再按一次截图键会刷新 positionAt（新的一次定位事件）', !!atChanged, `${atBeforeSame} -> ${atChanged}`);
+    const c3b = await wait(async () => {
+      const c = await centered();
+      return c && Math.abs(c.dx) < 0.5 && Math.abs(c.dy) < 0.5 ? c : null;
+    }, 6000, 200);
+    check('原地再按一次截图键（坐标没变）也回中（用户报的第 1 条）',
+      !!c3b, c3b ? `偏移 ${c3b.dx.toFixed(2)},${c3b.dy.toFixed(2)}（pan=${JSON.stringify(c3b.pan)}）`
+        : `没回中：${JSON.stringify(await centered())}`);
+
+    // ---------------------------------------------------------------- 大地图：拖动后新定位也要回中
+    // 用户报的：「定位后自动居中」开着，拖动主地图（去看一眼旁边）之后再按截图键定位，
+    // 地图要重新居中到玩家身上。以前拖动会把 follow 关掉且不再接回 ——
+    // 界面显示开关是开的，实际拖动一次之后就永远不跟随了。
+    const mainCentered = () => mapEval(`(() => {
+      const v = window.__view;
+      if (!v.player || !v.proj) return null;
+      const p = v.proj.project(v.player.x, v.player.z);
+      return { dx: v.view.cx - p.x, dy: v.view.cy - p.y, scale: v.view.scale, follow: v.follow !== false };
+    })()`);
+    const screenOffset = (c) => (c ? Math.hypot(c.dx, c.dy) * (c.scale || 1) : 0);
+    const beforeDrag = await mainCentered();
+    check('准备：大地图居中跟随（自动居中开着）',
+      !!beforeDrag && Math.abs(beforeDrag.dx) < 0.5 && Math.abs(beforeDrag.dy) < 0.5 && beforeDrag.follow,
+      JSON.stringify(beforeDrag));
+    // 拖主地图：mousedown 在 .mapstage、mousemove/mouseup 在 window（和真实手势同一条事件链）
+    await mapEval(`(() => {
+      const el = document.querySelector('.mapstage');
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x, clientY: y, button: 0 }));
+      window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: x + 160, clientY: y + 100 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: x + 160, clientY: y + 100, button: 0 }));
+      return true;
+    })()`);
+    await sleep(400);
+    const dragged = await mainCentered();
+    check('拖动大地图后视口挪开了（临时查看）', screenOffset(dragged) > 20, JSON.stringify(dragged));
+    await mapEval(`window.api.setConfig({ markerScale: 1.3 })`);
+    await sleep(600);
+    const afterPush = await mainCentered();
+    check('拖动后普通状态推送不会把视野拉回玩家（否则拖动没法用）', screenOffset(afterPush) > 20, JSON.stringify(afterPush));
+    await mapEval(`window.api.setConfig({ markerScale: 1 })`);
+    const mainAtBefore = await mapEval('window.api.getState().then((s) => s.positionAt)');
+    fs.writeFileSync(path.join(prof.shots, shotNameAt('-160.75', '238.50', '22-46')), PNG_1X1);
+    await wait(async () => {
+      const at = await mapEval('window.api.getState().then((s) => s.positionAt)');
+      return at && at !== mainAtBefore ? at : null;
+    }, 8000, 200);
+    const mainRecentered = await wait(async () => {
+      const c = await mainCentered();
+      return c && Math.abs(c.dx) < 0.5 && Math.abs(c.dy) < 0.5 && c.follow ? c : null;
+    }, 6000, 200);
+    check('大地图：拖动后再定位重新居中（用户报的）', !!mainRecentered,
+      mainRecentered ? `偏移 ${mainRecentered.dx.toFixed(2)},${mainRecentered.dy.toFixed(2)} follow=${mainRecentered.follow}`
+        : JSON.stringify(await mainCentered()));
 
     // 关掉「定位后自动居中」-> 定位既不能抢视野中心、也不能动偏移
     await mapEval(`(() => { const el = document.querySelector('#set-mini-auto-center'); el.checked = false; el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);

@@ -1,12 +1,16 @@
 'use strict';
 
-import { MapView, MARKER_GROUPS, makeProjection } from './common/map-view.js';
+import { MapView, MARKER_GROUPS, makeProjection, isNewLocation } from './common/map-view.js';
 import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation, questBringList, formatBringKeys, questsFingerprint, peerQuestIndex } from './common/quest-filter.js';
 import { peersSignature, peerInitial, peerColor, roomHint as roomHintFor, pruneRoomToOnline } from './common/room.js';
 import { LIVE_FIELDS, liveEventFor, readLiveValue, patchFor, setPath, fieldOf } from './common/settings-live.js';
 
 const $ = (sel) => document.querySelector(sel);
 const api = window.api;
+
+// 最近一次「新定位」事件的 positionAt：主进程每处理一张新截图都会刷新（坐标没变也会换）。
+// 「定位后自动居中」开着时，拖动地图只是临时看一眼，新的一次定位要把跟随接回来。
+let lastPosAt = null;
 
 const state = {
   maps: [],
@@ -697,8 +701,20 @@ async function applyMainState(s) {
   if (s.position && s.quaternion) {
     const prev = view.player;
     const isNewPos = !prev || Math.abs(prev.x - s.position.x) > 0.001 || Math.abs(prev.z - s.position.z) > 0.001;
+    // 「新的一次定位」以主进程 positionAt 为准：每处理一张新截图都会刷新它，
+    // 所以站着没动、坐标一样也算（和雷达共用同一套判定）。
+    const nextPosAt = (s.positionAt != null && Number.isFinite(Number(s.positionAt))) ? Number(s.positionAt) : null;
+    const isNewLocationEvent = isNewLocation(lastPosAt, nextPosAt, prev, s.position, true);
+    if (nextPosAt != null) lastPosAt = nextPosAt;
     view.setPlayer(s.position, s.quaternion);
     view.setTrail(s.trail);
+    // 自动居中开着时，拖动地图只是临时往旁边看；新的一次定位必须把跟随接回来，
+    // 否则界面显示「自动居中」开着、实际拖动一次之后就永远不再跟随（用户报的）。
+    // 标注模式例外：正在画的时候地图不能被定位拽走。
+    if (isNewLocationEvent && state.cfg.autoCenter !== false && !view.drawMode) {
+      view.setViewMode({ follow: true });
+      $('#btn-follow').classList.add('active');
+    }
     // 最近撤离点指引（迷路核心）
     const near = view.highlightNearestExtract(s.position.x, s.position.z);
     $('#st-exfil').textContent = near ? `最近撤离: ${near.label} · ${Math.round(near.meters)}米` : '最近撤离: -';
@@ -723,6 +739,7 @@ async function applyMainState(s) {
     // 新一局（进图日志清空了位置）：抹掉上一局的玩家点与轨迹，撤离指引也复位
     view.clearPlayer();
     $('#st-exfil').textContent = '最近撤离: -';
+    lastPosAt = null; // 下一张截图是新一轮的「第一次定位」
   }
 
   // 3) 楼层（默认"自动"：按玩家高度自己切；手动选过就一直是那个层，直到你说自动）

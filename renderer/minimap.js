@@ -3,7 +3,7 @@
 /**
  * 圆形小地图悬浮窗：跟随玩家 + 车头朝上 + 缩放
  */
-import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini, shouldRecenterOnPosition } from './common/map-view.js';
+import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini, isNewLocation } from './common/map-view.js';
 import { taskLocation, questsFingerprint } from './common/quest-filter.js';
 import { pruneRoomToOnline } from './common/room.js';
 
@@ -43,6 +43,8 @@ let mapNames = null;
 // 偏移叠加在"跟随玩家居中"之上——玩家照旧跟随，只是不再固定在圆心（相当于往某侧多看一点）。
 // Ctrl + 双击 归零；换图（新一局）也会自动归零。
 const panOffset = { x: 0, y: 0 };
+// 最近一次「新定位」事件的 positionAt：主进程每处理一张新截图都会刷新它（坐标没变也会换）
+let lastPositionAt = null;
 
 // 赛季文件刷点（版本活动找东西）：离线快照，主窗口与小地图都标出来
 let seasonData = null;
@@ -295,12 +297,17 @@ async function applyState(s) {
     // 新的一次定位 -> 回到"玩家在圆心"：把 Ctrl 拖动平移出来的视野偏移归零。
     // 踩过的坑：偏移会一直留着，于是"拖动雷达之后再按截图键定位，玩家停在偏心位置不回中"
     // （用户报的第 1 条）。平移只是临时往旁边看两眼，新的一次定位理应重新居中。
-    // 注意只在"位置真的变了"时归零：拖动窗口/切图例/改设置也会推状态，那些不能把视野拉回去。
-    if (shouldRecenterOnPosition(prev, view.player, miniAutoCenter)) {
+    //
+    // 「新的一次定位」以主进程的 positionAt 为准：每处理一张新截图都会刷新它，
+    // 所以**站着没动、原地再按一次截图键**（坐标一模一样）也算，照样回中。
+    // 拖动窗口 / 切图例 / 改设置推的是同一份 positionAt，不会把刚平移出来的视野拉回去。
+    const nextPosAt = (s.positionAt != null && Number.isFinite(Number(s.positionAt))) ? Number(s.positionAt) : null;
+    if (isNewLocation(lastPositionAt, nextPosAt, prev, view.player, miniAutoCenter)) {
       if (panOffset.x || panOffset.y) api.miniProbe({ ev: 'pan-reset-position' });
       panOffset.x = 0;
       panOffset.y = 0;
     }
+    if (nextPosAt != null) lastPositionAt = nextPosAt;
     // 自动居中：关掉后只更新玩家点/轨迹，不再把视野拉回玩家（配合手动缩放查看周边）
     if (miniAutoCenter || wasNull) {
       centerOnPlayer(wasNull || radiusDirty);
@@ -314,6 +321,7 @@ async function applyState(s) {
     view.clearPlayer();
     panOffset.x = 0;
     panOffset.y = 0;
+    lastPositionAt = null; // 下一张截图会是新一轮"第一次定位"
     radiusDirty = false;
     centerOnMap();
   } else if (radiusDirty) {
