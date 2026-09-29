@@ -25,7 +25,7 @@ const { createRaidAlerts, MIN_LEAD_SEC, MAX_LEAD_SEC } = require('./src/raid-ale
 const roomClientModule = require('./src/room-client');
 const { RoomClient, probeServer, randomPeerId } = roomClientModule;
 const { RAIDCODE_TO_MAPKEY, MAPKEY_TO_SVG } = require('./src/constants');
-const { clampToWorkArea, dragTarget, defaultPos } = require('./src/mini-geometry');
+const { clampToWorkArea, dragTarget, defaultPos, clampMiniSize, resizeAroundCenter } = require('./src/mini-geometry');
 
 // 固定 userData 目录（保证开发环境与打包后共用同一份配置）
 // TAKOV_USER_DATA 是给"一台机器同时开两个客户端"做联机测试用的（平时不用管它）：
@@ -60,7 +60,13 @@ function detectGameDirs() {
   ];
   for (const key of regKeys) {
     try {
-      const out = execSync(`reg query "${key}" /v UninstallString`, { encoding: 'utf-8', timeout: 4000 });
+      // stdio 必须写死：execSync 默认把子进程的 stderr **继承给父进程**，
+      // 而父进程的 stderr 可能是管道（验收脚本 spawn、无控制台启动器、CI、某些终端）。
+      // 管道一断，reg 那边写 stderr 就是 EPIPE —— 未捕获异常会让主进程在启动阶段弹框退出，
+      // 症状是"窗口一闪就没了"，极难查（v2.2.0 及以前就潜伏着这个问题）。
+      const out = execSync(`reg query "${key}" /v UninstallString`, {
+        encoding: 'utf-8', timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'],
+      });
       const m = out.match(/UninstallString\s+REG_SZ\s+(.+)/);
       if (m) {
         const raw = m[1].trim().replace(/^"|"$/g, '');
@@ -97,6 +103,7 @@ function loadSettings() {
     logsPath: DEFAULT_LOGS_DIR,
     screenshotsPath: DEFAULT_SCREENSHOTS_DIR,
     miniVisible: false,
+    miniSize: 300,               // 雷达窗口边长（DIP，180~560；设置页可调，改动即时生效）
     miniScale: 1.0,
     miniPos: null,               // 小地图悬浮窗位置 {x,y}（拖动后自动记忆）
     miniRadius: 55,
@@ -191,6 +198,8 @@ function loadSettings() {
   // 渲染层还有一份等价的归一化（renderer/common/map-view.js#normalizeMiniAnnoMode），
   // 这里只是把明显非法的值落成合法值，免得设置页下拉框出现空选项。
   if (!['off', 'mine', 'all'].includes(String(merged.miniAnnos))) merged.miniAnnos = defaults.miniAnnos;
+  // 雷达窗口大小：老存档没有这个字段 -> 300；手改坏/超范围一律夹回可用区间
+  merged.miniSize = clampMiniSize(merged.miniSize, defaults.miniSize);
   // 一次性迁移：0.18 是"每个任务一个颜色 + 实心圆点"时代的老默认值，现在任务标记
   // 统一成图例的橘色半透明样式（默认 0.25）。只搬"恰好还是老默认"的存档，
   // 用户自己调过的数值（0.20/0.30…）不动。
@@ -438,7 +447,12 @@ let mainWin = null;
 let miniWin = null;
 let miniWatchdog = null;
 let miniHidden = false; // 小地图当前是否处于"隐藏"意图（hide() 与 blur 事件有竞态，靠它兜住）
-const MINI_SIZE = 300;  // 小地图窗口边长（CSS px）
+// 雷达窗口边长（CSS px）：**跟着配置走**（设置页里能拖，改动即时生效）。
+// 以前是写死的常量，于是"雷达图太小/太大"只能改代码；现在统一走这个函数，
+// 拖动、看门狗自愈、钳制工作区都用同一个值，不会再出现"两处尺寸对不上"。
+function miniSize() {
+  return clampMiniSize(settings && settings.miniSize);
+}
 
 // ---------------------------------------------------------------------------
 // 小地图窗口健康检查：透明无边框窗口在 Windows 上可能被系统吞掉层级/停止重绘/崩溃，
@@ -614,8 +628,9 @@ function startMiniWatchdog() {
       if (!miniWin.isVisible()) { miniLog('watchdog: hidden -> show'); miniHidden = false; miniWin.show(); return; }
       // 尺寸自愈：拖动/系统 DPI 取整可能让窗口越变越大，这里纠正回正方形
       const wb = miniWin.getBounds();
-      if (wb.width !== MINI_SIZE || wb.height !== MINI_SIZE) {
-        miniLog(`watchdog: size ${wb.width}x${wb.height} -> ${MINI_SIZE}`);
+      const size = miniSize();
+      if (wb.width !== size || wb.height !== size) {
+        miniLog(`watchdog: size ${wb.width}x${wb.height} -> ${size}`);
         placeMini(wb.x, wb.y);
         broadcastMiniStatus();
       }
@@ -719,9 +734,42 @@ function miniWorkArea(point) {
  *  每次"漂"大 1px，拖动几秒就从 300 变成 700+。所以拖动时一律用 setBounds 带上尺寸。 */
 function placeMini(x, y) {
   if (!miniAlive()) return;
+  const size = miniSize();
   const b = miniWin.getBounds();
-  if (b.width === MINI_SIZE && b.height === MINI_SIZE && b.x === x && b.y === y) return;
-  miniWin.setBounds({ x, y, width: MINI_SIZE, height: MINI_SIZE }, false);
+  if (b.width === size && b.height === size && b.x === x && b.y === y) return;
+  miniWin.setBounds({ x, y, width: size, height: size }, false);
+}
+
+/**
+ * 把"雷达窗口大小"落到窗口上（设置页那个滑块 -> 即时生效）。
+ * 以圆盘中心为基准缩放：变大/变小时，你正盯着的那块地图留在原地，
+ * 而不是窗口左上角钉住、圆盘往右下长出去。
+ *
+ * 注意雷达窗口是 `resizable:false`（无边框窗口默认能从边缘拖大小，会跟看门狗打架）。
+ * 有些平台上"不可缩放"的窗口会忽略 setBounds 里的尺寸，所以这里临时放开一次，
+ * 设完立刻收回去 —— 同步代码块里没有用户交互，不存在被手动拖大的窗口期。
+ */
+function applyMiniSize() {
+  if (!miniAlive()) return false;
+  const size = miniSize();
+  const b = miniWin.getBounds();
+  if (b.width === size && b.height === size) return false;
+  const area = miniWorkArea({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  const pos = resizeAroundCenter(b, size, area);
+  let wasResizable = true;
+  try {
+    wasResizable = typeof miniWin.isResizable === 'function' ? miniWin.isResizable() : true;
+    if (!wasResizable) miniWin.setResizable(true);
+  } catch {}
+  miniWin.setBounds({ x: pos.x, y: pos.y, width: size, height: size }, false);
+  try { if (!wasResizable) miniWin.setResizable(false); } catch {}
+  // 位置也跟着改（缩放是"以中心为准"地挪窗口），否则下次启动会用旧的左上角坐标
+  settings.miniPos = { x: pos.x, y: pos.y };
+  saveSettings();
+  try { miniWin.webContents.invalidate(); } catch {}
+  miniLog(`size ${b.width}x${b.height} -> ${size} @${pos.x},${pos.y}`);
+  broadcastMiniStatus();
+  return true;
 }
 
 function stopMiniDrag(reason = 'release') {
@@ -734,8 +782,9 @@ function stopMiniDrag(reason = 'release') {
       settings.miniPos = { x: b.x, y: b.y };
       saveSettings();
       // 松手时把尺寸也钉回来（防御：历史版本累积放大过的窗口会立刻恢复正常）
-      if (b.width !== MINI_SIZE || b.height !== MINI_SIZE) {
-        miniLog(`drag end: size ${b.width}x${b.height} -> ${MINI_SIZE}`);
+      const size = miniSize();
+      if (b.width !== size || b.height !== size) {
+        miniLog(`drag end: size ${b.width}x${b.height} -> ${size}`);
         placeMini(b.x, b.y);
       }
       miniWin.webContents.invalidate();
@@ -764,7 +813,7 @@ function startMiniDrag() {
       if (!miniWin.isVisible()) return stopMiniDrag('hidden');
       try {
         const c = screen.getCursorScreenPoint();
-        const next = dragTarget(c, offset, MINI_SIZE, miniWorkArea(c));
+        const next = dragTarget(c, offset, miniSize(), miniWorkArea(c));
         placeMini(next.x, next.y);
       } catch (e) { stopMiniDrag('error: ' + e.message); }
     }, 12),
@@ -894,7 +943,7 @@ function createMiniWindow(reason = 'startup') {
     broadcastMiniStatus();
     return miniWin;
   }
-  const size = MINI_SIZE;
+  const size = miniSize();
   const saved = settings.miniPos && Number.isFinite(settings.miniPos.x) && Number.isFinite(settings.miniPos.y)
     ? settings.miniPos : null;
   const pos = saved ? clampToWorkArea(saved.x, saved.y, size, miniWorkArea(saved)) : defaultPos(size, miniWorkArea(null));
@@ -999,6 +1048,8 @@ function setupIpc() {
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'quests')) pushQuests();
     // 小地图开关同理：设置页勾/去勾必须立刻开/关窗口，不能只改配置
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniVisible')) applyMiniVisible();
+    // 雷达窗口大小：设置页滑块一拖就落到窗口上（圆盘变大/变小立刻可见）
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniSize')) applyMiniSize();
     // 房间配置变了（开关/地址/房间号/昵称/共享项）才重新握手
     if (roomChanged) syncRoom();
     broadcast({}); // 立刻把新配置推给所有窗口（雷达的透明度/方向/楼层/穿透等）
@@ -1101,7 +1152,7 @@ function setupIpc() {
           '-NoProfile', '-NonInteractive', '-Command',
           'Add-Type -AssemblyName System.Windows.Forms; ' +
           'if ([System.Windows.Forms.Control]::ModifierKeys -band [System.Windows.Forms.Keys]::Control) { "1" } else { "0" }',
-        ], { timeout: 4000 }, (err, stdout) => resolve(err ? null : String(stdout).trim() === '1'));
+        ], { timeout: 4000, stdio: ['ignore', 'pipe', 'ignore'] }, (err, stdout) => resolve(err ? null : String(stdout).trim() === '1'));
       } catch { resolve(null); }
     });
   });
@@ -1198,10 +1249,11 @@ function setupIpc() {
   });
   ipcMain.handle('state:sync-mini', () => state);
   ipcMain.on('mini:resize', (_e, scale) => {
-    if (miniWin) {
-      const s = Math.round(240 * (scale || 1));
-      miniWin.setSize(Math.min(s, 560), Math.min(s, 560));
-    }
+    // 老接口（scale 1.0 = 240px）保留：换算成 miniSize 后走同一条路，避免两套尺寸互相打架
+    settings = { ...settings, miniSize: clampMiniSize(240 * (Number(scale) || 1)) };
+    saveSettings();
+    if (miniAlive()) applyMiniSize();
+    broadcastMiniStatus();
   });
 }
 
@@ -1541,7 +1593,7 @@ async function runVisualTest() {
     try {
       // 截图3: 关闭图例全部图钉 → 验证图钉配置生效
       await mainWin.webContents.executeJavaScript(`
-        document.getElementById('settings-ok').click();
+        document.getElementById('settings-close').click();
         document.getElementById('legend-panel').classList.remove('collapsed');
         document.getElementById('legend-none').click();
         true`);

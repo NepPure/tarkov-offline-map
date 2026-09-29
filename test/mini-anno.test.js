@@ -81,6 +81,8 @@ test('接线：设置页有"雷达上显示标注"三档下拉，保存时写进
 
   const js = read('renderer/map.js');
   assert.ok(js.includes("$('#set-mini-annos').value"), '打开设置要回填');
-  assert.ok(js.includes("miniAnnos: $('#set-mini-annos').value"), '保存设置要提交');
+  // 设置页现在即时生效：三档下拉 -> 配置字段的映射在 renderer/common/settings-live.js 里
+  const live = read('renderer/common/settings-live.js');
+  assert.ok(/sel: '#set-mini-annos', path: 'miniAnnos'/.test(live), '下拉要接到配置字段 miniAnnos');
   assert.ok(js.includes("['off', 'mine', 'all'].includes(c.miniAnnos)"), '旧配置里的非法值要兜住');
 });

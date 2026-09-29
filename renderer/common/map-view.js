@@ -266,6 +266,14 @@ export class MapView {
     this.onPeerClick = null;     // 点队友标记 -> 定位到他那里
     this.#buildDom();
     this.#bindEvents();
+    // 容器尺寸变了就重算（用户拖主窗口右下角、系统 DPI 变化、--record-size 固定客户区…）：
+    // viewBox 与覆盖层里的屏幕坐标都是"渲染那一刻"按 getBoundingClientRect 算出来的，
+    // 不重算的话新尺寸下底图会被 preserveAspectRatio 整体缩放并居中（底图看着偏了/被放大），
+    // 而标记与侧栏留在原处 —— 这就是"拖窗口时地图背景和图例错位"（踩过）。
+    if (typeof ResizeObserver === 'function') {
+      this._resizeObserver = new ResizeObserver(() => this.handleResize());
+      this._resizeObserver.observe(this.container);
+    }
   }
 
   // ------------------------------------------------------------------ DOM
@@ -2148,6 +2156,24 @@ export class MapView {
     this.#renderOverlay();
   }
 
+  /**
+   * 容器（地图根节点）尺寸变了：按**新尺寸**重算 viewBox 与世界变换，再重画覆盖层。
+   *
+   * 为什么必须做：底图 SVG 靠 viewBox 决定坐标系，覆盖层（标记/玩家/轨迹/标注）用的是
+   * 屏幕像素坐标 —— 两者都是"渲染那一刻"按 getBoundingClientRect 算的。窗口变大后不重算，
+   * 底图会被 preserveAspectRatio 整体缩放并居中、覆盖层却停在旧坐标，
+   * 于是"地图背景与图例/标记错位"。连续 resize（拖边框）用 rAF 合并：一个尺寸只重画一次。
+   */
+  handleResize() {
+    if (this._resizeRaf) return;
+    this._resizeRaf = requestAnimationFrame(() => {
+      this._resizeRaf = 0;
+      if (!this.svg) return;
+      this.#renderTransform();
+      this.#renderOverlay();
+    });
+  }
+
   #emitView() {
     if (this.onViewChange) this.onViewChange(this.getViewport());
   }
@@ -2199,6 +2225,27 @@ export function clampAnnoWidth(v) {
  *   off  = 不显示；mine = 只显示我画的；all = 我的 + 队友的（默认）
  */
 export const MINI_ANNO_MODES = ['off', 'mine', 'all'];
+
+/** 位置比较精度（米）：小于它就算"同一次定位"（浮点噪声，不是真的挪动了） */
+export const POS_EPS = 0.001;
+
+/**
+ * 新的一次定位到了：要不要把视野偏移归零（让玩家回到圆心）？
+ *
+ * 为什么需要这个：Ctrl + 拖动可以平移圆盘里的地图（"往旁边多看两眼"），
+ * 那个偏移会一直留着 —— 于是之后再按截图键定位，玩家就停在偏心位置、不再回中
+ * （用户报的"雷达拖动后再定位没自动居中"）。
+ * 平移只是临时的查看，**新的一次定位理应重新居中**（前提是「定位后自动居中」开着）。
+ *
+ * 只有"位置真的变了"才算新定位：状态推送很频繁（拖动窗口、切图例、改设置都会推），
+ * 那种情况下不能把用户刚平移出来的视野又拉回去。
+ */
+export function shouldRecenterOnPosition(prev, next, autoCenter) {
+  if (autoCenter === false) return false;   // 用户明确关掉了"定位后自动居中"
+  if (!next) return false;
+  if (!prev) return true;                   // 第一次定位：必须居中
+  return Math.abs(next.x - prev.x) > POS_EPS || Math.abs(next.z - prev.z) > POS_EPS;
+}
 
 /** 归一化雷达标注模式：认不出来的一律回默认 'all'（老配置里没这个字段） */
 export function normalizeMiniAnnoMode(v) {

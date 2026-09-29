@@ -19,6 +19,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const { buildArgs } = require('./lib/spawn-electron'); // 让步参数（受限宿主）+ 稳定参数
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 
 const arg = (n, d) => {
   const a = process.argv.find((x) => x.startsWith(`--${n}`));
@@ -96,7 +98,7 @@ function check(name, ok, detail) {
 }
 
 function makeProfile(port) {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-questshare-'));
+  const userData = mkTempDir('takov-questshare-');
   const shots = path.join(userData, 'shots');
   const logs = path.join(userData, 'logs');
   fs.mkdirSync(shots, { recursive: true });
@@ -158,13 +160,7 @@ function makePeer(url) {
   const srv = createRoomServer({ host: '127.0.0.1', port: 0, logLevel: 'error' });
   const port = await new Promise((r) => srv.start(r));
   const prof = makeProfile(port);
-  const proc = spawn(require('electron'), [
-    '.',
-    `--remote-debugging-port=${PORT}`,
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-background-timer-throttling',
-  ], {
+  const proc = spawn(require('electron'), buildArgs({ port: PORT }), {
     cwd: ROOT,
     env: { ...process.env, TAKOV_USER_DATA: prof.userData, HTTP_PROXY: '', HTTPS_PROXY: '' },
     stdio: ['ignore', 'pipe', 'pipe'],

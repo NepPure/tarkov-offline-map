@@ -160,3 +160,70 @@ export function peersSignature(peers, mapId, annosByMap = {}) {
     })
     .join('|');
 }
+
+// ---------------------------------------------------------------------------
+// 共享内容跟着"谁在线"走
+//
+// 踩过的坑（用户报的）：队友画了一堆标注并共享，他退出房间后**标注还挂在图上** ——
+// 右边他的图例行已经没了（图例是按 peers 生成的），可笔画还画着，两边对不上。
+//
+// 根因：服务端**会保留**离场者的标注（这是有意的：他回来时大家还能看到，不用重画），
+// 而且 welcome 会把房间里所有标注一次性发给新加入/重连的人 —— 那些标注的 owner 可能
+// 早就不在房间里了。所以"画不画"不能只看有没有这笔标注，必须再看**owner 此刻在不在**。
+//
+// 过滤放在渲染层（不改客户端那份原始数据）：他人一回来，同一份数据立刻又能画出来。
+// ---------------------------------------------------------------------------
+
+/** 此刻**真的在房间里**的队友 id 集合（不含自己：我自己的标注走本地文件） */
+export function onlinePeerIds(room) {
+  const selfId = room && room.self ? room.self.id : null;
+  const out = new Set();
+  for (const p of (room && Array.isArray(room.peers) ? room.peers : [])) {
+    if (p && p.id && p.id !== selfId) out.add(p.id);
+  }
+  return out;
+}
+
+const asOwnerSet = (online) => (online instanceof Set ? online : new Set(Array.isArray(online) ? online : []));
+
+/**
+ * 只保留"在场队友"画的共享标注（按 owner 过滤，返回**新**映射，不改原数据）。
+ * @param {object} annosByMap mapId -> [笔画]
+ * @param {Set|string[]} online 在场队友 id（见 onlinePeerIds）
+ */
+export function annosOfOnlinePeers(annosByMap, online) {
+  const alive = asOwnerSet(online);
+  const out = {};
+  for (const [mapId, list] of Object.entries(annosByMap || {})) {
+    const keep = (Array.isArray(list) ? list : []).filter((a) => a && a.owner && alive.has(a.owner));
+    if (keep.length) out[mapId] = keep;
+  }
+  return out;
+}
+
+/** 只保留"在场队友"共享的勾选任务（peerId -> [任务 id]） */
+export function questsOfOnlinePeers(quests, online) {
+  const alive = asOwnerSet(online);
+  const out = {};
+  for (const [pid, ids] of Object.entries(quests || {})) {
+    if (alive.has(pid)) out[pid] = Array.isArray(ids) ? ids : [];
+  }
+  return out;
+}
+
+/**
+ * 房间快照 -> "只含此刻在场的人"的视图：peers / status / self 原样，
+ * annos 与 quests 按在场者过滤。
+ *
+ * 渲染层每次收到状态推送都过一遍它，于是"共享标注 / 共享勾选"天然跟着上下线走：
+ * 人走了立刻从图上消失（图例本来就已经没他了），人回来立刻又能看到，不用重发。
+ */
+export function pruneRoomToOnline(room) {
+  if (!room) return null;
+  const online = onlinePeerIds(room);
+  return {
+    ...room,
+    annos: annosOfOnlinePeers(room.annos, online),
+    quests: questsOfOnlinePeers(room.quests, online),
+  };
+}

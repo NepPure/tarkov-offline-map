@@ -263,21 +263,39 @@ body.quest-open .info-card { left: 332px; }
 .legend-count { color: var(--muted); font-size: 11px; }
 
 /* ---------- 设置对话框 ---------- */
+/* 响应式：宽度跟着视口走，窄屏自动从多列收成一列；高度超了就整体滚动 */
 dialog {
   background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px;
-  width: 700px; max-height: 86vh;
+  width: min(980px, 94vw); max-height: 88vh; overflow: auto;
 }
 dialog::backdrop { background: rgba(0,0,0,0.5); }
-.settings-form h2 { font-size: 15px; margin-bottom: 12px; }
-.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.settings-form h2 { font-size: 15px; margin-bottom: 8px; }
+/* 「改动即时生效」的说明：没有保存按钮了，这句话必须显眼 */
+.settings-form .settings-live {
+  font-size: 11px; line-height: 1.6; color: var(--muted);
+  background: rgba(34,211,238,0.07); border: 1px solid rgba(34,211,238,0.25);
+  border-radius: 6px; padding: 6px 9px; margin-bottom: 12px;
+}
+.settings-form .settings-live b { color: var(--accent); }
+/* auto-fit：视口宽就两列，窄就一列（拖窗口大小时自己重排，不用改媒体查询） */
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 12px; }
 .settings-card {
   background: var(--panel2); border: 1px solid var(--line);
   border-radius: 8px; padding: 10px 12px;
+  min-width: 0; /* 允许卡片比内容窄，否则长提示文字会把网格撑破 */
 }
 .settings-card h3 { font-size: 12px; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
 .settings-form label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
-.settings-form label.row { display: flex; align-items: center; gap: 7px; color: var(--text); }
+.settings-form label.row { display: flex; align-items: center; gap: 7px; color: var(--text); flex-wrap: wrap; }
+.settings-form label.row input[type=checkbox] { flex: 0 0 auto; }
+/* 滑块：占满剩余宽度，窄屏时换行到下一行（配 flex-wrap） */
+.settings-form input[type=range] { flex: 1 1 140px; min-width: 110px; margin: 0; }
+/* 滑块右边的当前数值（即时生效时最需要"我到底调到了多少"） */
+.settings-form .range-val {
+  flex: 0 0 auto; min-width: 34px; text-align: right;
+  color: var(--accent); font: 600 11px/1 ui-monospace, Consolas, monospace;
+}
 .settings-form input[type=text] { width: 100%; margin-top: 4px; }
 .settings-form input[type=checkbox] { accent-color: var(--accent); }
 .settings-form .hint { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
@@ -287,8 +305,15 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .dialog-actions .dialog-left { margin-right: auto; }
 
+/* 窄视口：设置面板改成单列（auto-fit 在 330px 以下已经会并成一列，这里再收紧间距） */
+@media (max-width: 760px) {
+  dialog { padding: 14px 12px; width: 96vw; }
+  .settings-grid { grid-template-columns: 1fr; gap: 8px; }
+  .settings-form label { margin-bottom: 6px; }
+}
+
 /* ---------- 关于 ---------- */
-#about-dialog { width: 560px; }
+#about-dialog { width: min(560px, 92vw); }
 .about-form h2 { font-size: 15px; margin-bottom: 10px; }
 .about-title { display: flex; align-items: center; gap: 8px; font-size: 15px; margin-bottom: 9px; }
 .about-ver { font-size: 11px; color: var(--muted); border: 1px solid var(--line); padding: 1px 7px; border-radius: 999px; }

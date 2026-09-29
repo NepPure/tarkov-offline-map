@@ -18,6 +18,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const { buildArgs } = require('./lib/spawn-electron'); // 让步参数（受限宿主）+ 稳定参数
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 
 const ROOT = path.join(__dirname, '..');
 const ART = path.join(ROOT, 'test-artifacts');
@@ -75,7 +77,7 @@ function check(name, ok, detail) {
 
 /** 造一份隔离配置：目录全在临时目录里，房间关掉，别带用户身份 */
 function makeProfile() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-raster-'));
+  const userData = mkTempDir('takov-raster-');
   const shots = path.join(userData, 'shots');
   const logs = path.join(userData, 'logs');
   fs.mkdirSync(shots, { recursive: true });
@@ -94,14 +96,7 @@ function makeProfile() {
 
 async function main() {
   const { userData } = makeProfile();
-  const proc = spawn(require('electron'), [
-    '.',
-    `--remote-debugging-port=${PORT}`,
-    // 窗口被挡住时 Chromium 会停止出帧，captureScreenshot 会卡住
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-background-timer-throttling',
-  ], {
+  const proc = spawn(require('electron'), buildArgs({ port: PORT }), {
     cwd: ROOT,
     env: { ...process.env, TAKOV_USER_DATA: userData },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -390,8 +385,10 @@ async function main() {
     const checkedWhenOn = await ev(`document.querySelector('#set-mini').checked`);
     check('雷达开着时，设置页那个复选框也是勾上的（不再显示旧状态）', checkedWhenOn === true, String(checkedWhenOn));
     await ev(`(() => {
-      document.querySelector('#set-mini').checked = false;
-      document.querySelector('#settings-ok').click();
+      const el = document.querySelector('#set-mini');
+      el.checked = false;
+      el.dispatchEvent(new Event('input', { bubbles: true })); // 设置页即时生效：程序化赋值要自己派发事件
+      document.querySelector('#settings-close').click();
       return true;
     })()`);
     let afterSave = null;

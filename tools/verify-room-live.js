@@ -28,6 +28,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { buildArgs } = require('./lib/spawn-electron'); // 让步参数（受限宿主）+ 稳定参数
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 
 const ROOT = path.join(__dirname, '..');
 const arg = (n, d) => {
@@ -125,7 +127,7 @@ function cdp(wsUrl, calls, timeoutMs = 60000) {
 function makeClient(i) {
   const nick = NICKS[i];
   const cdpPort = BASE_CDP + i;
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), `takov-live-${i}-`));
+  const userData = mkTempDir(`takov-live-${i}-`);
   const shots = path.join(userData, 'shots');
   const logs = path.join(userData, 'logs');
   fs.mkdirSync(shots, { recursive: true });
@@ -156,15 +158,7 @@ function makeClient(i) {
     } catch {}
   }
 
-  const proc = spawn(require('electron'), [
-    '.',
-    `--remote-debugging-port=${cdpPort}`,
-    // N 个窗口叠在一起时，被挡住的那个渲染进程会被 Chromium 判定为"不可见"而停止出帧，
-    // 于是 Page.captureScreenshot 一直等不到新帧（卡到超时）。这三个开关关掉那套节流。
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-background-timer-throttling',
-  ], {
+  const proc = spawn(require('electron'), buildArgs({ port: cdpPort }), {
     cwd: ROOT,
     env: { ...process.env, TAKOV_USER_DATA: userData },
     stdio: ['ignore', 'pipe', 'pipe'],

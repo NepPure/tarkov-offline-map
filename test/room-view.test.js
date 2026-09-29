@@ -127,6 +127,59 @@ test('雷达边缘钳位：圆外的队友按同样方位贴到圆边上', async
   assert.strictEqual(clampToRadar(cx, cy, cx, cy, R).clamped, false, '正好在圆心不能算出界');
 });
 
+test('离场队友的共享内容不再画：标注与勾选都只看"此刻在房间里的人"', () => {
+  const annosByMap = {
+    woods: [
+      { id: 'a1', owner: 'p1', kind: 'pen' },
+      { id: 'a2', owner: 'p2', kind: 'rect' },
+      { id: 'a3', owner: 'me', kind: 'pen' },   // 自己的那份走本地文件，不该从房间快照里画
+    ],
+    customs: [{ id: 'b1', owner: 'p2', kind: 'pen' }],
+  };
+  const quests = { p1: ['taskAAAAAA'], p2: ['taskBBBBBB'] };
+  const room = {
+    status: 'online',
+    self: { id: 'me', nick: '我' },
+    peers: [{ id: 'p1', nick: '甲' }],   // p2 已经退出房间
+    annos: annosByMap,
+    quests,
+  };
+
+  assert.deepStrictEqual([...R.onlinePeerIds(room)], ['p1'], '在房间里的只有 p1（自己不算队友）');
+
+  const pruned = R.pruneRoomToOnline(room);
+  assert.deepStrictEqual(pruned.annos.woods.map((a) => a.id), ['a1'], '只留 p1 的笔画，p2 与自己的都去掉');
+  assert.strictEqual(pruned.annos.customs, undefined, 'p2 在另一张图上的笔画同样不画');
+  assert.deepStrictEqual(Object.keys(pruned.quests), ['p1'], '离场队友的共享勾选也要去掉');
+
+  // 原始数据不能被动过：他人一回来（同一份快照里又出现）立刻又能画出来
+  assert.strictEqual(annosByMap.woods.length, 3, 'prune 必须是纯函数，不改原数据');
+  assert.strictEqual(quests.p2.length, 1);
+  const back = R.pruneRoomToOnline({ ...room, peers: [{ id: 'p1', nick: '甲' }, { id: 'p2', nick: '乙' }] });
+  assert.deepStrictEqual(back.annos.customs.map((a) => a.id), ['b1'], '人回来了，他的笔画立刻又能画');
+  assert.deepStrictEqual(back.quests.p2, ['taskBBBBBB']);
+
+  // 边界：没房间 / 没有队友 / 脏数据
+  assert.strictEqual(R.pruneRoomToOnline(null), null);
+  assert.deepStrictEqual(R.pruneRoomToOnline({ peers: [], annos: { woods: [{}] }, quests: { x: 1 } }),
+    { peers: [], annos: {}, quests: {} });
+  assert.deepStrictEqual(R.annosOfOnlinePeers(null, new Set(['p1'])), {});
+  assert.deepStrictEqual(R.questsOfOnlinePeers({ p1: 'nope' }, ['p1']), { p1: [] });
+});
+
+test('接线：主窗口与雷达都按"在场者"过滤房间快照', () => {
+  const mj = read('renderer/map.js');
+  assert.ok(mj.includes('pruneRoomToOnline'), '主窗口要过一遍过滤');
+  assert.match(mj, /state\.room = pruneRoomToOnline\(s\.room\)/,
+    'state.room 必须是过滤后的（下游的图例统计/任务面板「谁勾选」/任务图层都读它）');
+  const mm = read('renderer/minimap.js');
+  assert.ok(mm.includes('pruneRoomToOnline'), '雷达也要过滤（否则圆盘上还留着他的笔画）');
+  assert.match(mm, /const room = pruneRoomToOnline\(s\.room\)/, '雷达要把过滤后的房间快照用在队友/标注/勾选上');
+  // 客户端这份数据要留着：人回来时不用重发就能立刻显示
+  const rc = read('src/room-client.js');
+  assert.ok(!/dropOwner/.test(rc), '人走了不该把共享标注从客户端状态里删掉（删了就回不来了）');
+});
+
 test('提示行文案由状态推导：每种状态下都不会说错话', () => {
   // 未联机：不写提示（顶栏胶囊也是隐藏的）
   assert.strictEqual(R.roomHint(null), null);

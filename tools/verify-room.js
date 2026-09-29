@@ -152,6 +152,7 @@ function check(name, ok, detail) {
   let peer = null;
   let scriptPeer = null;
   let joined = false;
+  let miniWasOn = false;   // 隔离实例里雷达默认关；本脚本自己开，收尾按原状还原
 
   try {
     // 1) 离线优先：配置里关着就必须是 off。
@@ -182,7 +183,8 @@ function check(name, ok, detail) {
       set('#set-room-port', '${srvPort}');
       set('#set-room-id', ${JSON.stringify(roomId)});
       set('#set-room-nick', '验收号');
-      document.querySelector('#set-room-enabled').checked = true;
+      // 设置页即时生效：程序化赋值不会触发 change，显式应用（"启用房间"先不动，留给下面那步）
+      for (const sel of ['#set-room-url', '#set-room-port', '#set-room-id', '#set-room-nick']) window.__settings.apply(sel);
       return true;
     })()`);
     await ev(`document.querySelector('#room-test').click()`);
@@ -195,9 +197,15 @@ function check(name, ok, detail) {
     check('「测试连接」探活成功（/healthz）', /连接成功/.test(hint), hint);
     await shot('room-settings.png');
 
-    // 3a) 用设置页的「保存」开通（不是只有"加入房间"按钮管用）
+    // 3a) 在设置页里勾「启用房间」就开通（即时生效，不用点保存）
     //     回归：以前 sameTarget 判定会把这条路径吞掉 —— 开关打开、字段没动 -> 认为"没变化" -> 一直不连
-    await ev(`document.querySelector('#settings-ok').click()`);
+    await ev(`(() => {
+      const el = document.querySelector('#set-room-enabled');
+      el.checked = true;
+      window.__settings.apply('#set-room-enabled');
+      document.querySelector('#settings-close').click();
+      return true;
+    })()`);
     let chip = '';
     for (let i = 0; i < 40; i++) {
       chip = await ev(`document.querySelector('#room-chip').textContent`);
@@ -348,8 +356,15 @@ function check(name, ok, detail) {
     check('队友标注也画在地图上（别人的笔画）', (await ev(`document.querySelectorAll('.peer-anno').length`)) >= 1);
     await shot('room-peer-on-map.png');
 
-    // 6b-2) 雷达（小地图窗口）也要画队友：它是另一个渲染进程，单独查一遍
-    const miniTarget = (await targets()).find((x) => x.url.endsWith('/minimap.html'));
+    // 6b-2) 雷达（小地图窗口）也要画队友：它是另一个渲染进程，单独查一遍。
+    // 隔离实例（runner 起的）里雷达默认关，先自己开再等窗口；手动跑真实配置时通常已经开着。
+    miniWasOn = await ev(`window.api.miniStatus().then((s) => !!(s && s.enabled))`);
+    let miniTarget = (await targets()).find((x) => x.url.endsWith('/minimap.html'));
+    for (let i = 0; i < 40 && !miniTarget; i++) {
+      if (i === 0) await ev(`window.api.setConfig({ miniVisible: true })`);
+      await sleep(300);
+      miniTarget = (await targets()).find((x) => x.url.endsWith('/minimap.html'));
+    }
     if (!miniTarget) {
       check('雷达窗口存在（设置里"小地图雷达"开着才会创建）', false, '没找到 minimap.html，跳过队友检查');
     } else {
@@ -701,6 +716,17 @@ function check(name, ok, detail) {
     check('离开后顶栏胶囊隐藏', (await ev(`document.querySelector('#room-chip').classList.contains('hidden')`)) === true);
     check('离开后不再显示队友', ((await ev(`window.api.roomStatus().then((s) => (s && s.peers) || [])`)) || []).length === 0);
 
+    // 离开房间后，队友共享的笔画也必须一起从图上消失（不能"人走了、笔画还挂着"）；
+    // 本机自己画的那份不受影响（走本地标注文件）。
+    const afterLeave = await ev(`({
+      annos: document.querySelectorAll('.peer-anno').length,
+      marks: document.querySelectorAll('.peer-mark').length,
+      mine: (window.__view.annos || []).length,
+    })`);
+    check('离开房间后队友的笔画/标记都从图上消失（本机自己的标注还在）',
+      !!afterLeave && afterLeave.annos === 0 && afterLeave.marks === 0 && afterLeave.mine >= 1,
+      JSON.stringify(afterLeave));
+
     // 7b) 离线时画的标注，重新进房后必须补发。
     //     关键：**画完立刻进房**（同一个 CDP 调用里完成，中间没有任何等待）——
     //     渲染层要 600ms 防抖才把标注同步给主进程，所以进房那一刻主进程手里根本没有这一笔。
@@ -760,6 +786,8 @@ function check(name, ok, detail) {
     })()`);
     await sleep(500);
   } finally {
+    // 本脚本自己开的雷达：收尾还原（runner 的隔离实例会被整个删掉，手动跑也不留痕）
+    if (!miniWasOn) { try { await ev('window.api.setConfig({ miniVisible: false })'); } catch {} }
     // 8) 收尾：还原。
     //    顺序有讲究：**先离开房间，再还原配置**。反过来的话，"离开房间"会把
     //    settings.room.enabled 改成 false —— 用户本来开着联机的话，收尾反而把他的开关关了

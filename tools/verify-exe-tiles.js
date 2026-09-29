@@ -16,6 +16,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 const { spawn, spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -39,7 +40,7 @@ function newestExe() {
 
 /** 隔离配置目录：房间关掉、小地图开着（要验的就是它），目录全在临时目录里 */
 function makeProfile() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-exe-'));
+  const userData = mkTempDir('takov-exe-');
   const shots = path.join(userData, 'shots');
   const logs = path.join(userData, 'logs');
   fs.mkdirSync(shots, { recursive: true });
@@ -157,7 +158,8 @@ function check(name, ok, detail) {
     await sleep(400);
     const checked = await ev(`document.querySelector('#set-mini').checked`);
     check('设置页复选框反映真实状态（勾着）', checked === true, String(checked));
-    await ev(`(() => { document.querySelector('#set-mini').checked = false; document.querySelector('#settings-ok').click(); return true; })()`);
+    // 设置页现在即时生效：改完 checkbox 必须自己派发事件（程序化赋值不会触发），再关掉对话框
+    await ev(`(() => { const el = document.querySelector('#set-mini'); el.checked = false; el.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('#settings-close').click(); return true; })()`);
     let off = null;
     for (let i = 0; i < 20; i++) {
       off = await ev(`window.api.miniStatus()`);

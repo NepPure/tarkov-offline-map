@@ -159,10 +159,6 @@ test('标注合并：add 覆盖同 id、del 删掉、owner 过滤', () => {
   assert.deepStrictEqual(annos, {});
   // 非法笔画会被丢掉（服务端被冒充也污染不到界面）
   assert.deepStrictEqual(RC.applyAnno({}, { t: 'anno', op: 'add', map: 'woods', id: 's3', kind: 'nope', pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }] }), {});
-  // 队友离开 -> 他的标注一起消失
-  const two = RC.applyAnno(RC.applyAnno({}, a1), { ...a1, id: 's2', owner: 'p2' });
-  assert.deepStrictEqual(Object.keys(RC.dropOwner(two, 'p1')).length, 1);
-  assert.deepStrictEqual(RC.dropOwner(two, 'p1').woods.map((a) => a.id), ['s2']);
 });
 
 // ---------------------------------------------------------------------------
@@ -204,6 +200,30 @@ test('队友进出 / 换图 / 定位：都能落到状态里', () => {
 
   ws.doMsg({ t: 'peer-left', id: 'p2' });
   assert.strictEqual(c.snapshot().peers.length, 0);
+  c.destroy();
+});
+
+test('队友离开：勾选清掉，但共享标注留在状态里（画不画由渲染层按"在不在场"决定）', () => {
+  // 用户报过："人退出房间了，他画的标注还挂在图上，右边却没他的图例"。
+  // 修法是把"画不画"交给渲染层的过滤（renderer/common/room.js#pruneRoomToOnline）：
+  // 客户端这份数据留着，他人一回来立刻又能看到（服务端本来就留着这些标注）。
+  const c = newClient();
+  c.applyConfig(CFG);
+  const ws = FakeWS.instances[0];
+  ws.doOpen();
+  ws.doMsg({
+    t: 'welcome', self: { id: 'me', nick: '我' },
+    peers: [{ id: 'p2', nick: '小红', quests: ['taskAAAAAA'] }],
+    annos: { woods: [{ t: 'anno', op: 'add', map: 'woods', id: 'a1', kind: 'pen', color: '#ff0000', width: 3, pts: [{ x: 1, z: 2 }, { x: 3, z: 4 }], owner: 'p2' }] },
+    quests: { p2: ['taskAAAAAA'] },
+  });
+  assert.strictEqual(c.snapshot().annos.woods.length, 1);
+  assert.deepStrictEqual(c.snapshot().quests.p2, ['taskAAAAAA']);
+
+  ws.doMsg({ t: 'peer-left', id: 'p2' });
+  const s = c.snapshot();
+  assert.deepStrictEqual(s.quests, {}, '他的勾选要清掉（重进房他会整份重发）');
+  assert.strictEqual(s.annos.woods.length, 1, '标注要留着：渲染层过滤掉，他回来立刻可见');
   c.destroy();
 });
 

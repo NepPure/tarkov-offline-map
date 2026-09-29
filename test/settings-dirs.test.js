@@ -39,8 +39,11 @@ test('接线：目录按钮 -> preload -> 主进程（只选目录 / 只开已�
   assert.ok(js.includes('async function pickDirInto') && js.includes('async function openDir'), '缺少目录按钮的实现');
   assert.ok(js.includes('api.pickFolder(') && js.includes('api.openPath('), '要走 preload 暴露的 IPC');
   assert.ok(/pickDirInto[\s\S]{0,800}?input\.value = res\.path/.test(js), '选完要填进输入框');
-  // 选目录只填输入框：落盘交给「保存」（避免点错就换目录、顺手重启监听）
-  assert.ok(!/async function pickDirInto[\s\S]{0,900}?api\.setConfig/.test(js), '选择目录不该直接写配置');
+  // 设置页没有「保存」按钮了：选完目录必须**立刻生效**（程序化赋值不会触发 change，
+  // 所以显式走一次 applyControlNow），否则表现就是"选了个目录但没反应"。
+  assert.ok(/async function pickDirInto[\s\S]{0,900}?applyControlNow\(inputSel\)/.test(js), '选完目录要立刻生效');
+  assert.ok(!/async function pickDirInto[\s\S]{0,900}?api\.setConfig/.test(js),
+    '目录生效统一走 applyControlNow（别在按钮里自己拼配置，绕过节流与视图同步）');
   assert.ok(js.includes('if (res && res.error) alert(res.error)'), '失败要说出来，别静默');
 
   const pre = read('preload.js');

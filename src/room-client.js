@@ -137,7 +137,8 @@ const EMPTY_STATE = () => ({
   server: null,       // {host, port, secure}
   self: null,         // {id, nick}
   peers: [],          // [{id, nick, map, pos, at}]
-  annos: {},          // mapId -> [笔画]（只含别人的）
+  annos: {},          // mapId -> [笔画]（房间里已知的共享标注，可能含**此刻不在线**的人画的：
+                      //   画不画由渲染层按"owner 在不在场"过滤，见 renderer/common/room.js）
   quests: {},         // peerId -> [任务 id]（只含别人的勾选；服务端支持才非空）
   caps: [],           // 服务端声明的能力（含 'quests' 才会共享勾选的任务）
   roomHint: null,     // 房间标识前 6 位（排查用，不是暗号）
@@ -513,10 +514,13 @@ class RoomClient {
       case 'peer-left': {
         const before = this.state.peers.length;
         this.state.peers = this.state.peers.filter((x) => x.id !== m.id);
-        // 人走了，他的标注也一并从本地视图里去掉（服务端的标注在房间回收前还留着）
-        this.state.annos = dropOwner(this.state.annos, m.id);
+        // 勾选任务直接清掉：他下次进房会把自己的勾选整份重发（onHello -> flushQuests），
+        // 所以不需要留着他的旧勾选。
         this.state.quests = dropQuestOwner(this.state.quests, m.id);
-        if (before !== this.state.peers.length) this.onLog(`队友离开：${m.id}`);
+        // 标注**故意不删**：服务端本来就留着离场者的标注，渲染层会按"owner 此刻在不在
+        // 房间里"过滤（renderer/common/room.js#annosOfOnlinePeers）—— 图上立刻看不到，
+        // 而他一回来（同一份数据还在）立刻又能看到，不用他重发、也不受"只补发当前这张图"限制。
+        if (before !== this.state.peers.length) this.onLog(`队友离开：${m.id}（他的标注先隐藏，回来即恢复）`);
         this.emit();
         return;
       }
@@ -739,15 +743,6 @@ function applyAnno(annos, m) {
   return out;
 }
 
-function dropOwner(annos, owner) {
-  const out = {};
-  for (const [mapId, list] of Object.entries(annos)) {
-    const keep = list.filter((a) => a.owner !== owner);
-    if (keep.length) out[mapId] = keep;
-  }
-  return out;
-}
-
 function countAnnos(raw) {
   if (!raw || typeof raw !== 'object') return 0;
   return Object.values(raw).reduce((n, list) => n + (Array.isArray(list) ? list.length : 0), 0);
@@ -805,7 +800,6 @@ module.exports = {
   normalizeConfig,
   normalizeAnnos,
   applyAnno,
-  dropOwner,
   sanitizeQuestIds,
   normalizeQuests,
   dropQuestOwner,

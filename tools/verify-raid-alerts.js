@@ -13,6 +13,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const { buildArgs } = require('./lib/spawn-electron'); // 让步参数（受限宿主）+ 稳定参数
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 
 const arg = (n, d) => {
   const a = process.argv.find((x) => x.startsWith(`--${n}`));
@@ -83,7 +85,7 @@ function check(name, ok, detail) {
 
 /** 隔离配置：日志目录里先放一个"空会话"，脚本再往里追加日志行 */
 function makeProfile() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-alert-'));
+  const userData = mkTempDir('takov-alert-');
   const shots = path.join(userData, 'shots');
   const logs = path.join(userData, 'logs');
   const name = 'log_2026.09.26_22-00-00_1.1.5.1.47510';
@@ -115,13 +117,7 @@ const line = (msg, level = 'Info') => `${stamp()}|1.1.5.1.47510|${level}|applica
 
 (async () => {
   const prof = makeProfile();
-  const proc = spawn(require('electron'), [
-    '.',
-    `--remote-debugging-port=${PORT}`,
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-background-timer-throttling',
-  ], {
+  const proc = spawn(require('electron'), buildArgs({ port: PORT }), {
     cwd: ROOT,
     env: { ...process.env, TAKOV_USER_DATA: prof.userData, HTTP_PROXY: '', HTTPS_PROXY: '' },
     stdio: ['ignore', 'pipe', 'pipe'],

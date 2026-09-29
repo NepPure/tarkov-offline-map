@@ -3,8 +3,9 @@
 /**
  * 圆形小地图悬浮窗：跟随玩家 + 车头朝上 + 缩放
  */
-import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini } from './common/map-view.js';
+import { MapView, metersToScreen, panCenterAfterDrag, normalizeMiniAnnoMode, filterAnnosForMini, shouldRecenterOnPosition } from './common/map-view.js';
 import { taskLocation, questsFingerprint } from './common/quest-filter.js';
+import { pruneRoomToOnline } from './common/room.js';
 
 const api = window.api;
 
@@ -12,6 +13,7 @@ const view = new MapView(document.getElementById('mini-root'), { mini: true });
 window.__view = view; // 可视化自检 / CDP 验收用（与主窗口一致）
 let detail = null;
 let RADIUS_M = 55;
+let radiusDirty = false;     // 配置里的"显示半径"变了：下一次应用状态时按新半径重新铺满圆盘
 let miniFollowMainZoom = false;
 let miniRotate = false;      // 固定地图方向（默认）；true = 随角色朝向旋转
 let miniAutoCenter = true;   // 定位后自动居中到玩家
@@ -179,6 +181,26 @@ function centerOnPlayer(zoomToRadius = false) {
 }
 
 /**
+ * 视野中心不动，只按"固定地图方向 / 随角色朝向旋转"重画一遍。
+ * 关掉「定位后自动居中」时用它：玩家点跟着更新，但视野不跳。
+ */
+function applyMiniRotation() {
+  view.view.rot = miniRotate && view.heading ? ((view.heading.screenAngleDeg + 90) * Math.PI) / 180 : 0;
+  view.setViewport({ cx: view.view.cx, cy: view.view.cy, scale: view.view.scale, rot: view.view.rot });
+}
+
+/**
+ * 只把缩放重算成"配置的显示半径正好铺满圆盘"，视野中心不动。
+ * 改「显示半径(米)」或改「雷达窗口大小」时都要走一遍 —— 否则同一个 scale 下
+ * 窗口越大看到的地方越多，设置里写的 55 米就不是 55 米了。
+ */
+function refitRadius() {
+  if (!view.player || !detail || !view.proj) { centerOnMap(); return; }
+  view.view.scale = radiusScale(view.player.x, view.player.z);
+  view.setViewport({ cx: view.view.cx, cy: view.view.cy, scale: view.view.scale, rot: view.view.rot });
+}
+
+/**
  * 还没有玩家位置时（截图定位前）：以地图中心按"标准视野"显示，
  * 而不是缩到整张图——否则上千个标记会挤成一团浆糊（大图标下尤其明显）。
  */
@@ -196,6 +218,9 @@ function centerOnMap() {
 
 async function applyState(s) {
   if (!s || !s.mapId) return;
+  // 队友已经退出房间 -> 他共享的标注/勾选也不该留在雷达上（服务端会保留他的数据，
+  // 但"画不画"要按此刻在不在房间里算；他回来时同一份数据立刻又能画出来）
+  const room = pruneRoomToOnline(s.room);
   // 配置先落地（RADIUS_M 影响标准视野的缩放）
   if (s.config) {
     view.setMarkerToggles(s.config.markerToggles);
@@ -203,10 +228,7 @@ async function applyState(s) {
     view.setShowAllHeights(s.config.showAllMarkers !== false);
     view.setMarkerScale(s.config.markerScale || 1);
     view.setLabelScale(s.config.labelScale || 1);
-    RADIUS_M = s.config.miniRadius || 55;
     miniFollowMainZoom = !!s.config.miniFollowMainZoom;
-    miniRotate = !!s.config.miniRotate;              // 默认 false = 固定地图方向
-    miniAutoCenter = s.config.miniAutoCenter !== false;
     miniAutoFloor = s.config.miniAutoFloor !== false;
     miniAnnosMode = normalizeMiniAnnoMode(s.config.miniAnnos);
     // 任务点：同一份勾选状态 + 同一套透明度（主地图上什么样，雷达上就什么样）
@@ -214,11 +236,30 @@ async function applyState(s) {
     questCfg = {
       checked: Array.isArray(q.checked) ? q.checked : [],
       showKill: !!q.showKill,
-      peerQuests: (s.room && s.room.quests) || {},
+      peerQuests: (room && room.quests) || {},
     };
     view.setQuestOpacity(q.opacity ?? 0.25);
     api.setMiniOpacity(s.config.miniOpacity ?? 0.9);
     setClickThrough(!!s.config.miniClickThrough);
+    // 「显示半径(米)」在设置页里是即时生效的：半径变了要按新半径重新铺满圆盘，
+    // 否则拖完滑块得等到下一次定位才看得出来（而且窗口越大看得越多，数字就不准了）
+    const nextRadius = Number(s.config.miniRadius) || 55;
+    if (Math.abs(nextRadius - RADIUS_M) > 0.01) radiusDirty = true;
+    RADIUS_M = nextRadius;
+    miniAutoCenter = s.config.miniAutoCenter !== false;
+    // 「随角色朝向旋转」也即时生效：勾上/去掉立刻按新角度重画，不用等下一次定位
+    const nextRotate = !!s.config.miniRotate;
+    if (nextRotate !== miniRotate && view.player) {
+      miniRotate = nextRotate;
+      view.rotate = miniRotate;
+      if (miniAutoCenter) {
+        centerOnPlayer(false);
+      } else {
+        // 自动居中关着：只按新角度重画，视野中心不动
+        applyMiniRotation();
+      }
+    }
+    miniRotate = nextRotate;                         // 默认 false = 固定地图方向
   }
   if (!detail || detail.id !== s.mapId) {
     detail = await getDetail(s.mapId);
@@ -243,16 +284,41 @@ async function applyState(s) {
   await maybeSyncQuests(detail.id);
   if (s.position && s.quaternion) {
     view.rotate = miniRotate;
-    const wasNull = !view.player;
+    const prev = view.player;
+    const wasNull = !prev;
+    // 小地图的"居中/旋转"统一由这里决定：map-view 内部的 follow 会在 setPlayer 里
+    // **无视视野偏移**强行把玩家拉到圆心，那会把"定位后自动居中 = 关"这个开关架空
+    // （关了也照样每次都跳回玩家）。所以雷达里一律不靠它。
+    view.follow = false;
     view.setPlayer(s.position, s.quaternion);
     view.setTrail(s.trail);
+    // 新的一次定位 -> 回到"玩家在圆心"：把 Ctrl 拖动平移出来的视野偏移归零。
+    // 踩过的坑：偏移会一直留着，于是"拖动雷达之后再按截图键定位，玩家停在偏心位置不回中"
+    // （用户报的第 1 条）。平移只是临时往旁边看两眼，新的一次定位理应重新居中。
+    // 注意只在"位置真的变了"时归零：拖动窗口/切图例/改设置也会推状态，那些不能把视野拉回去。
+    if (shouldRecenterOnPosition(prev, view.player, miniAutoCenter)) {
+      if (panOffset.x || panOffset.y) api.miniProbe({ ev: 'pan-reset-position' });
+      panOffset.x = 0;
+      panOffset.y = 0;
+    }
     // 自动居中：关掉后只更新玩家点/轨迹，不再把视野拉回玩家（配合手动缩放查看周边）
-    if (miniAutoCenter || wasNull) centerOnPlayer(wasNull);
+    if (miniAutoCenter || wasNull) {
+      centerOnPlayer(wasNull || radiusDirty);
+    } else {
+      if (radiusDirty) refitRadius();
+      applyMiniRotation(); // 视野不动，但"随朝向旋转"仍要跟着转
+    }
+    radiusDirty = false;
   } else if (view.player) {
     // 新一局（进图日志已清空位置）：抹掉上一局的玩家点与轨迹，视野回退到"还没定位"的状态
     view.clearPlayer();
     panOffset.x = 0;
     panOffset.y = 0;
+    radiusDirty = false;
+    centerOnMap();
+  } else if (radiusDirty) {
+    // 还没定位过：半径改了也要立刻反映到"地图中心的标准视野"上
+    radiusDirty = false;
     centerOnMap();
   }
   // 楼层：默认按玩家高度自动切层；关掉后固定在地图基础层
@@ -260,11 +326,11 @@ async function applyState(s) {
   if (miniAutoFloor) view.setFloor('auto');
   else view.setFloor(view.baseLayer || (detail && detail.svgLayer) || 'auto');
   // 房间成员：雷达上也画队友（离得近的时候比主窗口更有用）
-  const myId = s.room && s.room.self ? s.room.self.id : null;
-  const peerAnnos = s.room && Array.isArray((s.room.annos || {})[detail.id])
-    ? s.room.annos[detail.id].filter((a) => a && a.owner !== myId)
+  const myId = room && room.self ? room.self.id : null;
+  const peerAnnos = room && Array.isArray((room.annos || {})[detail.id])
+    ? room.annos[detail.id].filter((a) => a && a.owner !== myId)
     : [];
-  if (s.room) view.setPeers(Array.isArray(s.room.peers) ? s.room.peers : []);
+  if (room) view.setPeers(Array.isArray(room.peers) ? room.peers : []);
   else view.setPeers([]);
 
   // 标注（我画的 + 队友的）：换图或"主进程说标注变了"时重取一次
@@ -291,9 +357,52 @@ async function applyState(s) {
 api.onState((s) => applyState(s));
 api.getState().then((s) => applyState(s));
 
+/**
+ * 窗口大小变了（设置里的「雷达窗口大小」）：
+ * 圆盘变大/变小后，配置里的「显示半径(米)」要重新铺满圆盘 —— 否则同一个缩放比例下
+ * 窗口越大看到的地方越多，设置里写的 55 米就不再是 55 米了。
+ * 顺手把右下角"锁/解锁"小块的位置也重报一次（它按窗口尺寸定位）。
+ */
+let lastDiscW = 0;
+function syncDiscSize() {
+  const w = document.getElementById('mini-root').getBoundingClientRect().width;
+  if (!w || Math.abs(w - lastDiscW) < 0.5) return;
+  const first = lastDiscW === 0;
+  lastDiscW = w;
+  requestAnimationFrame(reportLockBarRect);
+  if (first) return; // 启动时的那一次：只记尺寸，不动视野
+  if (!detail || !view.proj) return;
+  if (!view.player) { centerOnMap(); return; }
+  refitRadius();
+  if (miniAutoCenter) centerOnPlayer(false);
+}
+window.addEventListener('resize', () => requestAnimationFrame(syncDiscSize));
+requestAnimationFrame(syncDiscSize); // 启动时先记下圆盘尺寸（不重算视野）
+
+// 可视化自检 / CDP 验收用（和主窗口的 window.__view 一个用途）：
+// 雷达的尺寸、显示半径、视野偏移都能读，验收脚本据此断言"定位后玩家在圆心"。
+window.__mini = {
+  discWidth: () => document.getElementById('mini-root').getBoundingClientRect().width,
+  radiusM: () => RADIUS_M,
+  autoCenter: () => miniAutoCenter,
+  rotate: () => miniRotate,
+  pan: () => ({ x: panOffset.x, y: panOffset.y }),
+  setPan: (x, y) => { panOffset.x = Number(x) || 0; panOffset.y = Number(y) || 0; centerOnPlayer(false); },
+  viewport: () => view.getViewport(),
+  player: () => view.player,
+};
+
+
 // 小地图忽略主窗口的平移；仅在"缩放跟随互动地图"开启时同步缩放（默认按自身半径）
 api.onViewportSync((vp) => {
   if (!view.player) return;
+  // 「定位后自动居中」关着时，这条同步路径也不许把视野拉回玩家 —— 否则主窗口每次定位
+  // 都会发一次 viewport 同步，雷达跟着跳一下，开关等于被架空（用户报的第 1 条）。
+  if (!miniAutoCenter) {
+    // 只跟随缩放，视野中心一格不挪；旋转仍按当前设置
+    if (miniFollowMainZoom) { view.view.scale = vp.scale; applyMiniRotation(); }
+    return;
+  }
   if (miniFollowMainZoom) view.view.scale = vp.scale;
   centerOnPlayer(false);
 });

@@ -2,7 +2,8 @@
 
 import { MapView, MARKER_GROUPS, makeProjection } from './common/map-view.js';
 import { filterTasks, groupTasks, taskLocation, taskSummary, typeLabel, stageBucket, locationsByMap, otherMapsWithLocation, questBringList, formatBringKeys, questsFingerprint, peerQuestIndex } from './common/quest-filter.js';
-import { peersSignature, peerInitial, peerColor, roomHint as roomHintFor } from './common/room.js';
+import { peersSignature, peerInitial, peerColor, roomHint as roomHintFor, pruneRoomToOnline } from './common/room.js';
+import { LIVE_FIELDS, liveEventFor, readLiveValue, patchFor, setPath, fieldOf } from './common/settings-live.js';
 
 const $ = (sel) => document.querySelector(sel);
 const api = window.api;
@@ -118,6 +119,7 @@ async function init() {
       if (!code || code === 'Unidentified') return; // 修饰键之类：继续等
       input.value = code;
       finish();
+      applyControlNow('#set-autoshot-key'); // 捕获到的键立刻生效（设置页没有保存按钮）
     };
     const finish = () => {
       input.removeEventListener('keydown', onKey, true);
@@ -180,6 +182,10 @@ async function init() {
   // 视口变化 -> 同步小地图
   view.onViewChange = (viewport) => api.syncViewport(viewport);
   view.onPlayerSettled = onPlayerSettled;
+  // 拖右下角改窗口大小：底图 viewBox 与覆盖层里的屏幕坐标都要按新尺寸重算，
+  // 否则地图背景会被拉伸、而标记/侧栏位置不动 —— 看着就是"图例和地图背景错位"。
+  // （MapView 内部还挂了一个 ResizeObserver 兜住非 window 的尺寸变化，两条路都走同一个 rAF 合并）
+  window.addEventListener('resize', () => view.handleResize());
 
   // 主进程状态推送
   api.onState((s) => applyMainState(s));
@@ -305,9 +311,8 @@ function openAbout() {
 // 高级设置对话框
 // ---------------------------------------------------------------------------
 /**
- * 「选择文件夹…」：把选中的目录填进对应的输入框。
- * 刻意不直接写配置 —— 和手输路径走同一条路（点「保存」才落盘、才重启监听），
- * 免得"点错一下子就换了目录"。
+ * 「选择文件夹…」：把选中的目录填进对应的输入框，并**立刻生效**
+ * （设置页没有保存按钮了，选完就是你要的目录）。
  */
 async function pickDirInto(inputSel, title) {
   const input = $(inputSel);
@@ -319,7 +324,10 @@ async function pickDirInto(inputSel, title) {
     return;
   }
   if (res && res.error) { alert(res.error); return; }
-  if (res && res.path) input.value = res.path;
+  if (res && res.path) {
+    input.value = res.path;
+    applyControlNow(inputSel); // 程序化赋值不会触发 change，这里显式应用
+  }
 }
 
 /** 「打开文件夹」：在资源管理器里打开输入框里的目录（不存在就把原因说出来） */
@@ -348,6 +356,7 @@ function openSettings() {
   $('#set-mini').checked = state.miniEnabled != null ? state.miniEnabled : !!c.miniVisible;
   $('#set-map-opacity').value = c.mapOpacity ?? 1;
   $('#set-mini-opacity').value = c.miniOpacity ?? 0.9;
+  $('#set-mini-size').value = c.miniSize ?? 300;
   $('#set-mini-radius').value = c.miniRadius ?? 55;
   $('#set-mini-rotate').checked = !!c.miniRotate;
   $('#set-mini-auto-center').checked = c.miniAutoCenter !== false;
@@ -379,6 +388,8 @@ function openSettings() {
   // 提示行不留旧话：打开设置时按当前状态重新说一遍（探活结果之类的临时话术不再残留）
   state.roomHintManual = null;
   renderRoomStatus(state.room);
+  // 滑块右边的数值徽标跟着当前配置刷新一次
+  syncRangeVals();
   $('#settings-dialog').showModal();
 }
 
@@ -513,53 +524,117 @@ function renderRoomStatus(room) {
   applyRoomHint(room);
 }
 
-async function saveSettings() {
-  const patch = {
-    logsPath: $('#set-logs').value.trim(),
-    screenshotsPath: $('#set-shots').value.trim(),
-    autoZoom: $('#set-auto-zoom').checked,
-    autoCenter: $('#set-auto-center').checked,
-    showAllMarkers: $('#set-all-markers').checked,
-    autoFloor: $('#set-auto-floor').checked,
-    sound: $('#set-sound').checked,
-    alertLeadSec: Number($('#set-alert-lead').value) || 3,
-    autoDeleteScreenshots: $('#set-auto-delete').checked,
-    miniVisible: $('#set-mini').checked,
-    mapOpacity: Number($('#set-map-opacity').value),
-    miniOpacity: Number($('#set-mini-opacity').value),
-    miniRadius: Number($('#set-mini-radius').value),
-    miniFollowMainZoom: $('#set-mini-follow').checked,
-    miniRotate: $('#set-mini-rotate').checked,
-    miniAutoCenter: $('#set-mini-auto-center').checked,
-    miniAutoFloor: $('#set-mini-auto-floor').checked,
-    miniClickThrough: $('#set-mini-click-through').checked,
-    miniAnnos: $('#set-mini-annos').value,
-    markerScale: Number($('#set-marker-scale').value),
-    labelScale: Number($('#set-label-scale').value),
-    room: roomFormPatch(),
-    autoShot: {
-      enabled: $('#set-autoshot').checked,
-      intervalSec: Number($('#set-autoshot-interval').value) || 30,
-      key: $('#set-autoshot-key').value.trim() || 'PrintScreen',
-    },
+// ---------------------------------------------------------------------------
+// 设置面板：改动**即时生效**（没有「保存 / 取消」按钮）
+//
+// 设计：控件 -> 配置字段只有一张表（renderer/common/settings-live.js#LIVE_FIELDS），
+// 每个控件在 liveEventFor() 说的事件上把值写进配置，主进程 config:set 会立刻落盘并广播，
+// 所以雷达/主地图当场就变。滑块这类高频控件按 60ms 领头节流，免得一次拖动写上百次磁盘。
+// 「文本框 / 数字框」用 change（回车或失焦）而不是 input：目录每敲一个字就重启日志监听
+// 会把"进图自动切图"搞坏（见 main.js#syncWatchers 的注释）。
+// ---------------------------------------------------------------------------
+
+/** 深合并一份配置补丁（room/autoShot 这类子对象不能整体替换掉） */
+function mergeSettings(base, patch) {
+  const out = { ...(base || {}) };
+  for (const [k, v] of Object.entries(patch || {})) {
+    out[k] = v && typeof v === 'object' && !Array.isArray(v)
+      ? { ...((base && typeof base[k] === 'object' && base[k]) || {}), ...v }
+      : v;
+  }
+  return out;
+}
+
+/** 配置变了要立刻反映到主界面上（视图、顶栏按钮、任务面板） */
+function applyPatchToViews(patch) {
+  if (!patch) return;
+  if ('showAllMarkers' in patch) view.setShowAllHeights(!!patch.showAllMarkers);
+  if ('autoCenter' in patch) {
+    view.setViewMode({ follow: !!patch.autoCenter });
+    $('#btn-follow').classList.toggle('active', !!patch.autoCenter);
+  }
+  if ('autoZoom' in patch) applyAutoZoom(patch.autoZoom !== false);
+  if ('mapOpacity' in patch) view.setMapOpacity(patch.mapOpacity);
+  if ('markerScale' in patch) view.setMarkerScale(patch.markerScale);
+  if ('labelScale' in patch) view.setLabelScale(patch.labelScale);
+  if ('rotateWithHeading' in patch) {
+    view.setViewMode({ rotate: !!patch.rotateWithHeading });
+    $('#btn-rotate').classList.toggle('active', !patch.rotateWithHeading);
+  }
+  if ('miniVisible' in patch) {
+    state.miniEnabled = !!patch.miniVisible;
+    $('#btn-mini').classList.toggle('active', !!patch.miniVisible);
+  }
+  if (patch.quests) {
+    quest.ui = { ...quest.ui, ...patch.quests };
+    if (patch.quests.opacity != null) view.setQuestOpacity(Number(quest.ui.opacity) || 0.18);
+    saveQuestCfg();
+  }
+}
+
+/** 把某个控件当前的值应用下去（滑块拖动、开关点击、选完目录、按下按键捕获都走这里） */
+function applyControlNow(sel) {
+  const field = fieldOf(sel);
+  const el = $(sel);
+  if (!field || !el) return null;
+  const value = readLiveValue(field, el);
+  // 任务那一组是"整份写回"（quest.ui 里还有勾选/筛选状态），不走 config:set 的增量补丁
+  if (field.path.startsWith('quests.')) {
+    const key = field.path.slice('quests.'.length);
+    quest.ui[key] = value;
+    if (key === 'opacity') view.setQuestOpacity(Number(value) || 0.18);
+    saveQuestCfg();
+    state.cfg = mergeSettings(state.cfg, setPath({}, field.path, value));
+    return value;
+  }
+  const patch = patchFor(field, el);
+  state.cfg = mergeSettings(state.cfg, patch);
+  applyPatchToViews(patch);
+  api.setConfig(patch).catch(() => {});
+  return value;
+}
+
+// 滑块：60ms 领头节流（在途最多一个，触发时读的是最新值）
+const liveTimers = new Map();
+function scheduleLive(sel, immediate) {
+  if (immediate) return applyControlNow(sel);
+  if (liveTimers.has(sel)) return;
+  liveTimers.set(sel, setTimeout(() => {
+    liveTimers.delete(sel);
+    applyControlNow(sel);
+  }, 60));
+  return null;
+}
+
+/** 滑块右边那个当前值（实时生效时最需要"我到底调到了多少"） */
+function updateRangeVal(el) {
+  const b = el.nextElementSibling;
+  if (b && b.classList.contains('range-val')) b.textContent = el.value;
+}
+function syncRangeVals() {
+  for (const el of document.querySelectorAll('#settings-dialog input[type=range]')) updateRangeVal(el);
+}
+
+function bindLiveSettings() {
+  for (const el of document.querySelectorAll('#settings-dialog input[type=range]')) {
+    if (el.nextElementSibling && el.nextElementSibling.classList.contains('range-val')) continue;
+    const b = document.createElement('b');
+    b.className = 'range-val';
+    el.insertAdjacentElement('afterend', b);
+    el.addEventListener('input', () => updateRangeVal(el));
+  }
+  for (const f of LIVE_FIELDS) {
+    const el = $(f.sel);
+    if (!el) continue;
+    const ev = liveEventFor(el);
+    el.addEventListener(ev, () => scheduleLive(f.sel, ev === 'change'));
+  }
+  // 自检 / CDP 验收用：把"设置页的每个控件都能立刻生效"变成可断言的东西
+  window.__settings = {
+    fields: LIVE_FIELDS,
+    apply: (sel) => applyControlNow(sel),
+    control: (sel) => { const el = $(sel); return el ? { type: el.type, tag: el.tagName, event: liveEventFor(el) } : null; },
   };
-  state.cfg = { ...state.cfg, ...patch };
-  await api.setConfig(patch);
-
-  // 应用到视图
-  view.setShowAllHeights(patch.showAllMarkers);
-  view.setViewMode({ follow: patch.autoCenter });
-  applyAutoZoom(patch.autoZoom);
-  view.setMapOpacity(patch.mapOpacity);
-  view.setMarkerScale(patch.markerScale);
-  view.setLabelScale(patch.labelScale);
-  $('#btn-mini').classList.toggle('active', patch.miniVisible);
-
-  // 任务标记
-  quest.ui.opacity = Number($('#set-quest-opacity').value) || 0.18;
-  quest.ui.autoOpen = $('#set-quest-auto-open').checked;
-  view.setQuestOpacity(quest.ui.opacity);
-  saveQuestCfg();
 }
 
 // ---------------------------------------------------------------------------
@@ -584,7 +659,10 @@ async function applyMainState(s) {
   // 0) 房间状态与队友（顶栏胶囊 + 地图上的队友标记 + 右侧"房间成员"图例）
   const statusNow = s.room ? s.room.status : null;
   const justOnline = statusNow === 'online' && state.roomStatusPrev !== 'online';
-  state.room = s.room || null;
+  // 先按"此刻谁在房间里"过滤共享内容：离场队友的标注/勾选不再画到图上，
+  // 也一起从任务面板的「谁勾选」与图例统计里消失（他回来时同一份数据立刻又能显示）。
+  // 不做这一步的后果就是用户报的那条："人退出房间了，标注还挂在图上，右边却没他的图例"。
+  state.room = pruneRoomToOnline(s.room);
   state.roomStatusPrev = statusNow;
   renderRoomStatus(state.room);
   applyRoomView(state.room);
@@ -1018,8 +1096,8 @@ function beep(kind) {
   } catch {}
 }
 
-// 设置面板保存
-$('#settings-ok').addEventListener('click', () => saveSettings());
+// 设置面板：改动即时生效（见文件末尾的 bindLiveSettings）
+bindLiveSettings();
 
 // ---------------------------------------------------------------------------
 // 房间（联机）

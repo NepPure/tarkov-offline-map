@@ -15,6 +15,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 const { spawn } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -27,7 +28,7 @@ const WAIT = Number(arg('wait', 6000));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function makeProfile() {
-  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-diag-'));
+  const userData = mkTempDir('takov-diag-');
   fs.mkdirSync(path.join(userData, 'shots'), { recursive: true });
   fs.mkdirSync(path.join(userData, 'logs'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({

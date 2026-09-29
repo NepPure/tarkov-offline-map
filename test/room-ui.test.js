@@ -55,7 +55,11 @@ test('渲染层：设置读写、状态渲染、三个按钮都接上了', () =>
   const js = read('renderer/map.js');
   assert.match(js, /function roomFormPatch\(\)/, '缺少 roomFormPatch()');
   assert.match(js, /function renderRoomStatus\(room\)/, '缺少 renderRoomStatus()');
-  assert.ok(js.includes('room: roomFormPatch(),'), '保存设置时要带上房间配置');
+  // 房间卡片不再经过「保存」按钮（设置页改成即时生效）：文本字段走 LIVE_FIELDS 的 change，
+  // 「加入房间」按钮仍然把整份表单一次性写下去
+  assert.ok(js.includes('await api.setConfig({ room: patch })'), '「加入房间」要把表单里的房间配置写进配置');
+  assert.match(read('renderer/common/settings-live.js'), /sel: '#set-room-url', path: 'room\.url'/,
+    '房间地址要能即时生效');
   assert.ok(js.includes("$('#room-test').addEventListener"), '测试连接按钮没接');
   assert.ok(js.includes("$('#room-connect').addEventListener"), '加入房间按钮没接');
   assert.ok(js.includes("$('#room-disconnect').addEventListener"), '离开房间按钮没接');

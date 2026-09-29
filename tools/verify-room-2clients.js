@@ -17,6 +17,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { buildArgs } = require('./lib/spawn-electron'); // 让步参数（受限宿主）+ 稳定参数
+const { mkTempDir } = require('./lib/suite'); // 隔离配置放工作区内（受限宿主 %TEMP% 不可写）
 
 const ROOT = path.join(__dirname, '..');
 const arg = (n, d) => {
@@ -181,10 +183,10 @@ function makeClient(port, label) {
   if (!h) process.exit(1);
 
   // 2) 两个真客户端（第二个换 userData，互不干扰）
-  const altDir = fs.mkdtempSync(path.join(os.tmpdir(), 'takov-alt-'));
+  const altDir = mkTempDir('takov-alt-');
   const electron = require('electron');
   const spawnClient = (cdpPort, userData) =>
-    spawn(electron, ['.', `--remote-debugging-port=${cdpPort}`], {
+    spawn(electron, buildArgs({ port: cdpPort }), {
       cwd: ROOT,
       env: userData ? { ...process.env, TAKOV_USER_DATA: userData } : { ...process.env },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -432,6 +434,43 @@ function makeClient(port, label) {
       await sleep(250);
     }
     check('甲离开房间后乙那边人没了', Array.isArray(bPeers) && bPeers.length === 0, `peers=${(bPeers || []).length}`);
+
+    // 8b) 人走了，他**共享的标注/勾选**也要一起下线（用户报的：人退了、笔画还挂在图上，
+    //     右边却没他的图例）。修法：渲染层按"owner 此刻在不在房间里"过滤共享内容；
+    //     客户端那份数据留着，所以他一回来立刻又能看到，不用重画。
+    let bAfterLeave = null;
+    for (let i = 0; i < 40; i++) {
+      bAfterLeave = await B.ev(`({
+        annos: document.querySelectorAll('.peer-anno').length,
+        peerGroups: [...document.querySelectorAll('.legend-section')]
+          .filter((s) => /^队友/.test(((s.querySelector('.legend-group-name') || {}).textContent || '').trim())).length,
+      })`);
+      if (bAfterLeave && bAfterLeave.annos === 0) break;
+      await sleep(250);
+    }
+    check('甲离开后：乙图上他的标注全部消失（不留离场队友的笔画）',
+      !!bAfterLeave && bAfterLeave.annos === 0, JSON.stringify(bAfterLeave));
+    check('甲离开后：乙的图例里「队友位置/轨迹/绘图」三组都没了',
+      !!bAfterLeave && bAfterLeave.peerGroups === 0, JSON.stringify(bAfterLeave));
+    const bQuestsAfterLeave = await B.ev(`window.api.roomStatus().then((s) => (s && s.quests) || {})`);
+    check('甲离开后：他共享的勾选任务也清了（不留一个走了的人）',
+      !bQuestsAfterLeave || !Object.prototype.hasOwnProperty.call(bQuestsAfterLeave, aId),
+      JSON.stringify(bQuestsAfterLeave));
+
+    // 甲本人本地那份必须还在（退出房间不碰本机标注文件）
+    const aLocalKept = await A.ev(`(window.__view.annos || []).some((s) => s.id === ${JSON.stringify(drawnId)})`);
+    check('甲本地自己的标注仍在（离开房间只影响共享，不动本机那份）', aLocalKept === true, String(aLocalKept));
+
+    // 甲重新进房 -> 乙那边立刻又能看到他画过的（同一份数据，不用他重画/重发）
+    const stA2 = await A.join('127.0.0.1', ROOM, '甲号');
+    check('甲重新进房', !!stA2 && stA2.status === 'online', stA2 && stA2.self ? stA2.self.nick : JSON.stringify(stA2));
+    let bAnnoBack = 0;
+    for (let i = 0; i < 60; i++) {
+      bAnnoBack = await B.ev(`document.querySelectorAll('.peer-anno').length`);
+      if (bAnnoBack >= 1) break;
+      await sleep(250);
+    }
+    check('甲回来后又出现：乙图上重新看到他的标注（不用他重画）', bAnnoBack >= 1, `count=${bAnnoBack}`);
 
     // 收尾还原（甲用的是你日常那份配置）
     if (origCfg.room) {

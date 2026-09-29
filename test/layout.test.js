@@ -84,6 +84,20 @@ test('滚动条：暗色主题自定义（细/圆角/悬停变亮），别用原
   assert.ok(!/scrollbar-color\s*:/.test(css), '别同时写 scrollbar-color（会让上面的规则失效）');
 });
 
+test('拖窗口改大小：底图 viewBox 与覆盖层（标记/玩家）必须按新尺寸重算', () => {
+  // 踩过：主窗口拖右下角放大后，底图（SVG viewBox 是渲染那一刻写死的）被
+  // preserveAspectRatio 整体缩放居中，而覆盖层里的屏幕坐标、贴着右边缘的图例都还在原处 ——
+  // 看着就是"图例和地图背景错位"。修法是尺寸一变就重画一次。
+  const mv = read('renderer/common/map-view.js');
+  assert.match(mv, /handleResize\(\)\s*\{[\s\S]{0,700}?#renderTransform\(\)[\s\S]{0,200}?#renderOverlay\(\)/,
+    'handleResize 必须同时重算 viewBox（#renderTransform）与覆盖层（#renderOverlay）');
+  assert.match(mv, /new ResizeObserver\(\(\) => this\.handleResize\(\)\)/, '缺少 ResizeObserver 兜底');
+  assert.match(mv, /_resizeObserver\.observe\(this\.container\)/, 'ResizeObserver 要观察地图容器');
+
+  const js = read('renderer/map.js');
+  assert.match(js, /addEventListener\('resize', \(\) => view\.handleResize\(\)\)/, '主窗口要显式接一次 window resize');
+});
+
 test('主窗口没有"图钉化（置顶）"功能：按钮 / 渲染层 / IPC / preload 四处都不许回来', () => {
   const js = read('renderer/map.js');
   const main = read('main.js');

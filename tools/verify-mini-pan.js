@@ -80,7 +80,22 @@ function check(name, ok, detail) {
 (async () => {
   const list = await targets();
   const mapTarget = list.find((t) => t.url.endsWith('/map.html'));
-  const miniTarget = list.find((t) => t.url.endsWith('/minimap.html'));
+  // runner 起的隔离实例默认不开雷达（配置隔离在临时目录里），这里自己开、跑完还原；
+  // 手动跑（真实配置）时雷达通常已经开着，miniWasOn=true，就不再动它。
+  const miniWasOn = mapTarget
+    ? await cdp(mapTarget.webSocketDebuggerUrl, [[
+      'Runtime.evaluate',
+      { expression: 'window.api.miniStatus().then((s) => !!(s && s.enabled))', returnByValue: true, awaitPromise: true },
+    ]]).then((r) => r[0] === true)
+    : false;
+  const findMini = async () => (await targets()).find((t) => t.url.endsWith('/minimap.html'));
+  let miniTarget = await findMini();
+  if (!miniTarget && mapTarget) {
+    await cdp(mapTarget.webSocketDebuggerUrl, [[
+      'Runtime.evaluate', { expression: 'window.api.setConfig({ miniVisible: true })', returnByValue: true, awaitPromise: true },
+    ]]);
+    for (let light = 0; light < 40 && !miniTarget; light++) { await sleep(300); miniTarget = await findMini(); }
+  }
   if (!miniTarget) throw new Error('未找到小地图窗口（先在主界面打开"小地图雷达"）');
   const evalIn = (t, expr) => cdp(t.webSocketDebuggerUrl, [
     ['Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }],
@@ -143,6 +158,7 @@ function check(name, ok, detail) {
       ok ? '' : '源码里没找到 pointerup -> endMapPan + endWindowDrag');
   } finally {
     await mapEval(`window.api.setConfig({ miniClickThrough: ${ct0} })`).catch(() => {});
+    if (!miniWasOn) await mapEval('window.api.setConfig({ miniVisible: false })').catch(() => {});
   }
 
   const failed = results.filter((r) => !r.ok);
