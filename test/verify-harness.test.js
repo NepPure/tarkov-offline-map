@@ -19,7 +19,7 @@ const { buildArgs, extraArgs, hasChildProcessFailure, STABILITY_ARGS, DEGRADED_A
   require('../tools/lib/spawn-electron.js');
 const { createReport, makeProfile, tmpRoot, shotName, writeShot } = require('../tools/lib/suite.js');
 const { sleep, waitFor } = require('../tools/lib/cdp.js');
-const { SUITES } = require('../tools/verify-all.js');
+const { SUITES, portBusy, nextFreePort } = require('../tools/verify-all.js');
 
 // ------------------------------------------------------------------ runner 清单
 test('runner 清单：id 唯一、分组与类型合法', () => {
@@ -189,3 +189,24 @@ test('waitFor：条件成立立刻返回，超时返回最后一次的值（不�
   assert.ok(Date.now() - t1 < 1500, '超时时间要真的生效');
   await sleep(1);
 });
+
+// ------------------------------------------------------------------ 端口撞车
+test('portBusy / nextFreePort：被占用的端口会被跳过（别家程序占着 9410 时不许误报成功能坏了）', async () => {
+  const net = require('node:net');
+  // 先占一个端口，假装是别的程序（实测本机 QQ 就长期占着 9410）
+  const srv = net.createServer();
+  await new Promise((res) => srv.listen({ port: 0, host: '127.0.0.1' }, res));
+  const taken = srv.address().port;
+  try {
+    assert.strictEqual(await portBusy(taken), true, '正在监听的端口必须判为忙');
+    const picked = await nextFreePort(taken, 20);
+    assert.notStrictEqual(picked, taken, '不许把被占的端口继续分配出去');
+    assert.ok(picked > taken && picked < taken + 20, `应顺延到后面：${taken} -> ${picked}`);
+    assert.strictEqual(await portBusy(picked), false, '顺延到的端口必须是空闲的');
+  } finally {
+    await new Promise((res) => srv.close(res));
+  }
+  // 关掉之后又能用回去了（TIME_WAIT 不该挡住新的监听）
+  assert.strictEqual(await portBusy(taken), false, '端口释放后应判为空闲');
+});
+

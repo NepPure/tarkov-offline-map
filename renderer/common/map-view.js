@@ -47,6 +47,63 @@ const MARKER_LABELS = {
   hazards: '危险', loot: '物资', weapons: '固定武器', labels: '地名',
 };
 
+/**
+ * 标记分组 -> 图例"大类" id（组头的文字开关按它判定）。
+ *
+ * 地图上的文字开关是**按大类**给的（图例组头那个 "Aa"），而标记身上带的是
+ * 细分组（extract_pmc / loot:safe / season:xxx / peer:pos:<id> …），所以必须有一张
+ * 稳定的映射表：漏一个分组的后果就是"这一类怎么点都关不掉文字"。
+ * 单测 test/legend-text.test.js 拿 getLegend 的组 id 与这张表对账。
+ */
+export function legendGroupIdOf(groupKey) {
+  const k = String(groupKey || '');
+  if (k === 'quest:zone' || k === 'quest:spot' || k.startsWith('quest:peer:')) return 'g-quest';
+  if (k === 'player' || k === 'trail') return 'g-player';
+  if (k === 'anno') return 'g-anno';
+  if (k.startsWith('peer:pos:')) return 'g-room-pos';
+  if (k.startsWith('peer:trail:')) return 'g-room-trail';
+  if (k.startsWith('peer:anno:')) return 'g-room-anno';
+  if (k === 'extract_pmc' || k === 'extract_scav' || k === 'extract_shared' || k === 'transit' || k === 'btrStop') return 'g-extract';
+  if (k === 'boss' || k === 'spawn') return 'g-threat';
+  if (k === 'lock' || k === 'switch') return 'g-access';
+  if (k === 'hazard' || k === 'weapon') return 'g-hazard';
+  if (k.startsWith('season:')) return 'g-season';
+  if (k.startsWith('loot:') || k === 'loose') return 'g-loot';
+  if (k === 'label') return 'g-label';
+  return null;
+}
+
+/**
+ * 这个标记分组的文字被关掉了吗？（纯判定，"关掉文字"的唯一口径）
+ *
+ * 缺省 / 没有对应大类 / 值不是 false -> 都算"写字"：
+ * 老配置里没有 labelToggles 这个字段，行为必须和以前一模一样。
+ *
+ * @param {object|null} labelToggles 图例大类 id -> boolean（false = 不写文字）
+ * @param {string} groupKey 标记分组（extract_pmc / loot:safe / season:xxx / peer:pos:<id> …）
+ */
+export function labelToggleOff(labelToggles, groupKey) {
+  if (!labelToggles || typeof labelToggles !== 'object') return false;
+  const gid = legendGroupIdOf(groupKey);
+  return gid ? labelToggles[gid] === false : false;
+}
+
+/**
+ * 哪些图例大类**真的会在地图上写文字** —— 只有这些大类的组头才给"Aa"勾选框。
+ * 玩家·轨迹 / 手动标注 / 队友轨迹 / 队友绘图 / 任务标记在地图上只有图形，
+ * 地名（g-label）本身就是文字（关掉它等于整类隐藏，用左边的勾选框更直白），
+ * 所以这几类不给一个点了没反应的开关（图例里给出说明文字）。
+ */
+export const LEGEND_TEXT_GROUPS = new Set([
+  'g-room-pos',   // 队友位置：图标下面的「昵称 · 多久以前」药丸
+  'g-extract',    // 撤离点 / 转移点 / BTR 站点的中文名
+  'g-threat',     // Boss 名字（出生点按缩放判定，通常不写）
+  'g-access',     // 钥匙锁 / 开关（放大到参考缩放的 0.6 倍后写名字）
+  'g-hazard',     // 危险 / 固定武器（同上）
+  'g-season',     // 赛季文件刷点（始终写名字：找东西靠它）
+  'g-loot',       // 物资箱（放大后写名字；散落物资不写）
+]);
+
 const NS = 'http://www.w3.org/2000/svg';
 
 /**
@@ -220,6 +277,7 @@ export class MapView {
     this.follow = true;
     this.rotate = false;         // 随角色朝向旋转（false = 固定地图方向，默认）
     this.markerToggles = null;   // 由 setMarkerToggles 初始化（全部默认开启）
+    this.labelToggles = null;    // 图例大类 -> 是否在地图上写字（见 setLabelToggles；缺省全写）
     this.showAllHeights = true;  // 表层显示全部标记
     this.layers = [];            // 可选楼层 [{name, svgLayer, extents}]
     this.baseLayer = null;
@@ -1081,8 +1139,8 @@ export class MapView {
       text.textContent = peerInitial(peer.nick);
       g.appendChild(text);
 
-      // 名字 + "多久以前"（雷达上不放，太挤）
-      if (!this.mini) {
+      // 名字 + "多久以前"（雷达上不放，太挤；图例里「队友位置」关掉文字也不放）
+      if (!this.mini && !this.#textOff(`peer:pos:${peer.id}`)) {
         const when = relTime(peer.at || peer.pos.ts, now);
         const caption = when ? `${peerLabel(peer, this.peers)} · ${when}` : peerLabel(peer, this.peers);
         g.appendChild(labelPill(shortText(caption, 16), r * 2, 11));
@@ -1218,6 +1276,17 @@ export class MapView {
   }
 
   /**
+   * 这一笔标记的**文字**是否被它所属的图例大类关掉了（"只看图标、不要文字"）。
+   *
+   * 与 #off 是两个独立的轴：markerToggles 管"这一类还画不画"，labelToggles 只管"画不画字"。
+   * 键是图例大类的 id（g-extract / g-loot …），标记身上带的是细分分组（extract_pmc / loot:safe），
+   * 所以中间隔一层 legendGroupIdOf()。
+   */
+  #textOff(groupKey) {
+    return labelToggleOff(this.labelToggles, groupKey);
+  }
+
+  /**
    * 某个队友的某一类内容（pos 位置 / trail 轨迹 / anno 绘图）是否被关掉。
    * 第二项 `peer:<id>` 是老的"按人一个开关"：老存档里勾掉过某人时，这里让三类一起关，
    * 免得升级后他突然全冒出来。
@@ -1344,6 +1413,17 @@ export class MapView {
     this.#renderOverlay();
   }
 
+  /**
+   * 图例大类 -> 是否在**地图与雷达上写文字**（图例组头那个 "Aa" 开关）。
+   *
+   * 与 setMarkerToggles 一样是"增量合并"：只传变了的大类。默认（没这个键）全部写字。
+   * 主窗口写完配置后由主进程广播，雷达读同一份 —— 两个窗口永远一致。
+   */
+  setLabelToggles(toggles) {
+    this.labelToggles = { ...(this.labelToggles || {}), ...(toggles || {}) };
+    this.#renderOverlay();
+  }
+
   /** 当前图例全部组 id（含动态物资组与赛季文件组），供"全部/无"使用 */
   allGroupIds() {
     return this.getLegend().flatMap((group) => (group.items || []).map((it) => it.id));
@@ -1463,6 +1543,7 @@ export class MapView {
   /** 是否显示名称标签（相对参考缩放判定，随缩放大小时标尺变化） */
   #labelVisible(m) {
     if (this.mini) return false;
+    if (this.#textOff(m.group)) return false; // 图例里把这一大类的文字关掉了 -> 只留图标
     if (m.group === 'spawn' || m.group === 'loose' || m.group === 'label') return false;
     const always = ['extract_pmc', 'extract_scav', 'extract_shared', 'transit', 'boss'];
     if (always.includes(m.group)) return true;
@@ -1479,7 +1560,10 @@ export class MapView {
    * 超过上限时按"重要度 + 离圆心距离"取最近的若干个——不再"全都不标"（见 pickMiniLabeled）。
    */
   #miniLabelSet(markers) {
-    return pickMiniLabeled(markers);
+    const set = pickMiniLabeled(markers);
+    if (!this.labelToggles) return set;
+    // 图例大类里关掉文字的：雷达上这一类的药丸也不写（雷达只给关键目标写名字）
+    return new Set([...set].filter((m) => !this.#textOff(m && m.group)));
   }
 
   /**
@@ -1619,6 +1703,9 @@ export class MapView {
       : Math.max(0.55, Math.min(1.8, Math.pow(this.view.scale / (ref || 1), 0.2))) * uiScale;
     const miniLabeled = this.mini ? this.#miniLabelSet(markers) : null;
     for (const m of markers) {
+      // "地名"没有图标、标记本身就是那行字：关掉它的文字就没什么可画的了（图例里对它只给
+      // "整类隐藏"的提示，不给 Aa 开关；这里兜住手改配置 / 雷达直接画文字两条路）。
+      if (m.group === 'label' && this.#textOff(m.group)) continue;
       const px = this.proj.project(m.x, m.z);
       const s = this.#worldToScreen(px.x, px.y);
       const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -1699,6 +1786,9 @@ export class MapView {
         el.appendChild(dot);
       }
       el.appendChild(titleNode(m.label));
+      // 供验收脚本按"图例大类"数图标 / 文字（视觉验收要把"只看图标"量化，不能只靠肉眼）
+      el.setAttribute('data-group', m.group);
+      el.setAttribute('data-legend', legendGroupIdOf(m.group) || '');
       el.classList.add('map-marker');
       el.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1964,8 +2054,9 @@ export class MapView {
   }
 
   /**
-   * 图例：按大类分组，每组都有"批量显示/隐藏"的组开关
-   * @returns {Array<{id:string,label:string,items:Array<{id:string,label:string,color?:string,count:number,icon?:string}>}>}
+   * 图例：按大类分组，每组都有"批量显示/隐藏"的组开关；会写字的组还带 text=true
+   * （组头据此显示 "Aa" 文字开关，见 LEGEND_TEXT_GROUPS）。
+   * @returns {Array<{id:string,label:string,text:boolean,items:Array<{id:string,label:string,color?:string,count:number,icon?:string}>}>}
    */
   getLegend() {
     if (!this.detail) return [];
@@ -2127,7 +2218,8 @@ export class MapView {
     // 7) 地名
     groups.push({ id: 'g-label', label: '地名', items: ['label'].map(entry).filter(Boolean) });
 
-    return groups.filter((g) => g.items.length > 0);
+    // text：这一大类在地图上到底写不写字（只有会写字的组头才给 "Aa" 开关，别给点了没反应的控件）
+    return groups.filter((g) => g.items.length > 0).map((g) => ({ ...g, text: LEGEND_TEXT_GROUPS.has(g.id) }));
   }
 
   #zhLootName(raw) {

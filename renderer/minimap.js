@@ -226,6 +226,8 @@ async function applyState(s) {
   // 配置先落地（RADIUS_M 影响标准视野的缩放）
   if (s.config) {
     view.setMarkerToggles(s.config.markerToggles);
+    // 图例大类里"关掉文字"的：雷达上这一类只留图标（与主窗口共用同一份开关）
+    view.setLabelToggles(s.config.labelToggles);
     // "表层显示全部标记"与主窗口一致：关掉后雷达也只画当前楼层的标记
     view.setShowAllHeights(s.config.showAllMarkers !== false);
     view.setMarkerScale(s.config.markerScale || 1);

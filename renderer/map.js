@@ -172,6 +172,7 @@ async function init() {
 
   // 应用初始配置到视图
   view.setMarkerToggles(state.cfg.markerToggles);
+  view.setLabelToggles(state.cfg.labelToggles); // 图例大类里"关掉文字"的（只留图标）
   view.setShowAllHeights(state.cfg.showAllMarkers !== false);
   view.setViewMode({ follow: state.cfg.autoCenter !== false });
   // 固定地图方向（默认）：配置里存的是 rotateWithHeading，按钮态是它的反面
@@ -222,17 +223,47 @@ function renderLegend() {
     const sec = document.createElement('div');
     sec.className = 'legend-section';
 
-    const head = document.createElement('label');
+    // 组头一行两个开关：左边的勾选框 = "这一大类还画不画"，右边的 "Aa" = "这一类画不画文字"。
+    // 两者必须互不影响，所以外层不能再是 <label>（嵌套 label 里点内层勾选框会连带触发外层），
+    // 改成 div，把"左边那一坨"包成自己的 label。
+    const head = document.createElement('div');
     head.className = 'legend-group';
     head.innerHTML = `
-      <span class="legend-caret"></span>
-      <input type="checkbox" class="legend-group-box" />
-      <span class="legend-group-name"></span>
-      <span class="legend-count"></span>`;
+      <label class="legend-group-main">
+        <span class="legend-caret"></span>
+        <input type="checkbox" class="legend-group-box" />
+        <span class="legend-group-name"></span>
+        <span class="legend-count"></span>
+      </label>
+      <label class="legend-text-toggle">
+        <input type="checkbox" class="legend-text-box" />
+        <span class="legend-text-glyph">Aa</span>
+      </label>`;
     head.querySelector('.legend-group-name').textContent = group.label;
-    const box = head.querySelector('input');
+    const box = head.querySelector('.legend-group-box');
     const caret = head.querySelector('.legend-caret');
     const countEl = head.querySelector('.legend-count');
+    const textBox = head.querySelector('.legend-text-box');
+    const textWrap = head.querySelector('.legend-text-toggle');
+    box.title = `${group.label}：显示 / 隐藏这一大类的标记`;
+    // "Aa"：只有真的会写字的大类才给可点的勾选框（其余给一句说明，别让用户点了没反应）。
+    // 地名本身就是文字，关掉它等于整类隐藏 —— 用左边那个勾选框更直白。
+    const canHideText = group.text === true;
+    textBox.checked = canHideText ? (view.labelToggles || {})[group.id] !== false : true;
+    textBox.disabled = !canHideText;
+    textWrap.classList.toggle('off', !canHideText);
+    textWrap.title = canHideText
+      ? `在地图与雷达上显示 / 隐藏「${group.label}」的文字（关掉只留图标）`
+      : (group.id === 'g-label'
+        ? '地名本身就是文字：取消左边的勾选就能整类隐藏'
+        : '这一类在地图上只有图标 / 图形，没有文字');
+    textBox.addEventListener('change', () => {
+      const patch = {};
+      patch[group.id] = textBox.checked;
+      state.cfg = mergeSettings(state.cfg, { labelToggles: patch });
+      view.setLabelToggles(patch);                 // 主地图立刻生效
+      api.setConfig({ labelToggles: patch }).catch(() => {}); // 落盘 + 广播给雷达
+    });
     const isCollapsed = () => collapsedLegendGroups.has(group.id);
     const paintCaret = () => { caret.textContent = isCollapsed() ? '▸' : '▾'; };
     caret.title = '折叠 / 展开本组';
@@ -561,6 +592,7 @@ function applyPatchToViews(patch) {
   if ('mapOpacity' in patch) view.setMapOpacity(patch.mapOpacity);
   if ('markerScale' in patch) view.setMarkerScale(patch.markerScale);
   if ('labelScale' in patch) view.setLabelScale(patch.labelScale);
+  if ('labelToggles' in patch) view.setLabelToggles(patch.labelToggles);
   if ('rotateWithHeading' in patch) {
     view.setViewMode({ rotate: !!patch.rotateWithHeading });
     $('#btn-rotate').classList.toggle('active', !patch.rotateWithHeading);

@@ -223,18 +223,36 @@ body.quest-open .info-card { left: 332px; }
 .legend-actions button { padding: 2px 8px; font-size: 11px; }
 .legend-section { margin-bottom: 10px; }
 .legend-title { font-size: 12px; color: var(--muted); margin: 4px 0; }
-/* 大类组头：一个批量开关 + 组名 + "已开/总数" */
+/* 大类组头：一个批量开关（左） + 组名 + "已开/总数" + 文字开关 "Aa"（右） */
 .legend-group {
-  display: flex; align-items: center; gap: 7px;
+  display: flex; align-items: center; gap: 4px;
   padding: 4px 6px; margin-bottom: 2px;
-  border-radius: 5px; cursor: pointer;
+  border-radius: 5px;
   font-size: 12px; font-weight: 600; color: var(--text);
   background: rgba(255,255,255,0.045);
   border-left: 2px solid var(--accent);
 }
+/* "还画不画"那一坨单独包一层：右边的 Aa 得能独立点 */
+.legend-group-main {
+  display: flex; align-items: center; gap: 7px;
+  flex: 1; min-width: 0; cursor: pointer;
+}
 .legend-group:hover { background: rgba(34,211,238,0.12); }
 .legend-group input { accent-color: var(--accent); flex: none; }
 .legend-group input:indeterminate { accent-color: var(--yellow); }
+/* 大类组头右侧的 "Aa"：这一大类在地图上写不写字（关掉 = 只看图标，主地图与雷达一起） */
+.legend-text-toggle {
+  display: flex; align-items: center; gap: 3px; flex: none;
+  padding: 1px 3px; border-radius: 4px; cursor: pointer;
+}
+.legend-text-toggle:hover { background: rgba(34,211,238,0.18); }
+.legend-text-glyph {
+  font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: -0.5px;
+}
+.legend-text-toggle input:checked + .legend-text-glyph { color: var(--accent); }
+/* 没有文字的大类：开关置灰、不可点（tooltip 里说明原因） */
+.legend-text-toggle.off { opacity: 0.35; cursor: default; }
+.legend-text-toggle.off:hover { background: none; }
 .legend-caret { width: 11px; flex: none; color: var(--muted); font-size: 10px; text-align: center; }
 .legend-caret:hover { color: var(--accent); }
 .legend-section.collapsed .legend-items { display: none; }

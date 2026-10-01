@@ -15,10 +15,13 @@
  *   2) **attach 类套件不用你手动开窗口**：runner 自己起一个隔离实例（动态端口、临时配置目录），
  *      把 --port 交给脚本，跑完连实例带配置一起收掉。
  *   3) **逐套件流式输出 + 超时兜底**：一个套件卡住不影响后面的，超时就整棵进程树收掉。
+ *   3b) **端口撞车自动躲开**：端口被本机别的程序占着（实测 QQ 占 9410）就顺延下一个，
+ *      不让"端口被占"伪装成"功能坏了"；
  *   4) **机器可读报告**：test-artifacts/verify-report.json（带 git HEAD / Electron 版本 / 让步标记），
  *      退出码即结论 —— CI 与本地同一套判定。
  */
 const fs = require('fs');
+const net = require('net');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
@@ -68,6 +71,7 @@ const SUITES = [
   { id: 'annotations', title: '手动标注（六种工具/椭圆/撤销/图例）', script: 'verify-annotations.js', kind: 'attach', group: 'ui' },
   { id: 'quests', title: '任务侧边栏（搜索/勾选/详情/一键切图）', script: 'verify-quests.js', kind: 'attach', group: 'ui' },
   { id: 'mini-anno', title: '雷达显示标注（三档 + 图例联动）', script: 'verify-mini-anno.js', kind: 'attach', group: 'ui' },
+  { id: 'legend-text', title: '图例大类「只看图标不要文字」（主地图 + 雷达）', script: 'verify-legend-text.js', kind: 'attach', group: 'ui', timeoutMs: 240000 },
   { id: 'mini-quest', title: '雷达与主地图一致（勾选任务点也在雷达上）', script: 'verify-mini-quest.js', kind: 'attach', group: 'ui' },
   { id: 'mini-pan', title: '雷达 Ctrl+拖动平移（CDP 合成输入）', script: 'verify-mini-pan.js', kind: 'attach', group: 'ui' },
   { id: 'raid-reset', title: '新一局清场（假日志 + 假截图走完整管线）', script: 'verify-raid-reset.js', kind: 'attach', group: 'ui' },
@@ -101,6 +105,31 @@ const SUITES = [
 
 /** runner 自己起的实例占用的端口从这儿往后排 */
 const PORT_BASE = Number(listArg('port-base', 9400));
+
+/**
+ * 端口是不是已经被别的程序占着？
+ *
+ * 为什么非查不可：runner 从 PORT_BASE 往后顺排端口，撞上本机别的程序会让**整个套件误报失败** ——
+ * 实测过：腾讯 QQ（QQEX.exe）长期监听 9410，正好落在第 10 个套件上，现象是
+ * "实例起来了但没等到目标页面" + devtools bind() 报错，看着像功能坏了，其实只是端口撞车。
+ */
+function portBusy(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once('error', (e) => resolve(!!e && e.code === 'EADDRINUSE'));
+    srv.once('listening', () => srv.close(() => resolve(false)));
+    try { srv.listen({ port, host }); } catch { resolve(false); }
+  });
+}
+
+/** 从 start 往后找第一个没被占用的端口（最多试 100 个，全占着就认命用 start） */
+async function nextFreePort(start, tries = 100) {
+  for (let p = start; p < start + tries; p++) {
+    if (!(await portBusy(p))) return p;
+    console.log('  （端口 ' + p + ' 被别的程序占用，跳过）');
+  }
+  return start;
+}
 
 function gitHead() {
   const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -200,7 +229,7 @@ async function main() {
 
   // ---------------------------------------------------------------- 环境自检
   console.log('=== 环境自检：起一个隔离实例，看"发布同款参数"能不能起来 ===');
-  const probePort = PORT_BASE;
+  const probePort = await nextFreePort(PORT_BASE);
   const probeProf = makeProfile('takov-verify-probe-');
   let probe = null;
   let degradedEnv = false;
@@ -236,7 +265,8 @@ async function main() {
     // ------------------------------------------------------------ 逐个套件
     let idx = 0;
     for (const suite of runnable) {
-      const port = PORT_BASE + 1 + (idx++);
+      const port = await nextFreePort(PORT_BASE + 1 + idx);
+      idx++;
       const t0 = Date.now();
       console.log(`\n===== [${suite.group}] ${suite.id} — ${suite.title} =====`);
       let client = null;
@@ -315,4 +345,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { SUITES, PORT_BASE };
+module.exports = { SUITES, PORT_BASE, portBusy, nextFreePort };

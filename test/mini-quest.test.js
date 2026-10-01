@@ -104,7 +104,10 @@ test('接线：雷达画"主窗口勾选的任务点"，并用同一份配置（
   const mj = read('renderer/map.js');
 
   // map-view：两处"整类消失"的旧逻辑必须清干净
-  assert.ok(mv.includes('return pickMiniLabeled(markers)'), '雷达标名要走"挑最近的若干个"');
+  // 标名要先"挑最近的若干个"，再按图例大类的"文字开关"过滤（只留图标的那批不写字）
+  assert.ok(mv.includes('const set = pickMiniLabeled(markers)'), '雷达标名要走"挑最近的若干个"');
+  assert.ok(mv.includes('return new Set([...set].filter((m) => !this.#textOff(m && m.group)))'),
+    '雷达标名没过图例大类的文字开关');
   assert.ok(!mv.includes('key.length > 6) return null'), '旧的"超过 6 个就一个名字都不写"必须删掉');
   assert.ok(mv.includes('trimMiniMarkers(picks, MINI_SOFT_CAP)'), '软上限要用按重要度+距离裁剪');
   assert.ok(!mv.includes('dropStages'), '旧的"分级整类丢弃"必须删掉');

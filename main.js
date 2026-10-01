@@ -134,6 +134,7 @@ function loadSettings() {
     markerScale: 1,             // 标记大小乘数
     labelScale: 1,              // 地名文字大小乘数
     markerToggles: null,        // 由渲染层管理（null = 全部开启）
+    labelToggles: null,         // 图例大类的"文字"开关（null = 全部写字，见 renderer/common/map-view.js）
     // 任务侧边栏：勾选的任务 id + 面板状态（由渲染层管理，这里只给默认值）
     quests: {
       checked: [],              // 已勾选（"我接了的任务"），跨图/跨会话保留
@@ -168,6 +169,7 @@ function loadSettings() {
       ...defaults,
       ...raw,
       markerToggles: { ...defaults.markerToggles, ...(raw.markerToggles || {}) },
+      labelToggles: { ...defaults.labelToggles, ...(raw.labelToggles || {}) },
       room: { ...defaults.room, ...(raw.room || {}) },
       autoShot: { ...defaults.autoShot, ...(raw.autoShot || {}) },
     };
@@ -1029,10 +1031,21 @@ function setupIpc() {
         else markerToggles[k] = v;
       }
     }
+    // labelToggles 同理（图例大类 -> 是否在地图上写文字）：只传变了的大类，null = 删掉这个开关
+    const labelPatch = (patch && patch.labelToggles) || null;
+    let labelToggles = settings.labelToggles;
+    if (labelPatch) {
+      labelToggles = { ...labelToggles };
+      for (const [k, v] of Object.entries(labelPatch)) {
+        if (v === null) delete labelToggles[k];
+        else labelToggles[k] = v;
+      }
+    }
     settings = {
       ...settings,
       ...patch,
       markerToggles,
+      labelToggles,
       room: { ...settings.room, ...((patch && patch.room) || {}) },
       autoShot: { ...settings.autoShot, ...((patch && patch.autoShot) || {}) },
     };
