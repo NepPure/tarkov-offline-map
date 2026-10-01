@@ -144,6 +144,7 @@ tarkov-offline-map/
 │  ├─ fake-peer.js           假队友脚本（一台电脑也能看联机效果）
 │  ├─ input.ps1              系统级鼠标输入助手（SetCursorPos / mouse_event）
 │  ├─ make-changelog.js      按提交记录生成更新日志 / Release 正文（npm run changelog）
+│  ├─ release-notes.js       把 CHANGELOG 里这一版拼进 Release 正文（CI 发布时自动用，历史 Release 也能补）
 │  └─ simulate.js            用 samples 跑完整管线验证
 ├─ server/                   房间服务端（v2.0+，可选功能，见 server/README.md）
 │  ├─ server.js              HTTP + WebSocket + 房间表 + 命令行参数（纯内存，--persist 才落盘）
@@ -739,6 +740,10 @@ npm run test:server      # 房间服务端：命令行参数 8 项 + 协议纯�
                          # 模糊测试 2 项 + Dockerfile/compose 一致性 5 项
 node tools/preflight.js                 # 发布前闸门：工作区/版本三处一致/tag 是否已存在/测试/打包产物是否过期/asar 内容
                                         # （加 --with-image 还会验一次服务端镜像内容；全绿才会打印推送命令）
+node tools/release-notes.js --version 2.4.1   # 把 CHANGELOG 里这一版拼进 Release 正文（CI 发布时自动做，见 build.yml；
+                                              # 补历史 Release：gh release view v2.4.1 --json body -q .body > body.md
+                                              # -> node tools/release-notes.js --version 2.4.1 --body body.md --out body.md
+                                              # -> gh release edit v2.4.1 --notes-file body.md）
 node tools/verify-server-image.js       # 不用 Docker 也能验镜像内容：照 Dockerfile 复刻文件集 -> npm ci --omit=dev ->
                                         # 起服务 -> 跑 HEALTHCHECK 原命令（含"端口没人时必须报故障"）-> 真客户端进房画一笔
 npm run simulate         # 用 samples 里的日志+截图跑完整管线

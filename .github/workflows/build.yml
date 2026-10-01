@@ -88,6 +88,36 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # 正文 = 固定说明 + CHANGELOG 里这一版的内容（tools/release-notes.js 抽出来，幂等）。
+      # 放在 release/ 之外：那个目录会被当成 Release 资产上传，别把正文也挂上去。
+      - name: Compose release body (说明 + CHANGELOG)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -e
+          cat > body.md <<'EOF'
+          **塔科夫地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
+
+          下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 155MB）
+          校验：`SHA256SUMS.txt`（同目录）
+
+          - 默认不联网：监听游戏日志自动识图 + 监听截图目录定位，运行时不发任何网络请求、无遥测
+          - 房间联机（v2.0 新增）为可选功能：需要你自己部署 `server/` 里的服务端并填写地址后才会连接
+            服务端两条路都行：Docker 镜像 `docker run -d -p 8787:8787 ghcr.io/neppure/tarkov-offline-map-server:latest`
+            或者同一个 Release 里的 **Windows 单文件服务端** `tarkov-offline-map-server-${{ steps.ver.outputs.version }}-win-x64.exe`
+            （双击即启动，窗口里会打印该填的服务器地址与端口；用法见 [server/README.md](https://github.com/NepPure/tarkov-offline-map/blob/main/server/README.md)）
+          - 内含 15 张地图中文数据、赛季文件刷点 419 处与位置参考截图，离线可查
+          - 未做代码签名，SmartScreen 提示"未知发布者"时选择"仍要运行"
+          - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏画面之上
+          - 使用说明与原理见 [README](https://github.com/NepPure/tarkov-offline-map#readme)
+
+          更新内容见下方。
+          EOF
+          # CHANGELOG 里没有这一版就报错退出（宁可不发，也不要发一个没有更新内容的 Release）
+          node tools/release-notes.js --version "${{ steps.ver.outputs.version }}" --body body.md --out body.md
+          echo "----- 正文预览 -----"
+          head -n 24 body.md
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
@@ -95,22 +125,7 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || steps.ver.outputs.tag }}
           name: 塔科夫地图 ${{ steps.ver.outputs.version }}
           files: release/*
+          body_path: body.md
+          # GitHub 会把 body_path 的内容拼在自动生成条目前面：模板 -> CHANGELOG -> 自动条目
           generate_release_notes: true
           fail_on_unmatched_files: true
-          body: |
-            **塔科夫地图 ${{ steps.ver.outputs.version }}** — Windows 免安装单文件（portable / x64），双击即用。
-
-            下载：`tarkov-offline-map-${{ steps.ver.outputs.version }}-win-x64-portable.exe`（约 155MB）
-            校验：`SHA256SUMS.txt`（同目录）
-
-            - 默认不联网：监听游戏日志自动识图 + 监听截图目录定位，运行时不发任何网络请求、无遥测
-            - 房间联机（v2.0 新增）为可选功能：需要你自己部署 `server/` 里的服务端并填写地址后才会连接
-              服务端两条路都行：Docker 镜像 `docker run -d -p 8787:8787 ghcr.io/neppure/tarkov-offline-map-server:latest`
-              或者同一个 Release 里的 **Windows 单文件服务端** `tarkov-offline-map-server-${{ steps.ver.outputs.version }}-win-x64.exe`
-              （双击即启动，窗口里会打印该填的服务器地址与端口；用法见 [server/README.md](https://github.com/NepPure/tarkov-offline-map/blob/main/server/README.md)）
-            - 内含 15 张地图中文数据、赛季文件刷点 419 处与位置参考截图，离线可查
-            - 未做代码签名，SmartScreen 提示"未知发布者"时选择"仍要运行"
-            - 游戏需使用**无边框/窗口化**模式，悬浮小地图与图钉化地图才能显示在游戏画面之上
-            - 使用说明与原理见 [README](https://github.com/NepPure/tarkov-offline-map#readme)
-
-            更新内容见下方自动生成条目。

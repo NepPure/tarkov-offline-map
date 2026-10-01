@@ -237,6 +237,10 @@ npm run changelog -- --from v2.1.0 --to HEAD       # 指定区间
 | [v1.2.1](https://github.com/NepPure/tarkov-offline-map/releases/tag/v1.2.1) | 2026-09-15 | 修复 |
 | [v1.2.0](https://github.com/NepPure/tarkov-offline-map/releases/tag/v1.2.0) | 2026-09-14 | 首个公开版本：离线地图数据 + 截图定位 + 日志自动识图 |
 
+[2.4.1]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.4.1
+[2.4.0]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.4.0
+[2.3.1]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.3.1
+[2.3.0]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.3.0
 [2.2.0]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.2.0
 [2.1.0]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.1.0
 [2.0.2]: https://github.com/NepPure/tarkov-offline-map/releases/tag/v2.0.2
