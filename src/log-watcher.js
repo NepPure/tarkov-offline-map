@@ -65,25 +65,37 @@ class LogWatcher {
     this.start();
   }
 
-  /** 找出所有会话目录，按时间戳降序 */
+  /**
+   * 找出所有会话目录，按时间戳降序。
+   *
+   * 两条路：
+   *   - 名字能解析（log_YYYY.MM.DD_H-mm-ss_版本）：用名字里的时间（原来的那条路）
+   *   - 名字解析不出来（游戏再改命名格式）：只要目录里有 application_*.log 就当会话，
+   *     用这些日志里最新的 mtime 排序 —— 游戏正在写的那个文件 mtime 一直跟着"现在"走，
+   *     所以哪怕 BSG 下次又换格式，也不会再出现"进图不切图"（这次踩的就是这种坑）
+   */
   sessionDirs() {
     if (!this.root || !fs.existsSync(this.root)) return [];
     const out = [];
     for (const name of fs.readdirSync(this.root)) {
-      const m = name.match(SESSION_DIR_RE);
-      if (!m) continue;
       const full = path.join(this.root, name);
       let st;
       try { st = fs.statSync(full); } catch { continue; }
       if (!st.isDirectory()) continue;
-      // 规范时间戳: 2026.09.07_23-03-04 -> UTC
-      const [y, mo, d, h, mi, se] = m[1].split(/[._-]/).map(Number);
-      out.push({
-        name,
-        full,
-        version: m[2],
-        timestamp: Date.UTC(y, mo - 1, d, h, mi, se),
-      });
+      const m = name.match(SESSION_DIR_RE);
+      if (m) {
+        // 规范时间戳: 2026.09.07_23-03-04 -> UTC（名字里写的是本机本地时间，这里按"本地时间当 UTC"统一）
+        const [y, mo, d, h, mi, se] = m[1].split(/[._-]/).map(Number);
+        out.push({
+          name,
+          full,
+          version: m[2],
+          timestamp: Date.UTC(y, mo - 1, d, h, mi, se),
+        });
+        continue;
+      }
+      const ts = fallbackSessionTs(full);
+      if (ts != null) out.push({ name, full, version: null, timestamp: ts });
     }
     out.sort((a, b) => b.timestamp - a.timestamp || b.name.localeCompare(a.name));
     return out;
@@ -277,4 +289,27 @@ class LogWatcher {
   }
 }
 
-module.exports = { LogWatcher };
+/**
+ * 目录名解析不出来的兜底：里面有 application_*.log 才算会话，
+ * 返回这些文件里最新的 mtime（换算成与"名字时间戳"同一套刻度：本地时间当 UTC，两者才能一起排序）。
+ * 一个都没有 / 目录读不了 -> null（不是会话目录）。
+ * @param {string} dirFull 目录绝对路径
+ * @returns {number|null}
+ */
+function fallbackSessionTs(dirFull) {
+  try {
+    const files = fs.readdirSync(dirFull).filter((n) => / application_\d+\.log$/i.test(n));
+    if (!files.length) return null;
+    let newest = 0;
+    for (const f of files) {
+      try { newest = Math.max(newest, fs.statSync(path.join(dirFull, f)).mtimeMs); } catch {}
+    }
+    if (!newest) return null;
+    const d = new Date(newest);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { LogWatcher, fallbackSessionTs };

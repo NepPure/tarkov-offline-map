@@ -79,12 +79,19 @@ function ts(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.000`;
 }
 
-/** 假会话目录：与真实命名一致（log_<ts>_<ver> + "<前缀> application_000.log"） */
+/**
+ * 假会话目录：与真实命名一致（log_<ts>_<ver> + "<前缀> application_000.log"）。
+ *
+ * ⚠ 这里**故意用一位数的小时**（9-00-14）：游戏用的是 .NET 的 yyyy.MM.dd_H-mm-ss，
+ * 小时不补零（log_2026.10.01_8-10-34_...）。以前正则写死两位小时，上午开的会话整个认不出来，
+ * 表现就是"早上进图不切图"（用户 2026-10-01 的反馈）。这条套件走的是真实应用链路，
+ * 留着它就是那道防回归闸门（两位数的小时由 verify-autoshot 那套覆盖）。
+ */
 function makeFakeLogs(root, bundle, rcid) {
-  const session = 'log_2026.09.18_21-00-14_1.1.5.1.47473';
+  const session = 'log_2026.09.18_9-00-14_1.1.5.1.47473';
   const dir = path.join(root, session);
   fs.mkdirSync(dir, { recursive: true });
-  const file = path.join(dir, '2026.09.18_21-00-14_1.1.5.1.47473 application_000.log');
+  const file = path.join(dir, '2026.09.18_9-00-14_1.1.5.1.47473 application_000.log');
   fs.writeFileSync(file, `2026-09-18 21:00:14.000|1.1.5.1.47473|Info|application|scene preset path:maps/${bundle}.bundle rcid:${rcid}.scenespreset.asset\n`);
   return { dir, file };
 }

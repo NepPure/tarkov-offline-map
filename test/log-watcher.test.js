@@ -188,3 +188,75 @@ test('监听器：没有会话目录时不崩溃，会话消失后报告 no-sess
     fs.rmSync(empty, { recursive: true, force: true });
   }
 });
+
+test('监听器：上午开的局（会话目录小时不补零）必须被认出来 —— 用户报的"进图不切图"', () => {
+  // 真实用户日志（2026-10-01，游戏 1.1.5.1.47510）：会话目录名是 .NET 的 yyyy.MM.dd_H-mm-ss，
+  // 小时**不补零**：log_2026.10.01_8-10-34_...。旧正则写死两位小时 -> 上午的会话整个看不见，
+  // 应用一直盯着昨晚那个会话（地图停在海关），进图当然不切图。
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'logw-am-'));
+  const oldSession = 'log_2026.09.30_20-40-58_1.1.5.1.47510';
+  const amSession = 'log_2026.10.01_8-10-34_1.1.5.1.47510';
+  const write = (dir, base, line) => {
+    fs.mkdirSync(path.join(root, dir));
+    fs.writeFileSync(path.join(root, dir, base + ' application_000.log'), line);
+  };
+  write(oldSession, oldSession.replace(/^log_/, ''), presetLine('2026-09-30 23:26:22.064', 'customs_preset', 'bigmap'));
+  write(amSession, amSession.replace(/^log_/, ''), [
+    presetLine('2026-10-01 08:11:51.778', 'lighthouse_preset', 'lighthouse'),
+    presetLine('2026-10-01 08:43:58.250', 'laboratory_preset', 'laboratory'),
+    presetLine('2026-10-01 10:36:08.519', 'shoreline_preset', 'shoreline'),
+  ].join(''));
+
+  const { w, events, statuses } = startWatcher(root);
+  try {
+    assert.strictEqual(statuses[0].session, amSession, '必须盯最新那个（上午开的）会话');
+    assert.deepStrictEqual(
+      events.filter((e) => e.type === 'scene-preset').map((e) => e.raidCode),
+      ['Lighthouse', 'laboratory', 'Shoreline'],
+      '上午那个会话里的每一局都要读出来'
+    );
+    // 会话目录的时间戳也要按真实时间排（不能把 9-27 排在 10-59 前面）
+    const dirs = w.sessionDirs().map((d) => d.name);
+    assert.deepStrictEqual(dirs, [amSession, oldSession]);
+  } finally {
+    w.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('监听器：目录名认不出来也要当会话（游戏下次再改命名不至于又瞎掉）', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'logw-weird-'));
+  fs.mkdirSync(path.join(root, '某个看不懂的名字'));
+  fs.writeFileSync(path.join(root, '某个看不懂的名字', '2026.10.01_8-10-34_1.1.5.1.47510 application_000.log'),
+    presetLine('2026-10-01 09:00:00.000', 'woods_preset', 'woods'));
+  // 不是会话的目录（没有 application 日志）不许混进来
+  fs.mkdirSync(path.join(root, 'cache'));
+  fs.writeFileSync(path.join(root, 'cache', 'random.txt'), 'x');
+  const { w, events, statuses } = startWatcher(root);
+  try {
+    assert.strictEqual(statuses[0].session, '某个看不懂的名字');
+    assert.deepStrictEqual(events.filter((e) => e.type === 'scene-preset').map((e) => e.raidCode), ['Woods']);
+    assert.deepStrictEqual(w.sessionDirs().map((d) => d.name), ['某个看不懂的名字']);
+  } finally {
+    w.stop();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('会话目录正则：补零 / 不补零、分钟秒一位都能认，版本号仍然单独抓出来', () => {
+  const { SESSION_DIR_RE } = require('../src/constants');
+  const cases = [
+    ['log_2026.10.01_8-10-34_1.1.5.1.47510', '2026.10.01_8-10-34', '1.1.5.1.47510'],
+    ['log_2026.09.30_20-40-58_1.1.5.1.47510', '2026.09.30_20-40-58', '1.1.5.1.47510'],
+    ['log_2026.09.30_9-7-3_1.1.5.1.47510', '2026.09.30_9-7-3', '1.1.5.1.47510'],
+  ];
+  for (const [name, stamp, ver] of cases) {
+    const m = name.match(SESSION_DIR_RE);
+    assert.ok(m, name + ' 应该被认出来');
+    assert.strictEqual(m[1], stamp);
+    assert.strictEqual(m[2], ver);
+  }
+  assert.strictEqual('log_2026.10.01_8-10-34'.match(SESSION_DIR_RE), null, '没有版本号的不算会话目录');
+  assert.strictEqual('random_folder'.match(SESSION_DIR_RE), null);
+});
+
