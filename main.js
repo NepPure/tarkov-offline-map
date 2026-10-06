@@ -725,8 +725,10 @@ let splashWin = null;
 
 function createSplashWindow() {
   if (splashWin && !splashWin.isDestroyed()) return splashWin;
+  // 尺寸按 CSS 像素给（Electron 自己会按系统缩放放大）：760x475 DIP 在 150% 下是 1140x712 物理像素，
+  // 而 renderer/splash.png 是它的 2 倍图（1520x950），所以文字大小所见即所得。
   splashWin = new BrowserWindow({
-    width: 500, height: 375,
+    width: 760, height: 475,
     frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
     alwaysOnTop: true, show: false, backgroundColor: '#0b0e13',
     title: APP_TITLE,
