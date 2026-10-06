@@ -211,7 +211,12 @@ function parseTask(html, id) {
     for (const m of reqBlock.matchAll(/<div class="task-required-item"([^>]*)>([\s\S]*?)(?=<div class="task-required-item"|$)/g)) {
       const attrs = m[1];
       const b = m[2];
-      const itemId = (attrs.match(/data-task-required-item="([0-9a-f]{24})"/) || [])[1] || null;
+      // 两种块：`物品收集` 带 data-task-required-item + data-needed；
+      // `物品需求` 只有 <a href="/item/<id>">（没有 data-*），所以再兜一层 href / 底图。
+      const itemId = (attrs.match(/data-task-required-item="([0-9a-f]{24})"/) || [])[1]
+        || (b.match(/href="\/item\/([0-9a-f]{24})"/) || [])[1]
+        || (b.match(BASE_ITEM_RE) || [])[1]
+        || null;
       const needed = Number((attrs.match(/data-needed="(\d+)"/) || [])[1] || 0) || null;
       const kind = (attrs.match(/data-kind="([^"]*)"/) || [])[1] || null;
       const nm = plain((b.match(/class="task-required-item-name"[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '');

@@ -117,6 +117,37 @@ test('交换/制作/藏身处：数量与物品 id 命中率', () => {
   assert.ok(known / total > 0.97, `物品 id 命中率过低: ${(known / total * 100).toFixed(1)}%`);
 });
 
+test('价格索引：轻量、可算，且与 economy 一致', () => {
+  // 主窗口靠它算"任务要交的物资值多少钱"，所以它必须体积小、覆盖够、和 economy 对得上。
+  assert.ok(exists('data/price-index.json'), '缺少 data/price-index.json（npm run fetch:economy）');
+  const idx = read('data/price-index.json');
+  const ids = Object.keys(idx.data || {});
+  assert.ok(ids.length >= 5000, `索引条目太少: ${ids.length}`);
+  const size = fs.statSync(path.join(ROOT, 'data/price-index.json')).size;
+  assert.ok(size < 1024 * 1024, `价格索引太大（${(size / 1024).toFixed(0)} KB），主窗口不该读大文件`);
+  let priced = 0;
+  for (const id of ids) {
+    const rec = idx.data[id];
+    if (Array.isArray(rec) && rec.some((v) => v != null)) priced++;
+  }
+  assert.ok(priced >= 3000, `有价格的索引条目太少: ${priced}`);
+
+  // 抽 200 件与 economy 比对：pve 当前价必须一致
+  let checked = 0;
+  let same = 0;
+  for (const it of eco.items.slice(0, 2000)) {
+    const rec = idx.data[it.id];
+    if (!rec) continue;
+    const pve = it.p && it.p.pve;
+    if (!pve) continue;
+    const want = pve.last ?? null;
+    checked++;
+    if (rec[3] === want) same++;
+  }
+  assert.ok(checked > 500, `可比对样本太少: ${checked}`);
+  assert.ok(same / checked > 0.99, `价格索引与 economy 不一致: ${(same / checked * 100).toFixed(1)}%`);
+});
+
 test('任务攻略：覆盖率与截图引用合法', () => {
   assert.ok(exists('data/task-guides.json'), '缺少 data/task-guides.json（npm run fetch:guides）');
   const g = read('data/task-guides.json');

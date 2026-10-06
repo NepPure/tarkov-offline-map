@@ -203,4 +203,21 @@ function priceOf(it) {
     const trip = (q) => {
       if (!q) return [null, null, null];
       let trader = null;
-      for (const s of q.sell || []) if (s.p != null && (trader == null || s.p > trader)) trader =
+      for (const s of q.sell || []) if (s.p != null && (trader == null || s.p > trader)) trader = s.p;
+      return [q.last ?? null, q.avg ?? null, trader];
+    };
+    idx[it.id] = [...trip(it.p.regular), ...trip(it.p.pve)];
+  }
+  const IDX = path.join(REPO, 'data', 'price-index.json');
+  fs.writeFileSync(IDX, JSON.stringify({
+    fetchedAt: payload.fetchedAt,
+    note: '物品 -> [pvp当前价, pvp24h均价, pvp最高商人收购, pve当前价, pve24h均价, pve最高商人收购]',
+    attribution: payload.attribution,
+    data: idx,
+  }));
+  console.log(`[out] ${IDX} ${(fs.statSync(IDX).size / 1024).toFixed(0)} KB（${Object.keys(idx).length} 件）`);
+  const withPrice = items.filter((i) => i.p.regular.last || i.p.regular.avg).length;
+  console.log(`[out] ${OUT} ${(fs.statSync(OUT).size / 1048576).toFixed(2)} MB`);
+  console.log(`[out] 物品 ${items.length}（有价 ${withPrice}）分类 ${payload.categories.length} 弹药 ${ammo.length} 防具 ${gear.length} 钥匙 ${keys.length}`);
+  console.log(`[out] 上游 updated 示例: ${items[0] && items[0].p.regular.updated}`);
+})();

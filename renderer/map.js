@@ -1039,6 +1039,7 @@ function showQuestCard(item, zone) {
     ${questBringHtml(questBringList(task, questItemName))}
     ${rows.join('\n')}
     ${questGuideHtml(guide)}
+    ${questValueHtml(guide)}
     <div class="info-actions">
       ${zone ? '<button id="qc-goto">定位到这里</button>' : ''}
       <button id="qc-side">在侧边栏展开</button>
@@ -1061,8 +1062,8 @@ function showQuestCard(item, zone) {
   if (srcLink) srcLink.addEventListener('click', (e) => { e.preventDefault(); api.openExternal(zhUrl); });
   wireGuideContent(card);
   // 攻略快照是后台预取的：点开时若还没到位，加载完再补一次渲染（卡片仍停在这个任务上才补）
-  if (!quest.guides) {
-    ensureGuideData().then(() => {
+  if (!quest.guides || !quest.priceIndex) {
+    Promise.all([ensureGuideData(), ensurePriceIndex()]).then(() => {
       if (card.dataset.taskId === task.id && !card.classList.contains('hidden')) showQuestCard(item, zone);
     });
   }
@@ -1429,6 +1430,8 @@ const quest = {
   guides: null,          // data/task-guides.json（eftarkov 中文 Wiki 离线快照）
   guidesLoading: null,
   guideMeta: null,
+  priceIndex: null,      // data/price-index.json（只有价格，~0.3MB）：算"任务要交的物资值多少钱"
+  priceIndexLoading: null,
   saveTimer: null,
   searchTimer: null,
 };
@@ -1519,6 +1522,7 @@ function initQuests() {
   // 后台预取（不阻塞首屏）
   ensureQuestData().then(() => refreshQuests()).catch(() => refreshQuests());
   ensureGuideData();
+  ensurePriceIndex(); // 0.3MB，后台预取，任务卡打开时就能算总价
 }
 
 /** 载入任务库（只需一次；走 app:// 静态协议，和图标/地图同一套） */
@@ -1578,6 +1582,61 @@ function ensureGuideData() {
 
 function guideOf(taskId) {
   return (quest.guides && quest.guides[taskId]) || null;
+}
+
+/**
+ * 载入轻量价格索引（data/price-index.json，fetch-economy 产出）。
+ * 主窗口不读 8MB 的 economy-dump —— 这里只为了给任务卡算个总价。
+ */
+function ensurePriceIndex() {
+  if (quest.priceIndex) return Promise.resolve(quest.priceIndex);
+  if (quest.priceIndexLoading) return quest.priceIndexLoading;
+  quest.priceIndexLoading = (async () => {
+    try {
+      const res = await fetch('app://data/price-index.json');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      quest.priceIndex = await res.json();
+    } catch (e) {
+      console.warn('价格索引缺失（可运行 npm run fetch:economy 生成）', e);
+      quest.priceIndex = { data: {} };
+    }
+    return quest.priceIndex;
+  })();
+  return quest.priceIndexLoading;
+}
+
+const fmtRub = (n) => (n == null ? '—' : Math.round(n).toLocaleString('zh-CN') + ' ₽');
+
+/**
+ * 「任务要交的物资值多少钱」：拿 wiki 任务页里的物品需求（物品 id + 数量）乘当前价。
+ * PVE/PVP 用日志判定的模式，所以数字和资料库里看到的一致。
+ */
+function questValueHtml(guide) {
+  const idx = quest.priceIndex && quest.priceIndex.data;
+  const reqs = (guide && guide.itemRequirements) || [];
+  if (!idx || !reqs.length) return '';
+  const pve = state.gameMode === 'pve';
+  const pick = (rec) => (rec ? (pve ? (rec[3] ?? rec[4] ?? rec[5]) : (rec[0] ?? rec[1] ?? rec[2])) : null);
+  const lines = [];
+  let total = 0;
+  let counted = 0;
+  let unknown = 0;
+  for (const r of reqs) {
+    if (!r.itemId) continue;
+    const unit = pick(idx[r.itemId]);
+    const cnt = Number(r.count) || 1;
+    const name = r.name ? String(r.name).replace(/\s*[Xx×]\s*\d+$/, '') : questItemName(r.itemId);
+    if (unit == null) { unknown++; lines.push(`<div class="row qv-line">${escapeHtml(name)} ×${cnt} · <span class="qv-na">无跳蚤价</span></div>`); continue; }
+    total += unit * cnt;
+    counted++;
+    lines.push(`<div class="row qv-line">${escapeHtml(name)} ×${cnt} · <b>${fmtRub(unit * cnt)}</b></div>`);
+  }
+  if (!counted && !unknown) return '';
+  const head = counted
+    ? `需求物资 ${counted} 项 · 合计约 <b>${fmtRub(total)}</b>（${pve ? 'PVE' : 'PVP'} 当前价）`
+    : '需求物资（均无跳蚤价）';
+  const tail = unknown && counted ? ` · 另有 ${unknown} 项无跳蚤价未计入` : '';
+  return `<div class="qg-block qv-block"><div class="qg-title">需求物资市值</div><div class="row qv-head">${head}${tail} · <span class="qv-src">价来自资料库快照</span></div>${lines.join('')}</div>`;
 }
 
 /** 展示哪几个 wiki 版块（任务目标我们自己的数据更全，不重复贴） */

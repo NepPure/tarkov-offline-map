@@ -190,6 +190,13 @@ body.quest-open .info-card { left: 332px; }
 .qg-rich td, .qg-rich th { border: 1px solid var(--line); padding: 2px 5px; text-align: left; }
 .qg-rich i { margin-right: 3px; }
 .qg-src a { color: #7dd3fc; cursor: pointer; }
+/* 需求物资市值：一眼看清"这个任务要花多少钱" */
+.qv-block .qv-head { color: #cbd5e1; }
+.qv-block .qv-head b { color: #4ade80; }
+.qv-block .qv-line { padding-left: 8px; color: #9fb0c2; }
+.qv-block .qv-line b { color: #e2e8f0; }
+.qv-block .qv-na { color: #f59e0b; }
+.qv-block .qv-src { color: #64748b; }
 
 /* ---------- 参考截图查看器（赛季文件刷点实景） ---------- */
 .shot-viewer {
