@@ -12,12 +12,14 @@
 ## 下载（Windows 免安装）
 
 到 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
-`tarkov-offline-map-<版本>-win-x64-portable.exe`（portable 单文件，双击即用，约 350MB，
+`tarkov-offline-map-<版本>-win-x64-portable.exe`（portable 单文件，双击即用，约 372MB，
 内含 15 张地图数据、实验室/迷宫/破冰船的瓦片底图、赛季文件参考截图，
 以及 v2.5 的资料库数据（物品/价格/弹药/防具/钥匙/交换/制作/BOSS）与
 **5442 件物品图标、中文 Wiki 的 1891 张攻略截图** —— 全部离线内置，运行时零网络请求），
 校验值见同页 `SHA256SUMS.txt`。
 
+- **首次启动会先显示一张启动图**：便携版每次启动都要把内置数据（约 330 MB）解压到临时目录，
+  解压期间看到的就是那张静态启动图，之后才会出现主界面（第二次以后因为系统缓存会快不少）
 - 未做代码签名：SmartScreen 提示"未知发布者"时选择"仍要运行"
 - 游戏需使用**无边框/窗口化**模式，悬浮小地图才能显示在游戏画面之上
 - 打 tag（`v1.2.0` 这种）或手动触发 Actions 会自动构建并发布新的 Release

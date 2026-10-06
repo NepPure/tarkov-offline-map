@@ -52,7 +52,8 @@
     "fetch:item-icons": "node tools/fetch-item-icons.js",
     "fetch:requirements": "node tools/fetch-requirements.js",
     "fetch:btr": "node tools/fetch-btr.js",
-    "fetch:traits": "node tools/fetch-traits.js"
+    "fetch:traits": "node tools/fetch-traits.js",
+    "make:splash": "python tools/make-splash.py"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -92,7 +93,9 @@
     },
     "portable": {
       "artifactName": "塔科夫地图-${version}.exe",
-      "requestExecutionLevel": "user"
+      "requestExecutionLevel": "user",
+      "splashImage": "build/splash.bmp",
+      "useZip": true
     }
   },
   "dependencies": {

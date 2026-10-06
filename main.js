@@ -715,6 +715,36 @@ function startMiniWatchdog() {
   }, 2500);
 }
 
+// ---------------------------------------------------------------------------
+// 启动画面（splash）
+// ---------------------------------------------------------------------------
+// 便携版每次启动都要把内置数据（~330MB）解压到临时目录，NSIS 那层用
+// build/splash.bmp 顶住了；但"进程已经起来、主窗口还没画出第一帧"的那一两秒
+// 同样是白窗口，所以在应用内再放一张同款启动图（zip/安装版也受益）。
+let splashWin = null;
+
+function createSplashWindow() {
+  if (splashWin && !splashWin.isDestroyed()) return splashWin;
+  splashWin = new BrowserWindow({
+    width: 500, height: 375,
+    frame: false, resizable: false, movable: false, minimizable: false, maximizable: false,
+    alwaysOnTop: true, show: false, backgroundColor: '#0b0e13',
+    title: APP_TITLE,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  splashWin.loadURL('app://renderer/splash.html');
+  splashWin.once('ready-to-show', () => {
+    if (splashWin && !splashWin.isDestroyed()) splashWin.show();
+  });
+  splashWin.on('closed', () => { splashWin = null; });
+  return splashWin;
+}
+
+function closeSplash() {
+  if (splashWin && !splashWin.isDestroyed()) splashWin.destroy();
+  splashWin = null;
+}
+
 function createMainWindow() {
   const wa = screen.getPrimaryDisplay().workAreaSize;
 
@@ -733,6 +763,7 @@ function createMainWindow() {
   //   `Browser.getWindowForTarget` / `Browser.setWindowBounds` 这套浏览器域方法 Electron 也没有。
   //   所以只能在主进程加这一个 flag 门控的分支 —— **不带这个参数时行为完全不变**。
   const recArg = process.argv.find((x) => x.startsWith('--record-size='));
+  createSplashWindow(); // 越早越好：先让用户看到一张图
   const recSize = (() => {
     if (!recArg) return null;
     const m = /^(\d+)x(\d+)$/.exec(recArg.split('=')[1] || '');
@@ -745,6 +776,7 @@ function createMainWindow() {
     minWidth: 900, minHeight: 560,
     backgroundColor: '#0b0e13',
     title: APP_TITLE,
+    show: false, // 等第一帧画好再 show，配合启动图就没有白窗口那一下
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   if (recSize) {
@@ -756,6 +788,17 @@ function createMainWindow() {
     mainWin.maximize(); // 高 DPI 缩放下最大化，保证足够的 CSS 视口
   }
   mainWin.loadURL('app://renderer/map.html');
+  mainWin.once('ready-to-show', () => {
+    if (!mainWin || mainWin.isDestroyed()) { closeSplash(); return; }
+    if (!recSize) { try { mainWin.maximize(); } catch {} }
+    mainWin.show();
+    closeSplash();
+  });
+  // 兜底：万一 ready-to-show 没来（渲染层异常/驱动问题），也不能让程序"看不见"
+  setTimeout(() => {
+    if (mainWin && !mainWin.isDestroyed() && !mainWin.isVisible()) { try { mainWin.show(); } catch {} }
+    closeSplash();
+  }, 15000);
   // 关闭主窗口 = 退出程序（同时销毁悬浮小地图，避免残留进程）
   mainWin.on('closed', () => {
     mainWin = null;

@@ -49,6 +49,21 @@ npm run changelog -- --from v2.1.0 --to HEAD       # 指定区间
   主窗口为此只加载 328 KB 的 `data/price-index.json`（id → 双模式 当前价/均价/最高商人收购），
   而不是 8 MB 的完整经济数据。
 
+### 启动体验
+
+- **便携版启动图**：便携 exe 每次启动都要把内置数据（约 330 MB）解压到临时目录，
+  那段时间应用还没起来，Windows 只会显示"无响应"。现在 NSIS 便携包会在解压时铺一张静态启动图
+  （素材取自游戏客户端自带的启动器主视觉 `launcher/Content/img/main_art.jpg`，压暗后叠标题与说明，
+  由 `tools/make-splash.py` 生成 `build/splash.bmp`）。
+- **应用内启动图**：进程起来到主窗口画出第一帧之间同样会有白窗口，所以再放一张同款启动图
+  （`renderer/splash.html` + `renderer/splash.png`）：主窗口改成 `show:false`，
+  等 `ready-to-show` 再显示并关掉启动图；另有 15s 兜底，渲染层异常也不会"看不见窗口"。
+- **便携包改用 ZIP 解压**（`portable.useZip`）：解压速度优先于体积 —— 内置数据大部分是已压缩的
+  webp/图标，7z 的压缩优势本来就小。
+  实测（同一台机器、冷启动）：7z 版从双击到界面可用超过 2 分钟没测完；ZIP 版 **12.4s 进程可连、13.6s 界面可用**，
+  代价是 exe 从 330.7 MB 涨到 372.3 MB。启动图尺寸也按 BgImage 的"原尺寸铺在窗口左上角"这个行为调过：
+  1000x750 会超出屏幕右下（实测截图确认），改成 500x375。
+
 ### 数据与工具
 
 - 新增构建期抓取脚本与 npm 脚本：`fetch:upstream`（json.tarkov.dev 快照缓存）、
