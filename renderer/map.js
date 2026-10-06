@@ -110,6 +110,7 @@ async function init() {
   $('#set-shots-pick').addEventListener('click', () => pickDirInto('#set-shots', '选择截图目录'));
   $('#set-shots-open').addEventListener('click', () => openDir($('#set-shots').value.trim()));
   $('#btn-settings').addEventListener('click', openSettings);
+$('#btn-library').addEventListener('click', () => api.openLibrary({}));
   // 自动截图的键名捕获：点按钮 -> 在输入框里按下你要用的键（拿 e.code，和主进程那套键名一致）
   $('#set-autoshot-capture').addEventListener('click', (e) => {
     e.preventDefault();
@@ -150,11 +151,13 @@ async function init() {
     $('#settings-dialog').close();
     openAbout();
   });
-  // 关于页里的开源地址：交给系统浏览器（渲染层不做任何跳转）
-  $('#about-repo').addEventListener('click', (e) => {
-    e.preventDefault();
-    api.openExternal(e.currentTarget.href);
-  });
+  // 关于页里的外部链接（开源地址 / tarkov.dev / 中文 Wiki）：一律交给系统浏览器，渲染层不做任何跳转
+  for (const a of document.querySelectorAll('#about-dialog a[href^="http"]')) {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      api.openExternal(e.currentTarget.href);
+    });
+  }
 
   // 尺子测距
   onToggle('#btn-measure', (e) => {
@@ -385,6 +388,9 @@ function openSettings() {
   $('#set-auto-center').checked = c.autoCenter !== false;
   $('#set-all-markers').checked = c.showAllMarkers !== false;
   $('#set-auto-floor').checked = c.autoFloor !== false;
+  $('#set-game-mode').value = ['auto', 'regular', 'pve'].includes(c.gameMode) ? c.gameMode : 'auto';
+  const modeNow = $('#set-game-mode-now');
+  if (modeNow) modeNow.textContent = state.gameMode ? `当前生效：${state.gameMode === 'pve' ? 'PVE' : 'PVP'}（${state.gameModeSource === 'logs' ? '日志判定' : state.gameModeSource === 'config' ? '手动锁定' : '默认'}）` : '';
   $('#set-sound').checked = c.sound !== false;
   $('#set-alert-lead').value = c.alertLeadSec ?? 3;
   $('#set-auto-delete').checked = !!c.autoDeleteScreenshots;
@@ -786,6 +792,13 @@ async function applyMainState(s) {
     const bosses = (state.detail.bosses || []).slice(0, 3).map((b) => `${b.boss?.name}${b.spawnChance ? ` ${Math.round(b.spawnChance * 100)}%` : ''}`).join(' / ');
     $('#st-boss').textContent = bosses ? `Boss: ${bosses}` : 'Boss: -';
   }
+  const modeEl = $('#st-mode');
+  if (modeEl) {
+    const mode = s.gameMode || 'regular';
+    const srcTxt = s.gameModeSource === 'logs' ? '日志' : s.gameModeSource === 'config' ? '锁定' : '默认';
+    modeEl.textContent = `模式: ${mode === 'pve' ? 'PVE' : 'PVP'}（${srcTxt}）`;
+    modeEl.title = `跳蚤价格按 ${mode === 'pve' ? 'PVE' : 'PVP'} 显示；在设置里可以手动锁定`;
+  }
   const lw = s.logWatcherStatus, sw = s.shotWatcherStatus;
   const logEl = $('#st-log'), shotEl = $('#st-shot');
   if (lw) {
@@ -1017,26 +1030,42 @@ function showQuestCard(item, zone) {
   }).filter(Boolean);
   if (reqNames.length) rows.push(`<div class="row">前置任务: ${escapeHtml(reqNames.slice(0, 4).join('、'))}${reqNames.length > 4 ? ' 等' : ''}</div>`);
 
+  const guide = guideOf(task.id);
+  const zhUrl = zhWikiUrl(task.id);
+  card.dataset.taskId = task.id;
   card.innerHTML = `
     <button class="close" id="info-close">×</button>
     <h4>${escapeHtml(task.name)}</h4>
     ${questBringHtml(questBringList(task, questItemName))}
     ${rows.join('\n')}
+    ${questGuideHtml(guide)}
     <div class="info-actions">
       ${zone ? '<button id="qc-goto">定位到这里</button>' : ''}
       <button id="qc-side">在侧边栏展开</button>
-      ${task.wiki ? '<button id="qc-wiki">打开 Wiki</button>' : ''}
+      <button id="qc-wiki">中文 Wiki</button>
+      ${task.wiki ? '<button id="qc-wiki-en">英文 Wiki</button>' : ''}
       <button id="qc-check">${quest.checked.has(task.id) ? '取消勾选' : '勾选此任务'}</button>
     </div>
-    <div class="row muted">任务数据来自 tarkov.dev 离线快照${quest.dump.fetchedAt ? `（${String(quest.dump.fetchedAt).slice(0, 10)}）` : ''}${task.wiki ? '' : ' · 无 wiki 链接'}</div>`;
+    <div class="row muted">任务数据来自 tarkov.dev 离线快照${quest.dump.fetchedAt ? `（${String(quest.dump.fetchedAt).slice(0, 10)}）` : ''}${guide ? '' : ' · 中文 Wiki 暂无此任务页'}</div>
+    <div class="row muted qg-src">说明、攻略与截图来自 <a href="${zhUrl}" id="qc-src">逃离塔科夫中文Wiki</a>${guide && guide.updatedAt ? `（更新于 ${escapeHtml(guide.updatedAt)}）` : ''} · 本软件开源非商业，内容版权归原作者所有</div>`;
   card.classList.remove('hidden');
 
   card.querySelector('#info-close').addEventListener('click', () => card.classList.add('hidden'));
   const goto = card.querySelector('#qc-goto');
   if (goto) goto.addEventListener('click', () => focusWorld(zone.x, zone.z));
   card.querySelector('#qc-side').addEventListener('click', () => focusQuest(task.id));
-  const wiki = card.querySelector('#qc-wiki');
-  if (wiki) wiki.addEventListener('click', () => api.openExternal(task.wiki));
+  card.querySelector('#qc-wiki').addEventListener('click', () => api.openExternal(zhUrl));
+  const wikiEn = card.querySelector('#qc-wiki-en');
+  if (wikiEn) wikiEn.addEventListener('click', () => api.openExternal(task.wiki));
+  const srcLink = card.querySelector('#qc-src');
+  if (srcLink) srcLink.addEventListener('click', (e) => { e.preventDefault(); api.openExternal(zhUrl); });
+  wireGuideContent(card);
+  // 攻略快照是后台预取的：点开时若还没到位，加载完再补一次渲染（卡片仍停在这个任务上才补）
+  if (!quest.guides) {
+    ensureGuideData().then(() => {
+      if (card.dataset.taskId === task.id && !card.classList.contains('hidden')) showQuestCard(item, zone);
+    });
+  }
   card.querySelector('#qc-check').addEventListener('click', () => {
     if (quest.checked.has(task.id)) quest.checked.delete(task.id);
     else quest.checked.add(task.id);
@@ -1397,6 +1426,9 @@ const quest = {
   collapsedStages: new Set(),
   lastMapId: '__none__',
   loading: null,
+  guides: null,          // data/task-guides.json（eftarkov 中文 Wiki 离线快照）
+  guidesLoading: null,
+  guideMeta: null,
   saveTimer: null,
   searchTimer: null,
 };
@@ -1486,6 +1518,7 @@ function initQuests() {
 
   // 后台预取（不阻塞首屏）
   ensureQuestData().then(() => refreshQuests()).catch(() => refreshQuests());
+  ensureGuideData();
 }
 
 /** 载入任务库（只需一次；走 app:// 静态协议，和图标/地图同一套） */
@@ -1516,6 +1549,96 @@ function ensureQuestData() {
     console.warn('任务数据缺失（可运行 npm run fetch:quests 生成）', e);
   });
   return quest.loading;
+}
+
+/** 中文 Wiki 任务页地址（任务 id 与 tarkov.dev 同源，可直接拼） */
+function zhWikiUrl(taskId) {
+  return `https://www.eftarkov.com/task/${taskId}`;
+}
+
+/** 载入任务攻略快照（data/task-guides.json，构建期抓取；失败就当作没有攻略，不影响地图） */
+function ensureGuideData() {
+  if (quest.guides) return Promise.resolve(quest.guides);
+  if (quest.guidesLoading) return quest.guidesLoading;
+  quest.guidesLoading = (async () => {
+    try {
+      const res = await fetch('app://data/task-guides.json');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const dump = await res.json();
+      quest.guides = dump.guides || {};
+      quest.guideMeta = { fetchedAt: dump.fetchedAt || null, siteName: dump.siteName || '逃离塔科夫中文Wiki', siteUrl: dump.siteUrl || 'https://www.eftarkov.com' };
+    } catch (e) {
+      console.warn('任务攻略快照缺失（可运行 npm run fetch:guides 生成）', e);
+      quest.guides = {};
+    }
+    return quest.guides;
+  })();
+  return quest.guidesLoading;
+}
+
+function guideOf(taskId) {
+  return (quest.guides && quest.guides[taskId]) || null;
+}
+
+/** 展示哪几个 wiki 版块（任务目标我们自己的数据更全，不重复贴） */
+const GUIDE_SECTIONS = ['物品收集', '物品需求', '钥匙需求', '任务完成对话', '任务失败对话'];
+
+/** 任务攻略块（内容来自 eftarkov 中文 Wiki 离线快照，构建期已白名单清洗） */
+function questGuideHtml(guide) {
+  if (!guide) return '';
+  const parts = [];
+  if (guide.description) {
+    parts.push(`<div class="qg-block"><div class="qg-title">任务描述</div><div class="row desc">${escapeHtml(guide.description)}</div></div>`);
+  }
+  if (guide.hints && guide.hints.length) {
+    parts.push(`<div class="qg-hint">💡 ${escapeHtml(guide.hints.join('；'))}</div>`);
+  }
+  if (guide.guideHtml) {
+    parts.push(`<div class="qg-block"><div class="qg-title">任务攻略</div><div class="qg-rich">${guide.guideHtml}</div></div>`);
+  }
+  for (const s of guide.sections || []) {
+    if (!GUIDE_SECTIONS.includes(s.title) || !s.html) continue;
+    parts.push(`<div class="qg-block"><div class="qg-title">${escapeHtml(s.title)}</div><div class="qg-rich">${s.html}</div></div>`);
+  }
+  if (guide.rewardsHtml) {
+    parts.push(`<div class="qg-block"><div class="qg-title">奖励</div><div class="qg-rich qg-rewards">${guide.rewardsHtml}</div></div>`);
+  }
+  if (!parts.length) return '';
+  // 攻略内容整体套一个可滚动容器：卡片本身高度可控，关闭/操作按钮永远在视口里
+  return `<div class="qg-wrap">${parts.join('\n')}</div>`;
+}
+
+/** 攻略里的地图深链 / 物品链接 / 截图：接上本软件自己的能力 */
+function wireGuideContent(card) {
+  for (const img of card.querySelectorAll('.qg-rich img[data-shot]')) {
+    const name = img.getAttribute('data-shot');
+    img.loading = 'lazy';
+    img.src = `app://data/task-shots/${name}.webp`;
+    img.addEventListener('click', () => openShotViewer(`task-shots/${name}.webp`, '攻略截图'));
+    img.addEventListener('error', () => { img.style.display = 'none'; });
+  }
+  for (const a of card.querySelectorAll('.qg-rich a[data-map]')) {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const mid = a.getAttribute('data-map');
+      card.classList.add('hidden');
+      api.selectMap({ id: mid });
+    });
+  }
+  for (const a of card.querySelectorAll('.qg-rich a[data-item]')) {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = a.getAttribute('data-item');
+      if (api.openLibrary) api.openLibrary({ tab: 'items', id });
+      else api.openExternal(`https://www.eftarkov.com/item/${id}`);
+    });
+  }
+  for (const a of card.querySelectorAll('.qg-rich a[data-task]')) {
+    a.addEventListener('click', (e) => { e.preventDefault(); focusQuest(a.getAttribute('data-task')); });
+  }
+  for (const a of card.querySelectorAll('.qg-rich a[href^="http"]')) {
+    a.addEventListener('click', (e) => { e.preventDefault(); api.openExternal(a.getAttribute('href')); });
+  }
 }
 
 function saveQuestCfg() {
@@ -1828,7 +1951,7 @@ function questRow(task, mapId) {
   const name = document.createElement('div');
   name.className = 'quest-row-name';
   name.textContent = task.name;
-  name.title = task.wiki ? `${task.name}\n${task.wiki}` : task.name;
+  name.title = `${task.name}\n${zhWikiUrl(task.id)}${task.wiki ? `\n${task.wiki}` : ''}`;
   const sub = document.createElement('div');
   sub.className = 'quest-row-sub';
   sub.textContent = taskSummary(task, mapId, quest.dump.maps, { showKill: quest.ui.showKill });

@@ -131,6 +131,9 @@ function loadSettings() {
     sound: true,                // 声音提示（只用于战局：开始匹配 / 匹配到了 / 进图倒计时最后几秒）
     alertLeadSec: 3,            // 进图倒计时"最后几秒"开始提示（1~10 秒）
     autoDeleteScreenshots: false, // 自动删除截图文件
+    // 游戏模式：auto = 从游戏日志的 "Session mode: Pve" 自动判定；pve/regular 手动锁定。
+    // 跳蚤价格 PVE 与 PVP 差得很远（显卡 76万 vs 31万），所以模式必须是显式的、能看到、能改。
+    gameMode: 'auto',
     markerScale: 1,             // 标记大小乘数
     labelScale: 1,              // 地名文字大小乘数
     markerToggles: null,        // 由渲染层管理（null = 全部开启）
@@ -241,9 +244,78 @@ const state = {
   annosAt: null,      // 标注数据最后一次变更的时间戳（雷达靠它决定要不要重取）
   autoShotStatus: null, // 定时自动截图的运行状态（见 src/auto-shot.js#stats）
   raidAlert: null,    // 最近一次战局提示音 {kind, at, remain}（渲染层按 at 变化响一次）
+  gameMode: 'regular', // 实际生效的模式：'regular'(PVP) | 'pve'；来源见 detectGameMode()
+  gameModeSource: null, // 'logs' = 日志判定 | 'config' = 手动锁定 | null = 默认
 };
 
 let lastStateWrite = 0;
+
+// ---------------------------------------------------------------------------
+// 游戏模式（PVP / PVE）
+// ---------------------------------------------------------------------------
+// 日志里每个会话都会写一行 `Session mode: Pve` / `Session mode: Pvp`（application_*.log）。
+// 这是离线可得的唯一可靠来源，所以只扫最新几个会话的日志尾巴，认不出就沿用上次结果。
+function readTail(file, bytes) {
+  try {
+    const fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const len = Math.min(bytes, size);
+    const buf = Buffer.alloc(len);
+    fs.readSync(fd, buf, 0, len, size - len);
+    fs.closeSync(fd);
+    return buf.toString('utf-8');
+  } catch { return ''; }
+}
+
+function detectGameMode() {
+  const root = settings && settings.logsPath;
+  if (!root) return null;
+  try {
+    const dirs = fs.readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => {
+        const full = path.join(root, d.name);
+        let ts = 0;
+        try { ts = fs.statSync(full).mtimeMs; } catch {}
+        return { full, ts };
+      })
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 3);
+    for (const d of dirs) {
+      let files = [];
+      try { files = fs.readdirSync(d.full).filter((n) => /application_\d+\.log$/i.test(n)).sort(); } catch { continue; }
+      for (const fn of files.reverse()) {
+        const m = readTail(path.join(d.full, fn), 512 * 1024).match(/Session mode:\s*(Pve|Pvp)/i);
+        if (m) return m[1].toLowerCase() === 'pve' ? 'pve' : 'regular';
+      }
+    }
+  } catch (e) {
+    appLog('[gamemode] 判定失败: ' + (e && e.message));
+  }
+  return null;
+}
+
+/** 生效模式：手动锁定 > 日志判定 > regular(PVP) */
+function resolvedGameMode() {
+  const cfg = String((settings && settings.gameMode) || 'auto');
+  if (cfg === 'pve' || cfg === 'regular') return { mode: cfg, source: 'config' };
+  const det = state.gameModeLogs || detectGameMode();
+  if (det) return { mode: det, source: 'logs' };
+  return { mode: 'regular', source: null };
+}
+
+/** 重新判定并广播（启动、切目录、进新局时调用） */
+function refreshGameMode() {
+  const det = detectGameMode();
+  if (det) state.gameModeLogs = det;
+  const prev = state.gameMode;
+  const prevSrc = state.gameModeSource;
+  const r = resolvedGameMode();
+  if (r.mode !== prev || r.source !== prevSrc) {
+    appLog(`[gamemode] ${r.mode}（来源 ${r.source || '默认'}）`);
+    broadcast({ gameMode: r.mode, gameModeSource: r.source });
+  }
+}
 
 function broadcast(patch) {
   Object.assign(state, patch);
@@ -415,6 +487,7 @@ function applyLogEvent(ev) {
       if (settings && settings.autoShot.enabled) appLog(`[autoshot] 已进图（${detail ? detail.key : raidCode}），开始自动按键`);
     }
     syncAutoShotContext();
+    refreshGameMode(); // 换局 = 可能换模式（PVE/PVP 混着玩）
   }
   // 认不出来的 bundle 由 logWatcherStatus('unknown-map') 统一记日志（见 startWatchers）
   broadcast({ logSummary: { ...state.logSummary, lastEvent: ev } });
@@ -1012,7 +1085,36 @@ function createMiniWindow(reason = 'startup') {
 // ---------------------------------------------------------------------------
 // IPC
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 资料库窗口（物品/价格/弹药/藏身处/制作/交换/倒卖/BOSS/钥匙/收集）
+// ---------------------------------------------------------------------------
+// 独立窗口而不是主窗口的一个页签：资料库是"查表"，和地图抢屏幕没有意义，
+// 而且它要加载十来兆 JSON，塞进地图窗口会让首屏变慢。
+let libraryWin = null;
+function openLibrary(opts) {
+  const o = opts || {};
+  const goto = (o.tab || o.id) ? o : null;
+  if (libraryWin && !libraryWin.isDestroyed()) {
+    if (libraryWin.isMinimized()) libraryWin.restore();
+    libraryWin.show();
+    libraryWin.focus();
+    if (goto) libraryWin.webContents.send('library:goto', goto);
+    return libraryWin;
+  }
+  libraryWin = new BrowserWindow({
+    width: 1240, height: 840, minWidth: 940, minHeight: 600,
+    backgroundColor: '#0b0e13',
+    title: '塔科夫资料库',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
+  });
+  libraryWin.loadURL('app://renderer/library.html');
+  libraryWin.on('closed', () => { libraryWin = null; });
+  libraryWin.webContents.once('did-finish-load', () => { if (goto) libraryWin.webContents.send('library:goto', goto); });
+  return libraryWin;
+}
+
 function setupIpc() {
+  ipcMain.handle('library:open', (_e, opts) => { openLibrary(opts); return true; });
   // 初次加载也要带上房间快照（broadcast 里就带着它）。
   // 少这一口的话，窗口刚打开/刷新时如果已经在房间里，顶栏胶囊和设置页的提示行
   // 要等到"下一个状态事件"才会出现 —— 队友不动、你也不按截图键，那就一直空着。
@@ -1059,6 +1161,7 @@ function setupIpc() {
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'alertLeadSec') && raidAlerts) raidAlerts.setLeadSec(patch.alertLeadSec);
     // 勾选任务变了：同步给房间（队友的图上就有你的勾选）
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'quests')) pushQuests();
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'gameMode')) refreshGameMode();
     // 小地图开关同理：设置页勾/去勾必须立刻开/关窗口，不能只改配置
     if (patch && Object.prototype.hasOwnProperty.call(patch, 'miniVisible')) applyMiniVisible();
     // 雷达窗口大小：设置页滑块一拖就落到窗口上（圆盘变大/变小立刻可见）
@@ -1277,6 +1380,8 @@ let logWatcher = null;
 let shotWatcher = null;
 
 function syncWatchers() {
+  // 日志目录可能刚换过：模式判定依赖它，换完立刻重判一次
+  setTimeout(() => { try { refreshGameMode(); } catch {} }, 0);
   // 只有路径**真的变了**才重建监听器。
   // 以前是无条件 setRoot()：而 setRoot() = stop()+start()，stop() 会关掉文件尾巴，
   // 但 currentDir 没变 -> scan() 不会走"切换会话"分支 -> 不会重新打开日志文件 ->
@@ -1310,6 +1415,7 @@ function startWatchers() {
   });
   logWatcher.start();
   shotWatcher.start();
+  refreshGameMode(); // 启动就判定一次 PVE/PVP（日志里 Session mode 那一行）
 }
 
 // ---------------------------------------------------------------------------

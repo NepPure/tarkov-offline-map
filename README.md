@@ -12,8 +12,10 @@
 ## 下载（Windows 免安装）
 
 到 [Releases](https://github.com/NepPure/tarkov-offline-map/releases/latest) 下载
-`tarkov-offline-map-<版本>-win-x64-portable.exe`（portable 单文件，双击即用，约 155MB，
-内含 15 张地图数据、实验室/迷宫/破冰船的瓦片底图与赛季文件参考截图），
+`tarkov-offline-map-<版本>-win-x64-portable.exe`（portable 单文件，双击即用，约 350MB，
+内含 15 张地图数据、实验室/迷宫/破冰船的瓦片底图、赛季文件参考截图，
+以及 v2.5 的资料库数据（物品/价格/弹药/防具/钥匙/交换/制作/BOSS）与
+**5442 件物品图标、中文 Wiki 的 1891 张攻略截图** —— 全部离线内置，运行时零网络请求），
 校验值见同页 `SHA256SUMS.txt`。
 
 - 未做代码签名：SmartScreen 提示"未知发布者"时选择"仍要运行"
@@ -74,6 +76,39 @@ Boss、出生点、散落物资、BTR 站点、**赛季文件刷点**、地名�
      所以这三张图同样**完全离线**，楼层次级也照常工作（顶栏是楼**下拉框**，默认「自动」按玩家高度切；
      实验室：一层 / 二层 / 技术层，破冰船：16 层甲板按高度从下到上、中文名）。
      补数据：`npm run fetch:tiles`。
+
+## 离线资料库与中文 Wiki 攻略（v2.5 新增）
+
+v2.5 把"查资料"这件事也搬进了离线包：顶栏多了一个 **资料库** 按钮，打开一个独立窗口，
+里面每个页签都是**构建期抓好、随 exe 一起发**的本地数据，运行时依然零网络请求。
+
+| 页签 | 内容 | 数据快照 |
+|---|---|---|
+| 物品 | 5442 件物品：跳蚤当前价/24h 均价/最低最高/48h 涨跌/报价数、各商人收购价、**每格价值**、跳蚤解锁等级 | `data/economy-dump.json` |
+| 弹药 | 200 种弹药的穿透/肉伤/甲伤/碎弹/跳弹/精度/后座/初速 | 同上 |
+| 防具 | 383 件头盔/防弹衣/胸挂/附加装甲的防弹等级、耐久、材质、防护部位、各类速度惩罚 | 同上 |
+| 钥匙 | 257 把钥匙的**使用次数**、重量与价格 | 同上 |
+| 藏身处 | 26 个模块逐级材料清单 + 按当前市价算的升级成本，可勾选已收集 | `data/market-dump.json` |
+| 制作 | 藏身处 428 条制作配方的材料成本 / 产出价值 / 利润 / 每小时利润 | 同上 |
+| 交换 | 1710 条商人交换配方的成本与利润 | 同上 |
+| 倒卖 | 商人买入价与跳蚤价的差价排行 | 由物品价格现算 |
+| BOSS | 各图 BOSS 刷新率 | `data/bosses-dump.json` |
+
+**PVE / PVP 是分开的**：跳蚤价格在两个模式里差得很远（同一张显卡能差一倍），
+资料库顶部有模式切换；默认值来自**游戏日志里的 `Session mode: Pve` 那一行**（状态栏显示
+"模式: PVE（日志）"，设置页可以手动锁成 PVP/PVE）。
+
+**任务详情走中文 Wiki**：任务卡片里现在直接显示
+中文任务描述全文、任务攻略（含社区上传的**攻略截图**，点图可放大）、物品/钥匙需求、
+任务完成对话与奖励；卡片的「中文 Wiki」按钮打开 [逃离塔科夫中文Wiki](https://www.eftarkov.com)
+的对应任务页，英文 fandom 链接降级为次要按钮。任务卡片底部有来源署名与回链。
+攻略里的"📍在地图上查看"链接会**直接跳到本软件自己的地图**，物品名可以跳资料库。
+
+数据与图片都是构建期抓取的（`npm run fetch:upstream / fetch:economy / fetch:market / fetch:bosses /
+fetch:item-icons / fetch:guides / fetch:shots`），仓库里带快照，打包后完全离线。
+体积参考：攻略截图 124 MB（1891 张，统一重编码到 1600px webp）、物品图标 64 MB（5356 件 × 图标+网格图，
+另有 86 件上游就没有图标）、价格与配方 JSON 约 11 MB。
+**价格会过期**，所以资料库右上角一直显示数据时间，发新版本时会重新抓一次。
 
 ## 目录结构
 
@@ -851,6 +886,11 @@ curl -s -o build/tarkovdev-pve-maps.json https://json.tarkov.dev/pve/maps
 | 瓦片底图（实验室/迷宫/破冰船） | kaedeori CDN（固定 z=3，每层 8×8） | — | `npm run fetch:tiles` 前后比对文件数/大小 |
 | 任务 + 目标坐标 + 中文 | `json.tarkov.dev/{mode}/tasks` + `tasks_zh` | 同源 GraphQL | `npm run fetch:quests` 后看任务数变化 |
 | 赛季文件刷点 | kaedeori 站台（上游无等价数据） | — | `npm run fetch:season` |
+| 物品/价格/弹药/防具/钥匙 | **tarkov.dev JSON 镜像** `https://json.tarkov.dev/{regular\|pve}/items` + `items_zh`（一次 16.4MB，5442 件，两种模式各一份） | — | `npm run fetch:upstream` 后 `npm run fetch:economy`，看物品数/有价数 |
+| 商人交换/藏身处制作/藏身处模块 | `json.tarkov.dev/{mode}/{barters,crafts,hideout}` | — | `npm run fetch:market` 后看条数（1710/428/26） |
+| 物品图标 | `https://assets.tarkov.dev/<id>-icon.webp`（64px，5442+5442 张，约 30MB） | — | `npm run fetch:item-icons` |
+| BOSS 刷新率 | kaedeori 站台 `/api/tarkov/boss/list?gameMode=`（与 tarkov.dev 同源，含每图刷新概率） | — | `npm run fetch:bosses` |
+| 任务描述/攻略/截图 | **逃离塔科夫中文Wiki** `https://www.eftarkov.com/task/<id>`（546 个任务页 + 1472 张攻略截图） | 英文 fandom（次链接） | `npm run fetch:guides` 后 `npm run fetch:shots` |
 | 图标 | kaedeori CDN（`map-icons/`、`assets/tarkov/images/`） | tarkov-dev 仓库 `public/maps/interactive/*.png` | `npm run fetch:icons` |
 | BTR 站点/线路 | 站台快照 `btrStops`（灯塔/森林源自 TarkovBTR 手工数据） | tarkovbtr.com（纯前端、无公开接口，数据在 JS bundle 里） | 站台数据变化 |
 | 官方改动说明（语义对照） | `escapefromtarkov.com/news`（如 [1.1.5.0](https://www.escapefromtarkov.com/news/id/408) 灯塔重做） | 17173/官方论坛中文转载 | 手动，补丁日看一眼 |
@@ -929,5 +969,9 @@ curl -s -o build/tarkovdev-pve-maps.json https://json.tarkov.dev/pve/maps
 （房间服务器收不到你的游戏数据，只收到"位置点 / 标注 / 昵称"这几样，详见房间功能一节）。
 塔科夫官方禁止任何第三方辅助工具，仅供学习与离线/单人模式自用，风险自负。
 地图数据来源：tarkov.dev / the-hideout 开源底图 + kaedeori 站点的公开只读数据快照；
+物品、价格、弹药、防具、交换与制作配方来自 [tarkov.dev](https://tarkov.dev) 的公开数据快照；
+**任务描述、任务攻略与攻略截图来自「[逃离塔科夫中文Wiki](https://www.eftarkov.com)」**
+（本项目为开源非商业项目，已注明来源并逐任务回链，内容版权归原站与原作者所有；如权利人不同意收录请提 issue，我们会移除）；
+BOSS 数据来自 kaedeori 站点的公开只读接口；
 任务与任务区域坐标来自 [tarkov.dev](https://tarkov.dev) 的公开数据快照（`json.tarkov.dev/regular/*`）；
 游戏素材版权归 Battlestate Games 所有（详见 [LICENSE](LICENSE)）。

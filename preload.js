@@ -55,6 +55,13 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('viewport:sync', h);
   },
   getStateForMini: () => ipcRenderer.invoke('state:sync-mini'),
+  // 资料库窗口（物品/价格/弹药/藏身处/制作/交换/BOSS…）：tab/id 用来直接跳转
+  openLibrary: (opts) => ipcRenderer.invoke('library:open', opts),
+  onLibraryGoto: (cb) => {
+    const h = (_e, o) => cb(o);
+    ipcRenderer.on('library:goto', h);
+    return () => ipcRenderer.removeListener('library:goto', h);
+  },
   // 房间联机（v2.0，默认关）
   roomTest: (cfg) => ipcRenderer.invoke('room:test', cfg),
   roomStatus: () => ipcRenderer.invoke('room:status'),

@@ -67,6 +67,7 @@ const SUITES = [
 
   // ---------------------------------------------------------------- 由 runner 起客户端
   { id: 'room', title: '房间联机界面（进房/队友图例/离场清理）', script: 'verify-room.js', kind: 'attach', group: 'ui', timeoutMs: 240000 },
+  { id: 'library', title: '资料库窗口（10 个页签 / 搜索 / PVE-PVP 切换）', script: 'verify-library.js', kind: 'attach', group: 'ui', timeoutMs: 300000 },
   { id: 'about', title: '关于页面', script: 'verify-about.js', kind: 'attach', group: 'ui' },
   { id: 'annotations', title: '手动标注（六种工具/椭圆/撤销/图例）', script: 'verify-annotations.js', kind: 'attach', group: 'ui' },
   { id: 'quests', title: '任务侧边栏（搜索/勾选/详情/一键切图）', script: 'verify-quests.js', kind: 'attach', group: 'ui' },

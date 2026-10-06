@@ -33,6 +33,7 @@ export const LIVE_FIELDS = [
   { sel: '#set-quest-opacity', path: 'quests.opacity', kind: 'num', min: 0.05, max: 0.6, fallback: 0.25 },
   { sel: '#set-quest-auto-open', path: 'quests.autoOpen', kind: 'bool' },
   // ---- 提示与行为 ----
+  { sel: '#set-game-mode', path: 'gameMode', kind: 'str' },
   { sel: '#set-sound', path: 'sound', kind: 'bool' },
   { sel: '#set-alert-lead', path: 'alertLeadSec', kind: 'int', min: 1, max: 10, fallback: 3 },
   { sel: '#set-auto-delete', path: 'autoDeleteScreenshots', kind: 'bool' },

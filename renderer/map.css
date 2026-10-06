@@ -165,6 +165,32 @@ body.quest-open .info-card { left: 332px; }
 }
 .info-card .ref-shot-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
+/* ---------- 任务详情卡里的中文 Wiki 攻略块（来自 eftarkov 离线快照） ---------- */
+.qg-wrap { max-height: 48vh; overflow-y: auto; margin-top: 6px; }
+.qg-wrap::-webkit-scrollbar { width: 8px; }
+.qg-wrap::-webkit-scrollbar-thumb { background: #2a3341; border-radius: 4px; }
+.qg-block { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.qg-block:first-child { border-top: none; margin-top: 4px; }
+.qg-title { font-size: 12px; font-weight: 600; color: #fbbf24; margin-bottom: 4px; }
+.qg-hint {
+  font-size: 12px; color: #fbbf24; background: rgba(251, 191, 36, .08);
+  border: 1px solid rgba(251, 191, 36, .25); border-radius: 6px; padding: 4px 8px; margin-top: 6px;
+}
+.qg-rich { font-size: 12px; color: #9fb0c2; line-height: 1.5; }
+.qg-rich p { margin: 5px 0; }
+.qg-rich img {
+  display: block; width: 100%; margin: 6px 0; border: 1px solid var(--line);
+  border-radius: 6px; cursor: zoom-in; background: #0a0d12;
+}
+.qg-rich a { color: #7dd3fc; cursor: pointer; text-decoration: none; }
+.qg-rich a:hover { text-decoration: underline; }
+.qg-rich ul, .qg-rich ol { margin: 4px 0 4px 16px; }
+.qg-rich li { margin: 2px 0; }
+.qg-rich table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+.qg-rich td, .qg-rich th { border: 1px solid var(--line); padding: 2px 5px; text-align: left; }
+.qg-rich i { margin-right: 3px; }
+.qg-src a { color: #7dd3fc; cursor: pointer; }
+
 /* ---------- 参考截图查看器（赛季文件刷点实景） ---------- */
 .shot-viewer {
   position: fixed; inset: 0; z-index: 60;

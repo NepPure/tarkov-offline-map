@@ -27,6 +27,7 @@
       <button id="btn-quests" class="toggle active" title="任务清单：搜索/勾选，勾选的任务地点会画在地图上">任务</button>
       <button id="btn-measure" class="toggle" title="尺子：在地图上点两点测距（Esc 取消）">尺子</button>
       <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
+      <button id="btn-library" title="资料库：物品与跳蚤价格、弹药表、藏身处计算器、制作/交换利润、BOSS、钥匙、收集清单（全部离线内置）">资料库</button>
       <button id="btn-settings" title="高级设置">设置</button>
       <button id="btn-about" title="关于：版本、开源地址与功能简介">关于</button>
     </div>
@@ -126,6 +127,7 @@
 
   <aside class="statusbar">
     <span id="st-map">地图: -</span>
+    <span id="st-mode" title="跳蚤价格按这个模式显示（设置里可锁定）">模式: -</span>
     <span id="st-source">识别: -</span>
     <span id="st-floor">楼层: -</span>
     <span id="st-pos">位置: -</span>
@@ -206,6 +208,14 @@
 
         <section class="settings-card">
           <h3>提示与行为</h3>
+          <label class="row">游戏模式
+            <select id="set-game-mode" title="跳蚤价格 PVE 与 PVP 差很多（同一张显卡能差一倍），资料库按这个模式显示价格">
+              <option value="auto">自动（读游戏日志的 Session mode）</option>
+              <option value="regular">常规 PVP</option>
+              <option value="pve">PVE</option>
+            </select>
+            <span id="set-game-mode-now" class="room-hint"></span>
+          </label>
           <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：只用于战局节奏（开始匹配 / 匹配到了 / 进图倒计时最后几秒）</label>
           <label class="row">进图倒计时提示：最后 <input type="number" id="set-alert-lead" min="1" max="10" step="1" style="width:70px" /> 秒开始响</label>
           <div class="hint">这三个时刻都是从游戏日志里读出来的：<code>Matching with group id</code>（开始匹配、等服务器）、
@@ -279,7 +289,10 @@
         <li><b>悬浮小地图</b>：可拖动的圆形雷达置顶在游戏画面上，滚轮缩放、Ctrl 拖动平移、支持点击穿透</li>
         <li><b>标记与图例</b>：撤离点 / 转移点 / Boss / 出生点 / 钥匙锁 / 物资箱 / 地名 / 赛季文件刷点，右侧图例逐项开关；
           每一大类右上角的 <b>Aa</b> 还能单独关掉这一类在地图与雷达上的文字（只留图标）</li>
-        <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，点标记看商人、等级、阶段、任务物品与所需钥匙</li>
+        <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，点标记看商人、等级、阶段、任务物品与所需钥匙；
+          点开任务卡还能直接看<b>中文任务描述、攻略与攻略截图</b>（来自逃离塔科夫中文Wiki，已署名回链）</li>
+        <li><b>资料库</b>（v2.5 新增，全部离线内置）：物品与跳蚤价格（PVP / PVE 分开）、弹药表、防具、钥匙使用次数、
+          藏身处升级计算器、制作 / 交换利润、倒卖排行、BOSS 刷新率</li>
         <li><b>手动标注</b>：顶栏常驻工具条（画笔 / 路径 / 直线 / 箭头 / 椭圆 / 矩形 + 「取消」退出），按地图保存（存世界坐标，缩放旋转都不跑位）</li>
         <li><b>房间联机</b>（v2.0 新增，可选）：填自己的服务器地址，和队友互相看到位置、朝向与标注</li>
       </ul>
@@ -287,8 +300,14 @@
         <span class="about-label">开源地址</span>
         <a id="about-repo" href="https://github.com/NepPure/tarkov-offline-map">github.com/NepPure/tarkov-offline-map</a>
       </div>
+      <div class="about-row">
+        <span class="about-label">数据来源</span>
+        <span>地图与物品来自 <a id="about-tarkovdev" href="https://tarkov.dev">tarkov.dev</a>；
+          任务描述、攻略与截图来自 <a id="about-wiki" href="https://www.eftarkov.com">逃离塔科夫中文Wiki</a>（已逐任务署名与回链）</span>
+      </div>
       <p class="about-note">默认不联网：程序本身不发送任何请求，只有你在设置里填写了房间服务器地址后才会连接它。
-        本项目与 Battlestate Games 无关，地图与物品数据来自社区。</p>
+        本项目与 Battlestate Games 无关，游戏素材版权归 Battlestate Games 所有；
+        攻略与截图版权归原站与原作者所有，本项目为开源非商业项目，如权利人不同意收录请提 issue。</p>
       <div class="dialog-actions">
         <button value="ok" id="about-ok">知道了</button>
       </div>

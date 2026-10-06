@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 与 renderer/map.html 完全同一套 CSP：资料库不联网，只允许 app:// 的本地数据与图标 -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' 'unsafe-inline'; img-src 'self' app: data:; connect-src 'self' app:" />
+  <title>塔科夫资料库</title>
+  <link rel="stylesheet" href="library.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>塔科夫资料库</h1>
+    </div>
+    <!-- 页签：由 library.js 按 TABS 生成（顺序 / 名称只在一个地方维护） -->
+    <nav id="tabs" class="tabs" aria-label="资料库页签"></nav>
+    <div class="controls">
+      <input id="q" type="search" placeholder="搜索名称 / 短名 / id" autocomplete="off" />
+      <!-- 模式切换：PVP = 常规服，PVE = 离线版；价格数据是两套，切换后所有价格重算 -->
+      <div class="mode-switch" id="mode-switch" role="group" aria-label="游戏模式">
+        <button type="button" data-mode="regular" class="active" title="PVP（常规）模式价格">PVP</button>
+        <button type="button" data-mode="pve" title="PVE（离线）模式价格">PVE</button>
+      </div>
+      <span id="data-time" class="data-time" title="价格快照的抓取时间">数据时间: -</span>
+    </div>
+  </header>
+
+  <!-- 左列表 / 右详情。窄屏（<1100px）时 library.css 把它改成上下堆叠 -->
+  <main class="lib-body">
+    <section class="lib-list" id="list-pane">
+      <div id="list-host" class="list-host"><div class="placeholder">正在加载数据…</div></div>
+    </section>
+    <aside id="detail" class="lib-detail hidden" aria-live="polite"></aside>
+  </main>
+
+  <!-- type="module"：和 map.js / minimap.js 一致。**不能**用经典脚本 ——
+       preload 通过 contextBridge 暴露的 window.api 是不可配置属性，
+       经典脚本顶层的 const api 会直接抛 "Identifier 'api' has already been declared"，
+       整段脚本一行都不会执行（资料库窗口白屏，只有顶栏）。 -->
+  <script type="module" src="library.js"></script>
+</body>
+</html>
