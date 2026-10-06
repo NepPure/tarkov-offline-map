@@ -49,7 +49,7 @@ async function init() {
   try {
     state.season = await (await fetch('app://data/season-documents.json')).json();
   } catch (e) {
-    console.warn('赛季文件数据缺失（可运行 npm run fetch:season）', e);
+    console.warn('赛季文件数据缺失', e);
     state.season = null;
   }
 
@@ -797,7 +797,7 @@ async function applyMainState(s) {
     const mode = s.gameMode || 'regular';
     const srcTxt = s.gameModeSource === 'logs' ? '日志' : s.gameModeSource === 'config' ? '锁定' : '默认';
     modeEl.textContent = `模式: ${mode === 'pve' ? 'PVE' : 'PVP'}（${srcTxt}）`;
-    modeEl.title = `跳蚤价格按 ${mode === 'pve' ? 'PVE' : 'PVP'} 显示；在设置里可以手动锁定`;
+    modeEl.title = '跳蚤价格按此模式显示（设置里可锁定）';
   }
   const lw = s.logWatcherStatus, sw = s.shotWatcherStatus;
   const logEl = $('#st-log'), shotEl = $('#st-shot');
@@ -1047,8 +1047,7 @@ function showQuestCard(item, zone) {
       ${task.wiki ? '<button id="qc-wiki-en">英文 Wiki</button>' : ''}
       <button id="qc-check">${quest.checked.has(task.id) ? '取消勾选' : '勾选此任务'}</button>
     </div>
-    <div class="row muted">任务数据来自 tarkov.dev 离线快照${quest.dump.fetchedAt ? `（${String(quest.dump.fetchedAt).slice(0, 10)}）` : ''}${guide ? '' : ' · 中文 Wiki 暂无此任务页'}</div>
-    <div class="row muted qg-src">说明、攻略与截图来自 <a href="${zhUrl}" id="qc-src">逃离塔科夫中文Wiki</a>${guide && guide.updatedAt ? `（更新于 ${escapeHtml(guide.updatedAt)}）` : ''} · 本软件开源非商业，内容版权归原作者所有</div>`;
+    <div class="row muted qg-src">任务来自 tarkov.dev · 攻略与截图来自 <a href="${zhUrl}" id="qc-src">逃离塔科夫中文Wiki</a>${guide && guide.updatedAt ? `（更新于 ${escapeHtml(guide.updatedAt)}）` : ''}${guide ? '' : '（本任务暂无 Wiki 页）'}</div>`;
   card.classList.remove('hidden');
 
   card.querySelector('#info-close').addEventListener('click', () => card.classList.add('hidden'));
@@ -1183,10 +1182,10 @@ bindLiveSettings();
 // ---------------------------------------------------------------------------
 $('#room-test').addEventListener('click', async () => {
   const cfg = roomFormPatch();
-  setRoomHint('正在探测 /healthz …', 'room-hint');
+  setRoomHint('正在探测服务端…', 'room-hint');
   const res = await api.roomTest({ url: cfg.url, port: cfg.port });
   if (res && res.ok && res.protoOk) {
-    setRoomHint(`连接成功：服务端 v${res.ver}（协议 v${res.proto}），单房间上限 ${res.maxRoomPeers} 人${res.persist ? '，标注会落盘' : ''}`, 'room-hint ok', 20000);
+    setRoomHint(`连接成功：服务端 v${res.ver}，单房间上限 ${res.maxRoomPeers} 人`, 'room-hint ok', 20000);
   } else {
     setRoomHint(`失败：${(res && res.error) || '未知错误'}`, 'room-hint bad', 20000);
   }
@@ -1550,7 +1549,7 @@ function ensureQuestData() {
     return dump;
   })();
   quest.loading.catch((e) => {
-    console.warn('任务数据缺失（可运行 npm run fetch:quests 生成）', e);
+    console.warn('任务数据缺失', e);
   });
   return quest.loading;
 }
@@ -1572,7 +1571,7 @@ function ensureGuideData() {
       quest.guides = dump.guides || {};
       quest.guideMeta = { fetchedAt: dump.fetchedAt || null, siteName: dump.siteName || '逃离塔科夫中文Wiki', siteUrl: dump.siteUrl || 'https://www.eftarkov.com' };
     } catch (e) {
-      console.warn('任务攻略快照缺失（可运行 npm run fetch:guides 生成）', e);
+      console.warn('任务攻略数据缺失', e);
       quest.guides = {};
     }
     return quest.guides;
@@ -1597,7 +1596,7 @@ function ensurePriceIndex() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       quest.priceIndex = await res.json();
     } catch (e) {
-      console.warn('价格索引缺失（可运行 npm run fetch:economy 生成）', e);
+      console.warn('价格索引缺失', e);
       quest.priceIndex = { data: {} };
     }
     return quest.priceIndex;
@@ -1636,7 +1635,7 @@ function questValueHtml(guide) {
     ? `需求物资 ${counted} 项 · 合计约 <b>${fmtRub(total)}</b>（${pve ? 'PVE' : 'PVP'} 当前价）`
     : '需求物资（均无跳蚤价）';
   const tail = unknown && counted ? ` · 另有 ${unknown} 项无跳蚤价未计入` : '';
-  return `<div class="qg-block qv-block"><div class="qg-title">需求物资市值</div><div class="row qv-head">${head}${tail} · <span class="qv-src">价来自资料库快照</span></div>${lines.join('')}</div>`;
+  return `<div class="qg-block qv-block"><div class="qg-title">需求物资市值</div><div class="row qv-head">${head}${tail}</div>${lines.join('')}</div>`;
 }
 
 /** 展示哪几个 wiki 版块（任务目标我们自己的数据更全，不重复贴） */
@@ -1837,7 +1836,7 @@ function refreshQuests({ autoOpen = false } = {}) {
 
   list.innerHTML = '';
   if (!tasks.length) {
-    list.innerHTML = '<div class="quest-empty">任务数据是空的。<br>请运行 <code>npm run fetch:quests</code> 重新生成 <code>data/quests-dump.json</code>。</div>';
+    list.innerHTML = '<div class="quest-empty">任务数据没有加载出来，请重新打开程序试试。</div>';
   } else if (!filtered.length) {
     let hint;
     if (quest.ui.checkedOnly && quest.ui.peerCheckedOnly) {

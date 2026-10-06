@@ -117,7 +117,9 @@ const clickByText = (text) => `(function(){
       const t = document.body.innerText || '';
       return { len: t.length, rows: document.querySelectorAll('table tbody tr').length };
     })()`).catch(() => null);
-    const good = ok && info && info.len > 400;
+    // 「来源」页是版权说明 + 外链，不含表格数据，门槛单独放宽（其余页签仍要求真实数据量）
+    const minLen = w === '来源' ? 150 : 400;
+    const good = ok && info && info.len > minLen;
     rep.check(`页签「${w}」有内容`, good, info ? `文字 ${info.len} 字 / ${info.rows} 行` : '取不到内容');
   }
 

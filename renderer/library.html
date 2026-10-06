@@ -16,13 +16,13 @@
     <!-- 页签：由 library.js 按 TABS 生成（顺序 / 名称只在一个地方维护） -->
     <nav id="tabs" class="tabs" aria-label="资料库页签"></nav>
     <div class="controls">
-      <input id="q" type="search" placeholder="搜索名称 / 短名 / id" autocomplete="off" />
+      <input id="q" type="search" placeholder="搜索物品" autocomplete="off" />
       <!-- 模式切换：PVP = 常规服，PVE = 离线版；价格数据是两套，切换后所有价格重算 -->
       <div class="mode-switch" id="mode-switch" role="group" aria-label="游戏模式">
         <button type="button" data-mode="regular" class="active" title="PVP（常规）模式价格">PVP</button>
         <button type="button" data-mode="pve" title="PVE（离线）模式价格">PVE</button>
       </div>
-      <span id="data-time" class="data-time" title="价格快照的抓取时间">数据时间: -</span>
+      <span id="data-time" class="data-time" title="数据的更新时间">数据时间: -</span>
     </div>
   </header>
 

@@ -27,7 +27,7 @@
       <button id="btn-quests" class="toggle active" title="任务清单：搜索/勾选，勾选的任务地点会画在地图上">任务</button>
       <button id="btn-measure" class="toggle" title="尺子：在地图上点两点测距（Esc 取消）">尺子</button>
       <button id="btn-import" title="从本地截图文件导入位置">导入截图</button>
-      <button id="btn-library" title="资料库：物品与跳蚤价格、弹药表、藏身处计算器、制作/交换利润、BOSS、钥匙、收集清单（全部离线内置）">资料库</button>
+      <button id="btn-library" title="离线资料：物品与价格、弹药、藏身处、BOSS">资料库</button>
       <button id="btn-settings" title="高级设置">设置</button>
       <button id="btn-about" title="关于：版本、开源地址与功能简介">关于</button>
     </div>
@@ -39,7 +39,7 @@
         <button class="anno-tool" data-tool="path" title="路径规划：点击加点，双击或回车结束">⌇ 路径</button>
         <button class="anno-tool" data-tool="line" title="直线：按住拖动">／ 直线</button>
         <button class="anno-tool" data-tool="arrow" title="箭头：按住拖动">➤ 箭头</button>
-        <button class="anno-tool" data-tool="ellipse" title="椭圆：从一个角拖到对角（鼠标划过的是对角线）；按住 Shift 画正圆">◯ 椭圆</button>
+        <button class="anno-tool" data-tool="ellipse" title="椭圆：拖出对角线；Shift 画正圆">◯ 椭圆</button>
         <button class="anno-tool" data-tool="rect" title="矩形：从一个角拖到对角">▭ 矩形</button>
         <button class="anno-tool" data-tool="erase" title="橡皮：点一下删掉那一笔">⌫ 橡皮</button>
         <span id="anno-colors" class="anno-colors"></span>
@@ -91,7 +91,7 @@
           <button class="chip active" id="qc-map" title="只显示当前地图有内容的任务">本图</button>
           <button class="chip active" id="qc-loc" title="只显示能在地图上画出来的任务">有地点</button>
           <button class="chip" id="qc-checked" title="只看我自己勾选的任务">已勾选</button>
-          <button class="chip" id="qc-peer" title="只看队友勾选的任务（房间联机 + 服务端支持共享勾选才有；两个筛选都开会变成「只看我和队友都勾了的」）">队友勾选</button>
+          <button class="chip" id="qc-peer" title="只看队友勾选的任务（两个筛选都开 = 只看都勾了的）">队友勾选</button>
           <button class="chip" id="qc-kill" title="击杀类目标给的是刷怪区，默认不画（很大很糊）">击杀区</button>
         </div>
         <div class="quest-selects">
@@ -114,7 +114,7 @@
 
     <aside id="legend-panel" class="legend-panel">
       <div class="legend-head">
-        <span title="每一大类左侧勾选框 = 这一类还画不画；右侧 Aa = 这一类画不画文字（只留图标），主地图与雷达一起生效">标记点图例</span>
+        <span title="左侧勾选 = 显示该类；Aa = 只留图标不显示文字">标记点图例</span>
         <div class="legend-actions">
           <button id="legend-all" title="所有大类全部显示">全开</button>
           <button id="legend-none" title="所有大类全部隐藏">全关</button>
@@ -127,7 +127,7 @@
 
   <aside class="statusbar">
     <span id="st-map">地图: -</span>
-    <span id="st-mode" title="跳蚤价格按这个模式显示（设置里可锁定）">模式: -</span>
+    <span id="st-mode" title="跳蚤价格按此模式显示（设置里可锁定）">模式: -</span>
     <span id="st-source">识别: -</span>
     <span id="st-floor">楼层: -</span>
     <span id="st-pos">位置: -</span>
@@ -142,12 +142,11 @@
   <dialog id="settings-dialog">
     <form method="dialog" class="settings-form">
       <h2>高级设置</h2>
-      <p class="settings-live">改动<b>即时生效</b>（自动记住）：拖动滑块、勾选开关立刻能看到效果，不用点保存；
-        文本框（目录 / 地址 / 键名）在回车或点到别处时生效。</p>
+      <p class="settings-live">改动<b>即时生效</b>、自动记住；文本框在回车或点到别处时生效。</p>
       <div class="settings-grid">
         <section class="settings-card room-card">
           <h3>房间（联机）<span id="room-state" class="room-state off">未联机</span></h3>
-          <label class="row"><input type="checkbox" id="set-room-enabled" /> 启用房间：和队友互相看到位置与标注（<b>默认关</b>，不填地址就一行网络代码都不跑）</label>
+          <label class="row"><input type="checkbox" id="set-room-enabled" /> 启用房间：和队友互相看到位置与标注（<b>默认关</b>）</label>
           <label>服务器地址 <input id="set-room-url" type="text" placeholder="例如 192.168.1.10 或 wss://room.example.com" /></label>
           <div class="room-row">
             <label>端口 <input id="set-room-port" type="number" min="1" max="65535" /></label>
@@ -158,33 +157,31 @@
             <label>昵称 <input id="set-room-nick" type="text" maxlength="16" placeholder="地图上显示第一个字 + 朝向" /></label>
           </div>
           <label class="row"><input type="checkbox" id="set-room-pos" /> 共享我的定位（按截图键时更新，带轨迹）</label>
-          <label class="row"><input type="checkbox" id="set-room-anno" /> 共享我画的标注（进房时会把当前这张图上你画过的补发一次）</label>
-          <label class="row"><input type="checkbox" id="set-room-quests" /> 共享我勾选的任务（队友图上会画出你勾的任务，重复的会自动合并）</label>
+          <label class="row"><input type="checkbox" id="set-room-anno" /> 共享我画的标注</label>
+          <label class="row"><input type="checkbox" id="set-room-quests" /> 共享我勾选的任务</label>
           <div class="room-actions">
             <button type="button" id="room-test">测试连接</button>
             <button type="button" id="room-connect">加入房间</button>
             <button type="button" id="room-disconnect">离开房间</button>
             <span id="room-hint" class="room-hint"></span>
           </div>
-          <div class="hint">服务端是自建的（仓库 <code>server/</code> 目录，一条 docker compose 起服务）。
-            位置是"你按 Print Screen 那一刻"的定位，所以队友看到的是你最近一次截图的位置与去向。
-            勾「启用房间」/ 共享项即时生效；地址、房间号、口令、昵称在<b>回车或点到别处</b>时写入，
-            写完点「加入房间」就行（也可以直接勾「启用房间」）。</div>
+          <div class="hint">位置是"你按 Print Screen 那一刻"的定位，所以队友看到的是你最近一次截图的位置与去向。
+            地址、房间号、口令、昵称在<b>回车或点到别处</b>时写入，
+            写完点「加入房间」即可。</div>
         </section>
         <section class="settings-card">
           <h3>目录</h3>
           <label>游戏日志目录 <input id="set-logs" type="text" /></label>
           <div class="dir-row">
-            <button type="button" id="set-logs-pick" title="打开文件夹选择框，选完立刻生效（不用点保存）">选择文件夹…</button>
+            <button type="button" id="set-logs-pick" title="选择文件夹（即时生效）">选择文件夹…</button>
             <button type="button" id="set-logs-open" title="在资源管理器里打开这个目录">打开文件夹</button>
           </div>
           <label>截图目录 <input id="set-shots" type="text" /></label>
           <div class="dir-row">
-            <button type="button" id="set-shots-pick" title="打开文件夹选择框，选完立刻生效（不用点保存）">选择文件夹…</button>
+            <button type="button" id="set-shots-pick" title="选择文件夹（即时生效）">选择文件夹…</button>
             <button type="button" id="set-shots-open" title="在资源管理器里打开这个目录">打开文件夹</button>
           </div>
-          <div class="hint">日志目录用来识别进图与地图，截图目录用来读坐标（<code>&lt;x&gt;, &lt;y&gt;, &lt;z&gt;, &lt;q&gt;.png</code>）。
-            「选择文件夹…」选完立刻生效；手输路径按<b>回车</b>或点到别处（失焦）时才生效 —— 免得每敲一个字就重启一次日志监听。</div>
+          <div class="hint">日志目录用来识别进图与地图，截图目录用来读坐标。手输路径在<b>回车</b>或点到别处时生效。</div>
         </section>
         <section class="settings-card">
           <h3>定位与显示</h3>
@@ -195,21 +192,20 @@
           <label class="row">地图透明度 <input type="range" id="set-map-opacity" min="0.2" max="1" step="0.05" /></label>
           <label class="row">标记大小 <input type="range" id="set-marker-scale" min="0.5" max="2" step="0.1" /></label>
           <label class="row">地名文字大小 <input type="range" id="set-label-scale" min="0.8" max="2.5" step="0.1" /></label>
-          <div class="hint">地名文字是"白色内色 + 深色外框"（先描边后填充，笔画平滑），默认已比旧版大；嫌挡地图就调小。</div>
+          <div class="hint">地名文字嫌挡地图就调小。</div>
         </section>
         <section class="settings-card">
           <h3>任务标记</h3>
           <label class="row">区域填充透明度 <input type="range" id="set-quest-opacity" min="0.05" max="0.6" step="0.01" /></label>
           <label class="row"><input type="checkbox" id="set-quest-auto-open" /> 识别到地图时自动展开任务栏（默认开）</label>
-          <div class="hint">任务数据是离线快照（<code>data/quests-dump.json</code>，来自 tarkov.dev），
-            在你的电脑上按商人 → 阶段分组；<b>勾选</b>的任务才会把区域画到地图上（实线多边形＝任务区域，虚线小圈＝任务物品刷新点）。
-            勾选状态按存档长期保留，换图不丢。要更新数据就重新跑 <code>npm run fetch:quests</code>。</div>
+          <div class="hint">任务按商人 → 阶段分组；<b>勾选</b>的任务才会把区域画到地图上（实线多边形＝任务区域，虚线小圈＝任务物品刷新点）。
+            勾选状态长期保留，换图不丢。</div>
         </section>
 
         <section class="settings-card">
           <h3>提示与行为</h3>
           <label class="row">游戏模式
-            <select id="set-game-mode" title="跳蚤价格 PVE 与 PVP 差很多（同一张显卡能差一倍），资料库按这个模式显示价格">
+            <select id="set-game-mode" title="跳蚤价格按此模式显示（PVE 与 PVP 价格不同）">
               <option value="auto">自动（读游戏日志的 Session mode）</option>
               <option value="regular">常规 PVP</option>
               <option value="pve">PVE</option>
@@ -218,9 +214,7 @@
           </label>
           <label class="row"><input type="checkbox" id="set-sound" /> 声音提示：只用于战局节奏（开始匹配 / 匹配到了 / 进图倒计时最后几秒）</label>
           <label class="row">进图倒计时提示：最后 <input type="number" id="set-alert-lead" min="1" max="10" step="1" style="width:70px" /> 秒开始响</label>
-          <div class="hint">这三个时刻都是从游戏日志里读出来的：<code>Matching with group id</code>（开始匹配、等服务器）、
-            <code>MatchingCompleted</code>（匹配到了）、<code>GameSpawned → GameStarting</code>（进图倒计时，实测约 10 秒）。
-            <b>截图定位、队友位置、换图都不会响</b>，免得一直在响。</div>
+          <div class="hint">三个提示时刻都读自游戏日志；<b>截图定位、队友位置、换图都不会响</b>。</div>
           <label class="row"><input type="checkbox" id="set-auto-delete" /> 自动删除截图文件：读取坐标后删除对应文件</label>
         </section>
         <section class="settings-card">
@@ -241,13 +235,8 @@
               <option value="all">我的 + 队友的</option>
             </select>
           </label>
-          <div class="hint">以上都<b>即时生效</b>：拖「雷达窗口大小 / 显示半径 / 整体透明度」时雷达立刻跟着变，圆盘中心不动。
-            雷达默认没有任何按钮：<b>按住圆盘任意位置即可拖动窗口</b>（位置自动记忆），<b>滚轮缩放</b>，
-            <b>Ctrl + 拖动 = 平移圆盘里的地图</b>（窗口不动；玩家照旧跟随，只是不再固定在圆心 ——
-            <b>下一次定位会重新居中</b>，所以那只是"临时往旁边多看两眼"），
-            <b>Ctrl + 双击</b> 把视野偏移归零（换图时会自动归零）；
-            方向/居中/楼层/点击穿透/透明度都在这里调。开了点击穿透后，雷达右下角会出现一个小"解锁"块，
-            鼠标悬停到它上面时会临时恢复交互，点一下就关掉穿透（穿透状态下收不到鼠标，所以要先解锁才能拖动）。</div>
+          <div class="hint">以上都<b>即时生效</b>。雷达没有按钮：<b>按住圆盘</b>拖动窗口（位置自动记忆）、<b>滚轮</b>缩放、
+            <b>Ctrl + 拖动</b>平移地图、<b>Ctrl + 双击</b>归零。开启点击穿透后，把鼠标移到右下角「解锁」可临时恢复操作。</div>
         </section>
 
         <section class="settings-card">
@@ -258,11 +247,11 @@
             <button type="button" id="set-autoshot-capture" title="点这里，然后按下你在游戏里用的截图键">按下按键捕获</button>
           </label>
           <div class="hint" id="set-autoshot-hint"></div>
-          <div class="hint">定位只能来自"游戏写出的带坐标截图"，所以这个功能是<b>替你有节奏地按一次游戏截图键</b>：
+          <div class="hint">定位只能来自游戏写出的带坐标截图，所以这个功能是<b>替你有节奏地按一次游戏截图键</b>：
             只在你<b>局内</b>且<b>游戏窗口在最前面</b>时按，连按 3 次都没拿到新坐标就自动暂停（多半是键位不对）。
-            游戏里改过截图键的话，这里要填同一个键（键名用 <code>PrintScreen</code> / <code>F12</code> / <code>KeyP</code> 这种写法，
-            也可以点「按下按键捕获」直接按一下）。建议同时开启「自动删除截图文件」，否则截图会越攒越多。
-            实现方式是向系统发一次按键（<b>不注入游戏进程、不读写游戏内存</b>），线上对局请自行评估风险。</div>
+            游戏里改过截图键的话，这里要填同一个键，也可以点「按下按键捕获」直接按一下。
+            建议同时开启「自动删除截图文件」，否则截图会越攒越多。
+            仅向系统发一次按键（<b>不注入游戏进程、不读写游戏内存</b>），线上对局请自行评估风险。</div>
         </section>
       </div>
       <div class="dialog-actions">
@@ -280,34 +269,29 @@
         <b>塔科夫地图</b>
         <span id="about-ver" class="about-ver">v-</span>
       </div>
-      <p class="about-desc">《逃离塔科夫》的第三方地图辅助工具：读游戏日志识别你在哪张图，读截图文件名定位你的位置与朝向，
-        离线查阅撤离点、Boss、钥匙锁、物资箱、赛季文件刷点与任务目标，并可选地和队友开一个房间，
-        互相看到彼此的位置与标注。</p>
+      <p class="about-desc">《逃离塔科夫》的第三方地图辅助工具：自动识别地图、按截图定位，离线查阅撤离点、Boss、钥匙锁、物资箱、赛季文件刷点与任务目标，也可和队友开房间互看位置与标注。</p>
       <ul class="about-feats">
-        <li><b>日志识图</b>：自动识别当前地图，进图 / 过图自动切换，认错了也能手动选图</li>
-        <li><b>截图定位</b>：游戏中按 <b>Print Screen</b>，地图上立刻标出位置、朝向与移动轨迹</li>
-        <li><b>悬浮小地图</b>：可拖动的圆形雷达置顶在游戏画面上，滚轮缩放、Ctrl 拖动平移、支持点击穿透</li>
-        <li><b>标记与图例</b>：撤离点 / 转移点 / Boss / 出生点 / 钥匙锁 / 物资箱 / 地名 / 赛季文件刷点，右侧图例逐项开关；
-          每一大类右上角的 <b>Aa</b> 还能单独关掉这一类在地图与雷达上的文字（只留图标）</li>
-        <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，点标记看商人、等级、阶段、任务物品与所需钥匙；
-          点开任务卡还能直接看<b>中文任务描述、攻略与攻略截图</b>（来自逃离塔科夫中文Wiki，已署名回链）</li>
-        <li><b>资料库</b>（v2.5 新增，全部离线内置）：物品与跳蚤价格（PVP / PVE 分开）、弹药表、防具、钥匙使用次数、
-          藏身处升级计算器、制作 / 交换利润、倒卖排行、BOSS 刷新率</li>
-        <li><b>手动标注</b>：顶栏常驻工具条（画笔 / 路径 / 直线 / 箭头 / 椭圆 / 矩形 + 「取消」退出），按地图保存（存世界坐标，缩放旋转都不跑位）</li>
-        <li><b>房间联机</b>（v2.0 新增，可选）：填自己的服务器地址，和队友互相看到位置、朝向与标注</li>
+        <li><b>日志识图</b>：自动识别当前地图，进图自动切换，也能手动选图</li>
+        <li><b>截图定位</b>：游戏中按 <b>Print Screen</b>，地图上立刻标出位置、朝向与轨迹</li>
+        <li><b>悬浮小地图</b>：可拖动的圆形雷达置顶在游戏上，滚轮缩放、Ctrl 拖动平移、支持点击穿透</li>
+        <li><b>标记与图例</b>：撤离点 / Boss / 钥匙锁 / 物资箱等分类开关，还能按大类只留图标不显示文字</li>
+        <li><b>任务清单</b>：搜索勾选任务，把目标地点画在地图上，并查看中文任务描述、攻略与截图</li>
+        <li><b>资料库</b>：离线查物品价格、弹药、防具、钥匙、藏身处与制作 / 交换、BOSS</li>
+        <li><b>手动标注</b>：画笔 / 路径 / 直线 / 箭头 / 椭圆 / 矩形，按地图保存</li>
+        <li><b>房间联机</b>：填自己的服务器地址，和队友互看位置与标注（可选）</li>
       </ul>
       <div class="about-row">
         <span class="about-label">开源地址</span>
         <a id="about-repo" href="https://github.com/NepPure/tarkov-offline-map">github.com/NepPure/tarkov-offline-map</a>
       </div>
       <div class="about-row">
-        <span class="about-label">数据来源</span>
-        <span>地图与物品来自 <a id="about-tarkovdev" href="https://tarkov.dev">tarkov.dev</a>；
-          任务描述、攻略与截图来自 <a id="about-wiki" href="https://www.eftarkov.com">逃离塔科夫中文Wiki</a>（已逐任务署名与回链）</span>
+        <span class="about-label">内容来源</span>
+        <span>地图与物品资料来自 <a id="about-tarkovdev" href="https://tarkov.dev">tarkov.dev</a>；
+          任务描述、攻略与截图来自 <a id="about-wiki" href="https://www.eftarkov.com">逃离塔科夫中文Wiki</a></span>
       </div>
-      <p class="about-note">默认不联网：程序本身不发送任何请求，只有你在设置里填写了房间服务器地址后才会连接它。
+      <p class="about-note">默认不联网：不填房间服务器地址就不会发起任何网络请求。
         本项目与 Battlestate Games 无关，游戏素材版权归 Battlestate Games 所有；
-        攻略与截图版权归原站与原作者所有，本项目为开源非商业项目，如权利人不同意收录请提 issue。</p>
+        攻略与截图版权归原站与原作者所有，本项目开源非商业。</p>
       <div class="dialog-actions">
         <button value="ok" id="about-ok">知道了</button>
       </div>

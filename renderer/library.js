@@ -111,20 +111,20 @@ function matchText(text, q) { return String(text == null ? '' : text).toLowerCas
 
 // 页签顺序就是界面顺序；dumps = 这个页签需要哪些数据文件（缺一个就整页占位）
 const TABS = [
-  { id: 'items', label: '物品', dumps: ['economy'], ph: '搜索物品中文名 / 短名 / id' },
-  { id: 'ammo', label: '弹药', dumps: ['economy'], ph: '搜索弹药名称 / 短名' },
-  { id: 'gear', label: '防具', dumps: ['economy'], ph: '搜索防具名称 / 短名' },
-  { id: 'keys', label: '钥匙', dumps: ['economy'], ph: '搜索钥匙名称 / 短名' },
-  { id: 'collect', label: '收集', dumps: ['economy', 'market', 'requirements'], ph: '搜索物品名称 / 短名 / id' },
-  { id: 'hideout', label: '藏身处', dumps: ['economy', 'market'], ph: '搜索藏身处模块' },
-  { id: 'craft', label: '制作', dumps: ['economy', 'market'], ph: '搜索产出物 / 材料 / 设施' },
-  { id: 'barter', label: '交换', dumps: ['economy', 'market'], ph: '搜索换取物品 / 材料 / 商人' },
-  { id: 'resale', label: '倒卖', dumps: ['economy'], ph: '搜索物品名称' },
-  { id: 'ritual', label: '仪式圈', dumps: ['economy'], ph: '搜索结果物品名称' },
-  { id: 'traits', label: '特质', dumps: ['traits'], ph: '搜索特质名称' },
-  { id: 'boss', label: 'BOSS', dumps: ['bosses'], ph: '搜索 BOSS 名称 / 地图' },
-  { id: 'btr', label: 'BTR', dumps: ['btr'], ph: '搜索地图 / 路线 / 站点' },
-  { id: 'source', label: '来源', dumps: ['economy', 'market', 'bosses', 'taskGuides', 'btr', 'requirements', 'traits'], ph: '来源页无需搜索' },
+  { id: 'items', label: '物品', dumps: ['economy'], ph: '搜索物品' },
+  { id: 'ammo', label: '弹药', dumps: ['economy'], ph: '搜索弹药' },
+  { id: 'gear', label: '防具', dumps: ['economy'], ph: '搜索防具' },
+  { id: 'keys', label: '钥匙', dumps: ['economy'], ph: '搜索钥匙' },
+  { id: 'collect', label: '收集', dumps: ['economy', 'market', 'requirements'], ph: '搜索物品' },
+  { id: 'hideout', label: '藏身处', dumps: ['economy', 'market'], ph: '搜索模块' },
+  { id: 'craft', label: '制作', dumps: ['economy', 'market'], ph: '搜索配方' },
+  { id: 'barter', label: '交换', dumps: ['economy', 'market'], ph: '搜索交换' },
+  { id: 'resale', label: '倒卖', dumps: ['economy'], ph: '搜索物品' },
+  { id: 'ritual', label: '仪式圈', dumps: ['economy'], ph: '搜索物品' },
+  { id: 'traits', label: '特质', dumps: ['traits'], ph: '搜索特质' },
+  { id: 'boss', label: 'BOSS', dumps: ['bosses'], ph: '搜索 BOSS' },
+  { id: 'btr', label: 'BTR', dumps: ['btr'], ph: '搜索地图' },
+  { id: 'source', label: '来源', dumps: ['economy', 'market', 'bosses', 'taskGuides', 'btr', 'requirements', 'traits'], ph: '无需搜索' },
 ];
 
 const DUMPS = {
@@ -186,10 +186,9 @@ function gearTypeOf(g) {
 }
 
 const SOURCE_LINKS = [
-  { label: 'tarkov.dev（物品 / 价格数据源）', url: 'https://tarkov.dev' },
-  { label: '逃离塔科夫中文 Wiki（任务攻略 / 截图 / 物品 Wiki）', url: 'https://www.eftarkov.com' },
-  { label: 'kaedeori 中文站（BOSS 刷新数据整理）', url: 'https://member.kaedeori.com/api/tarkov/boss/list' },
-  { label: 'Battlestate Games（游戏官网，素材版权方）', url: 'https://www.escapefromtarkov.com' },
+  { label: 'tarkov.dev（数据源）', url: 'https://tarkov.dev' },
+  { label: '逃离塔科夫中文 Wiki', url: 'https://www.eftarkov.com' },
+  { label: 'Battlestate Games（版权方）', url: 'https://www.escapefromtarkov.com' },
 ];
 
 const LS_MODE = 'tarkov-lib-mode';
@@ -397,7 +396,7 @@ function fleaBlockHtml(item) {
     ['48h 变化', changeHtml(q)],
     ['报价数', num(q.offers)],
   ]);
-  html += '<div class="detail-note">上游更新时间：' + escapeHtml(fmtTime(q.updated)) + ' · 扫描时间：' + escapeHtml(fmtTime(q.scan)) + '</div>';
+  html += '<div class="detail-note">数据时间：' + escapeHtml(fmtTime(q.updated || q.scan)) + '</div>';
   return html;
 }
 
@@ -618,8 +617,7 @@ function renderItems() {
     if (cat && it.cat !== cat && (it.cats || []).indexOf(cat) < 0) continue;
     rows.push(itemRow(it));
   }
-  const tools = '<label>分类 ' + selectHtml('f-category', handbookCategoryOptions(), cat, '全部分类') + '</label>' +
-    '<span class="muted">每格价值 = 当前跳蚤价 ÷ 格数</span>';
+  const tools = '<label>分类 ' + selectHtml('f-category', handbookCategoryOptions(), cat, '全部分类') + '</label>';
   renderList({
     tabId: 'items', columns: ITEM_COLUMNS, rows: rows, defaultSort: { key: 'perSlot', dir: 'desc' },
     tools: tools, keyOf: function (r) { return r.key; }, selectedKey: state.sel.items,
@@ -705,13 +703,13 @@ function renderAmmo() {
     { key: 'speed', label: '初速', sortDir: 'desc', align: 'num', value: function (r) { return r.speed; }, cell: function (r) { return num(r.speed); } },
     { key: 'avg', label: '跳蚤均价', sortDir: 'desc', align: 'num', value: function (r) { return r.avg != null ? r.avg : r.base; }, cell: function (r) {
       if (r.avg != null) return rub(r.avg);
-      if (r.base != null) return '<span class="muted" title="上游没有跳蚤成交价，这里显示基准价">' + rub(r.base) + ' *</span>';
+      if (r.base != null) return '<span class="muted" title="暂无跳蚤成交价，显示基准价">' + rub(r.base) + ' *</span>';
       return '—';
     } },
     { key: 'best', label: '最好的商人收购', sortDir: 'desc', align: 'num', value: function (r) { return r.best; }, cell: function (r) { return rub(r.best); } },
   ];
   const tools = '<label>口径 ' + selectHtml('f-caliber', ammoCaliberOptions(all), cal, '全部口径') + '</label>' +
-    (noFlea ? '<span class="muted">带 * 的是基准价（上游这批弹药没有跳蚤成交数据）</span>' : '');
+    (noFlea ? '<span class="muted">带 * 暂无跳蚤成交价，显示基准价</span>' : '');
   renderList({
     tabId: 'ammo', columns: columns, rows: rows, defaultSort: { key: 'pen', dir: 'desc' },
     tools: tools, keyOf: function (r) { return r.key; }, selectedKey: state.sel.ammo,
@@ -1124,7 +1122,7 @@ function renderCraft() {
   const stationOpts = Object.keys(stationSet).map(function (id) { return { value: id, label: stationLabel(id) }; });
   stationOpts.sort(function (a, b) { return a.label.localeCompare(b.label, 'zh-Hans-CN'); });
   const tools = '<label>设施 ' + selectHtml('f-station', stationOpts, stationFilter, '全部设施') + '</label>' +
-    '<span class="muted">工具不消耗，已排除在材料成本外 · 价格按 ' + escapeHtml(modeLabel()) + '</span>';
+    '<span class="muted">工具不计入成本 · 价格按 ' + escapeHtml(modeLabel()) + '</span>';
   renderList({
     tabId: 'craft', columns: columns, rows: rows, defaultSort: { key: 'perHour', dir: 'desc' },
     tools: tools, keyOf: function (r) { return r.key },
@@ -1193,7 +1191,7 @@ function renderBarter() {
   const traderOpts = Object.keys(traderSet).map(function (id) { return { value: id, label: traderName(id) }; });
   traderOpts.sort(function (a, b) { return a.label.localeCompare(b.label, 'zh-Hans-CN'); });
   const tools = '<label>商人 ' + selectHtml('f-trader', traderOpts, traderFilter, '全部商人') + '</label>' +
-    '<span class="muted">成本/价值按 ' + escapeHtml(modeLabel()) + ' 跳蚤价折算，卢布按面值</span>';
+    '<span class="muted">按 ' + escapeHtml(modeLabel()) + ' 跳蚤价折算</span>';
   renderList({
     tabId: 'barter', columns: columns, rows: rows, defaultSort: { key: 'profit', dir: 'desc' },
     tools: tools, keyOf: function (r) { return r.key },
@@ -1242,8 +1240,8 @@ function renderResale() {
   renderList({
     tabId: 'resale', columns: columns, rows: rows, defaultSort: { key: 'profit', dir: 'desc' },
     limit: 300, keyOf: function (r) { return r.key },
-    summary: '共 ' + num(rows.length) + ' 条可倒卖（商人买入价 < 跳蚤当前价），按当前排序取前 300 条 · 价格按 ' + escapeHtml(modeLabel()),
-    emptyText: '当前模式没有可倒卖的物品（商人买入价都不低于跳蚤价）。',
+    summary: '共 ' + num(rows.length) + ' 条可倒卖 · 按当前排序取前 300 条 · 价格按 ' + escapeHtml(modeLabel()),
+    emptyText: '当前模式没有可倒卖的物品。',
   });
   hideDetail();
 }
@@ -1294,31 +1292,18 @@ function renderBoss() {
 
 function renderSource() {
   const host = $('#list-host');
+  const d = state.data.economy || state.data.market || state.data.bosses;
   let html = '<div class="table-wrap" style="padding:14px 16px">';
   html += '<h4 style="color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:8px">数据来源与版权</h4>';
-  html += '<div class="detail-note">本软件是开源、非商业项目；下列数据都在构建期抓取并内置，运行时完全离线，不会联网。' +
-    '游戏内的名称、图标、头像等素材版权归 <b>Battlestate Games</b> 所有，本站仅作非商业的离线查询用途。</div>';
-  html += '<table class="mini-table" style="margin-top:10px"><thead><tr><th>数据文件</th><th>抓取时间</th><th>上游来源</th><th>说明</th></tr></thead><tbody>';
-  for (const key of ['economy', 'market', 'bosses', 'taskGuides', 'btr', 'requirements', 'traits']) {
-    const d = state.data[key];
-    const meta = DUMPS[key];
-    html += '<tr><td><code>data/' + escapeHtml(meta.file) + '</code></td>' +
-      '<td>' + escapeHtml(d ? fmtTime(d.fetchedAt) : '缺失') + '</td>' +
-      '<td>' + escapeHtml(d && d.source ? d.source : '—') + '</td>' +
-      '<td>' + escapeHtml(d && d.attribution ? d.attribution : '（文件缺失，请运行 ' + meta.script + '）') + '</td></tr>';
-  }
-  html += '</tbody></table>';
+  html += '<div class="detail-note">物品 / 价格 / 任务 / BOSS 数据来自 tarkov.dev，中文任务资料来自 逃离塔科夫中文 Wiki；' +
+    '游戏内名称、图标、头像等素材版权归 <b>Battlestate Games</b> 所有，仅供非商业的离线查询。</div>';
+  html += '<div class="detail-note">数据时间：' + escapeHtml(d && d.fetchedAt ? fmtTime(d.fetchedAt) : '—') + '</div>';
   html += '<h4 style="color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px;margin:14px 0 8px">相关链接</h4>';
   html += '<div class="detail-actions" style="margin-top:0">';
   for (const l of SOURCE_LINKS) {
     html += '<button type="button" class="link-btn" data-act="open-url" data-url="' + escapeHtml(l.url) + '">' + escapeHtml(l.label) + '</button>';
   }
   html += '</div>';
-  html += '<h4 style="color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px;margin:14px 0 8px">重新生成数据</h4>';
-  html += '<div class="detail-note">物品与价格/弹药/防具/钥匙：<code>npm run fetch:upstream</code> 后 <code>npm run fetch:economy</code>（图标 <code>npm run fetch:item-icons</code>）；'
-    + '交换/制作/藏身处：<code>npm run fetch:market</code>；BOSS：<code>npm run fetch:bosses</code>；'
-    + '任务攻略与截图：<code>npm run fetch:guides</code> + <code>npm run fetch:shots</code>；'
-    + 'BTR：<code>npm run fetch:btr</code>；收集清单：<code>npm run fetch:requirements</code>；特质：<code>npm run fetch:traits</code>。</div>';
   html += '</div>';
   host.innerHTML = html;
   hideDetail();
@@ -1418,7 +1403,7 @@ function renderCollect() {
     { key: 'subtotal', label: '合计价值', sortDir: 'desc', align: 'num', value: function (r) { return r.subtotal; }, cell: function (r) { return rub(r.subtotal); } },
   ];
   const summary = '涉及物品 ' + num(rows.length) + ' 种 · 总价值 ' + rub(allValue) + ' · 已收集 ' + done + '/' + rows.length +
-    ' · 剩余价值 ' + rub(leftValue) + ' · ' + escapeHtml(modeLabel()) + ' 价格（卢布不计入）';
+    ' · 剩余价值 ' + rub(leftValue) + ' · ' + escapeHtml(modeLabel()) + ' 价格';
   renderList({
     tabId: 'collect', columns: columns, rows: rows, defaultSort: { key: 'subtotal', dir: 'desc' },
     keyOf: function (r) { return r.key; }, selectedKey: state.sel.collect,
@@ -1676,27 +1661,22 @@ function renderRitualView(plan) {
   const tools = '<div class="ritual-head">' +
     '<label>献祭阈值 <input type="number" id="ritual-num" min="10000" max="2000000" step="1000" value="' + th + '" /> ₽</label>' +
     '<input type="range" id="ritual-range" min="10000" max="2000000" step="1000" value="' + th + '" title="拖动后松手才会重算" />' +
-    '<label>每件上限 <input type="number" id="ritual-limit" min="1" max="50" step="1" value="' + limit + '" title="同一件物品最多买几件（多重背包的件数上限）" /> 件</label>' +
+    '<label>每件上限 <input type="number" id="ritual-limit" min="1" max="50" step="1" value="' + limit + '" title="同一件物品最多买几件" /> 件</label>' +
     '<button type="button" data-act="ritual-preset" data-value="350001">350,001</button>' +
     '<button type="button" data-act="ritual-preset" data-value="400000">400,000</button>' +
-    '<span class="muted">口径：基准价来自游戏数据 base price，跳蚤价来自价格快照，两者都会过期。</span>' +
-    '<span class="muted">已排除报价数 &lt; 5 或价格低于基准价 10% 的异常挂单；每件最多买 ' + num(limit) + ' 件（可改）。</span>' +
-    '<span class="muted">算法：把每件物品的基准价按 1000 向下取整成桶，做一维多重背包 DP（价值 = 桶数，成本 = 跳蚤价，每种最多 ' + num(limit) + ' 件，单调队列优化）；先满足桶数和 ≥ ceil(阈值 ÷ 1000)，再取跳蚤成本最低的一组。</span>' +
-    '<span class="muted">用法：设好阈值与每件上限后，下面的清单就是「买什么、各买几个、一共花多少」；点表头排序，超过 100 行会自动分页。</span>' +
+    '<span class="muted">已排除异常挂单</span>' +
     '</div>';
   let summary;
   const rows = [];
   if (!plan) {
-    summary = '<span class="computing">计算中…</span> 正在求「基准价合计 ≥ ' + rub(th) + '、跳蚤成本最低」的组合';
+    summary = '<span class="computing">计算中…</span>';
   } else if (plan.error) {
     summary = '计算出错了，换个阈值或模式再试。';
   } else if (plan.noSolution) {
     summary = '<span class="chg down">当前约束下凑不到这个阈值，试试降低阈值或放宽每件上限。</span>';
   } else {
     summary = '基准价合计 <b>' + rub(plan.baseSum) + '</b>（比阈值高 ' + rub(plan.over) + '）· 跳蚤成本合计 <b>' + rub(plan.costSum) +
-      '</b> · 物品 ' + num(plan.qty) + ' 件 / ' + num(plan.items.length) + ' 种 · 候选 ' + num(plan.candidates) +
-      ' 种（过滤异常 ' + num(plan.skipPrice + plan.skipOffers) + ' 种）· 每件上限 ' + num(plan.limit) +
-      ' · 用时 ' + plan.ms.toFixed(0) + ' ms · ' + escapeHtml(modeLabel()) + ' 价格';
+      '</b> · 物品 ' + num(plan.qty) + ' 件 / ' + num(plan.items.length) + ' 种 · ' + escapeHtml(modeLabel()) + ' 价格';
     for (const r of plan.items) {
       if (q && !matchText(r.name, q)) continue;
       rows.push(r);
@@ -1811,14 +1791,13 @@ function renderTraits() {
     '<span>已选 <b>' + state.traits.selected.length + '</b> 个</span>' +
     '<span>正向点数 <b class="up">' + pos + '</b></span>' +
     '<span>负向点数 <b class="down">' + neg + '</b></span>' +
-    '<span>剩余可支配 <b class="' + (over ? 'down' : '') + '">' + remainder + '</b>（预算 − 正向 + 负向）</span>' +
+    '<span>剩余可支配 <b class="' + (over ? 'down' : '') + '">' + remainder + '</b></span>' +
     '<label>点数预算 <input type="number" id="trait-budget" min="0" max="999" step="1" value="' + budget + '" /></label>' +
     '<button type="button" data-act="clear-traits">清空选择</button>' +
     '</div>';
-  if (over) html += '<div class="trait-warn">正向点数已超出预算 ' + Math.abs(remainder) + ' 点（不禁止选择，只是标红提示）。</div>';
+  if (over) html += '<div class="trait-warn">正向点数已超出预算 ' + Math.abs(remainder) + ' 点（仍可继续选择）。</div>';
   html += renderTraitSection('正向特质', 'positive', q);
   html += renderTraitSection('负向特质', 'negative', q);
-  html += '<div class="detail-note">冲突规则是双向的：任意一项已选特质与它互指，卡片就会置灰并标注冲突对象。选择与预算都存在本机 localStorage。</div>';
   html += '</div>';
   const host = $('#list-host');
   host.innerHTML = html;
@@ -1869,8 +1848,8 @@ const BTR_COLUMNS = [
   { key: 'name', label: '路线名', sortDir: 'asc', value: function (r) { return r.name; }, cell: function (r) { return escapeHtml(r.name); } },
   { key: 'group', label: '分组', sortDir: 'asc', value: function (r) { return r.group; }, cell: function (r) { return escapeHtml(r.group); } },
   { key: 'spawnTime', label: '出现时刻', sortDir: 'asc', value: function (r) { return r.spawnTime; }, cell: function (r) { return escapeHtml(clockText(r.spawnTime)); } },
-  { key: 'stops', label: '途经站点数', sortDir: 'desc', align: 'num', value: function (r) { return r.stops; }, cell: function (r) { return num(r.stops); } },
-  { key: 'loop', label: '完整一圈耗时', sortDir: 'asc', align: 'num', value: function (r) { return r.loop; }, cell: function (r) { return r.loop == null ? '—' : escapeHtml(fmtDuration(r.loop)); } },
+  { key: 'stops', label: '途经站点数', title: '估算：站点到路线路径点最近距离 ≤ ' + BTR_STOP_TOL + ' 像素即算经过', sortDir: 'desc', align: 'num', value: function (r) { return r.stops; }, cell: function (r) { return num(r.stops); } },
+  { key: 'loop', label: '完整一圈耗时', title: '估算：站点数 × 每站停靠时长，不含行驶时间', sortDir: 'asc', align: 'num', value: function (r) { return r.loop; }, cell: function (r) { return r.loop == null ? '—' : escapeHtml(fmtDuration(r.loop)); } },
 ];
 const BTR_DIR = { name: 'asc', group: 'asc', spawnTime: 'asc', stops: 'desc', loop: 'asc' };
 
@@ -1885,8 +1864,7 @@ function renderBtr() {
   for (const m of maps) { totalRoutes += (m.routes || []).length; totalStops += (m.stops || []).length; }
   let html = '<div class="page-scroll">';
   html += '<div class="list-summary">' + num(maps.length) + ' 张地图 · ' + num(totalRoutes) + ' 条路线 · ' + num(totalStops) +
-    ' 个站点' + (dump.version ? ' · 数据版本 v' + escapeHtml(String(dump.version)) : '') +
-    ' · 「途经站点数」按站点到路线路径点最近距离 ≤ ' + BTR_STOP_TOL + ' 像素估算</div>';
+    ' 个站点' + (dump.version ? ' · 数据版本 v' + escapeHtml(String(dump.version)) : '') + '</div>';
 
   for (const m of maps) {
     const mapHit = !q || matchText(m.name, q) || matchText(m.key, q);
@@ -1910,15 +1888,15 @@ function renderBtr() {
       '<span class="tag">整局 <b>' + escapeHtml(fmtDuration(m.raidDuration)) + '</b></span>' +
       '<span class="tag">刷新率 <b>' + (toNum(m.spawnChance) == null ? '—' : m.spawnChance + '%') + '</b></span>' +
       '<span class="tag">每站停靠 <b>' + escapeHtml(fmtDuration(m.stopDuration)) + '</b></span>' +
-      '<span class="tag">' + num(stopsAll.length) + ' 站 / ' + num((m.routes || []).length) + ' 条路线</span>' +
-      '<span class="tag">底图 ' + escapeHtml((m.sourceWidth || '?') + '×' + (m.sourceHeight || '?')) + '</span></div>';
+      '<span class="tag">' + num(stopsAll.length) + ' 站 / ' + num((m.routes || []).length) + ' 条路线</span></div>';
 
     const sorted = sortRows(routes, sort, BTR_COLUMNS);
     html += '<div class="table-wrap btr-table"><table class="lib-table"><thead><tr>';
     for (const c of BTR_COLUMNS) {
       const active = sort.key === c.key;
       html += '<th class="' + (c.align === 'num' ? 'num ' : '') + 'sortable' + (active ? ' active' : '') +
-        '" data-btr-sort="' + escapeHtml(c.key) + '">' + escapeHtml(c.label) + (active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '') + '</th>';
+        '" data-btr-sort="' + escapeHtml(c.key) + '"' + (c.title ? ' title="' + escapeHtml(c.title) + '"' : '') + '>' +
+        escapeHtml(c.label) + (active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '') + '</th>';
     }
     html += '</tr></thead><tbody>';
     if (!sorted.length) html += '<tr class="empty-row"><td colspan="' + BTR_COLUMNS.length + '">没有匹配的路线。</td></tr>';
@@ -1973,9 +1951,6 @@ function showBtrDetail(mapKey, routeId) {
   }
   if (!map || !route) { hideDetail(); return; }
   state.sel.btr = mapKey + '|' + routeId;
-  const path = route.path || [];
-  const first = path[0] || null;
-  const last = path[path.length - 1] || null;
   const stops = btrRouteStops(map, route, BTR_STOP_TOL);
   const stopDur = toNum(map.stopDuration);
   const loop = stopDur == null ? null : stops * stopDur;
@@ -1983,15 +1958,10 @@ function showBtrDetail(mapKey, routeId) {
     '<div class="detail-sub">分组 ' + escapeHtml(btrGroupName(map, route.group)) + ' · 出现时刻 ' + escapeHtml(clockText(route.spawnTime)) + '</div>' +
     '<div class="detail-sub mono">' + escapeHtml(route.id) + '</div></div></div>';
   html += statGrid([
-    ['path 点数', num(path.length)],
-    ['首点坐标', first ? num(first.x) + ', ' + num(first.y) : '—'],
-    ['尾点坐标', last ? num(last.x) + ', ' + num(last.y) : '—'],
-    ['沿线站点数', num(stops)],
+    ['沿线站点数', num(stops) + '（估算）'],
     ['完整一圈耗时', loop == null ? '—' : escapeHtml(fmtDuration(loop)) + '（估算）'],
-    ['地图底图', escapeHtml((map.sourceWidth || '?') + '×' + (map.sourceHeight || '?'))],
   ]);
-  html += '<div class="detail-note">坐标是该地图 SVG 的像素坐标（和地图窗口用的是同一套底图）。' +
-    '完整一圈耗时 = 沿线站点数 × 每站停靠时长，不含行驶时间，只是粗略估算。</div>';
+  html += '<div class="detail-note">一圈耗时按站点数 × 每站停靠时长估算，不含行驶时间。</div>';
   showDetail(html);
 }
 
@@ -2139,10 +2109,8 @@ function wireChrome() {
 }
 
 function showMissing(key, tab) {
-  const meta = DUMPS[key];
-  $('#list-host').innerHTML = '<div class="placeholder">数据缺失，请运行 <code>' + escapeHtml(meta.script) +
-    '</code> 重新生成 <code>data/' + escapeHtml(meta.file) + '</code>。<br>' +
-    '「' + escapeHtml(tab.label) + '」页签暂时不可用，其它页签不受影响。</div>';
+  $('#list-host').innerHTML = '<div class="placeholder">「' + escapeHtml(tab.label) +
+    '」页签的数据缺失，暂时不可用；其它页签不受影响。</div>';
   hideDetail();
 }
 
@@ -2157,7 +2125,7 @@ async function render() {
   const host = $('#list-host');
   let loading = false;
   for (const key of tab.dumps) if (!state.data[key] && !state.loadErr[key]) loading = true;
-  if (loading) host.innerHTML = '<div class="placeholder">正在加载数据…（首次打开较大的 JSON 需要一两秒）</div>';
+  if (loading) host.innerHTML = '<div class="placeholder">正在加载数据…</div>';
 
   for (const key of tab.dumps) {
     await ensureDump(key);
@@ -2176,8 +2144,7 @@ async function render() {
     renderTab(tab);
   } catch (e) {
     console.error('[资料库] 页签渲染失败', e);
-    host.innerHTML = '<div class="placeholder">这个页签渲染出错了：' + escapeHtml(e && e.message ? e.message : String(e)) +
-      '<br>其它页签仍然可用。</div>';
+    host.innerHTML = '<div class="placeholder">这个页签渲染出错了，其它页签仍然可用。</div>';
     hideDetail();
   }
 }

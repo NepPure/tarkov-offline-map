@@ -763,7 +763,6 @@ function createMainWindow() {
   //   `Browser.getWindowForTarget` / `Browser.setWindowBounds` 这套浏览器域方法 Electron 也没有。
   //   所以只能在主进程加这一个 flag 门控的分支 —— **不带这个参数时行为完全不变**。
   const recArg = process.argv.find((x) => x.startsWith('--record-size='));
-  createSplashWindow(); // 越早越好：先让用户看到一张图
   const recSize = (() => {
     if (!recArg) return null;
     const m = /^(\d+)x(\d+)$/.exec(recArg.split('=')[1] || '');
@@ -2126,6 +2125,9 @@ async function runVisualTest() {
   }, 20000);
 }
 app.whenReady().then(() => {
+  // 越早越好：便携包的 NSIS 启动图在拉起应用前就销毁了，到主窗口画出来之间这一段
+  // 只有这张应用内启动图能顶上，所以放在所有初始化之前。
+  createSplashWindow();
   settings = loadSettings();
   mapsData.load(path.join(DATA_DIR, 'maps-dump.json'), { dataRoot: DATA_DIR });
   // 人工补录点位（上游缺漏，见 data/manual-extracts.json）
