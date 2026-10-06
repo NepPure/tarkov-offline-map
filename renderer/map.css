@@ -558,6 +558,13 @@ dialog::backdrop { background: rgba(0,0,0,0.5); }
 }
 .quest-obj.optional .quest-obj-type { color: var(--muted); border-color: var(--line); }
 .quest-obj-text { flex: 1; }
+/* 任务行右侧的「详情」按钮（和地图上点任务点弹出的是同一张卡） */
+.quest-row-actions { flex: none; display: flex; align-items: center; padding-top: 1px; }
+.quest-detail-btn {
+  font-size: 10px; padding: 0 6px; line-height: 16px;
+  background: var(--panel2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px;
+}
+.quest-detail-btn:hover { border-color: var(--accent); color: var(--accent); }
 .quest-obj-go {
   flex: none; font-size: 10px; padding: 0 6px; line-height: 16px;
   background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px;

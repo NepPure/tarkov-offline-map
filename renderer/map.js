@@ -2051,7 +2051,21 @@ function questRow(task, mapId) {
     ${bringBadge}
     ${locBadge}`;
   text.append(name, sub, badges);
-  main.append(box, text);
+  // 右侧「详情」：和地图上点任务点弹出的是**同一张卡**（中文说明 / 攻略 / 截图 / 奖励 / Wiki 链接），
+  // 这样不用先在地图上找到这个任务的标记也能看攻略。
+  const actions = document.createElement('div');
+  actions.className = 'quest-row-actions';
+  const detailBtn = document.createElement('button');
+  detailBtn.type = 'button';
+  detailBtn.className = 'quest-detail-btn';
+  detailBtn.textContent = '详情';
+  detailBtn.title = '打开任务详情：说明 / 攻略 / 截图 / 奖励 / Wiki';
+  detailBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // 别顺手把这一行展开/收起
+    showQuestCard({ id: task.id, label: task.name }, null);
+  });
+  actions.appendChild(detailBtn);
+  main.append(box, text, actions);
   row.appendChild(main);
 
   // 展开：目标明细（点任务名展开，勾选框不触发）

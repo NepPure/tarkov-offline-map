@@ -354,6 +354,46 @@ function check(name, ok, detail) {
     check('详情卡有可用的操作按钮', cardState && cardState.buttons.length >= 3, JSON.stringify(cardState && cardState.buttons));
     await shot('quest-card.png');
 
+    // 侧边栏任务行的「详情」按钮：不用先在地图上找到这个任务的标记，也能弹出同一张卡
+    const rowTask = await ev(`(() => {
+      const btn = document.querySelector('.quest-row .quest-detail-btn');
+      if (!btn) return null;
+      const row = btn.closest('.quest-row');
+      const name = row && row.querySelector('.quest-row-name') ? row.querySelector('.quest-row-name').textContent : '';
+      btn.click();
+      return name;
+    })()`);
+    await sleep(700);
+    const rowCard = await ev(`(() => {
+      const c = document.querySelector('#info-card');
+      if (!c || c.classList.contains('hidden')) return null;
+      return {
+        title: c.querySelector('h4') ? c.querySelector('h4').textContent : null,
+        buttons: [...c.querySelectorAll('.info-actions button')].map((b) => b.textContent),
+        text: (c.innerText || ''),
+      };
+    })()`);
+    check('侧边栏任务行有「详情」按钮，点它弹出的是同一张任务卡',
+      Boolean(rowTask) && rowCard && rowCard.title === rowTask && rowCard.buttons.length >= 3 && /tarkov\.dev/.test(rowCard.text),
+      JSON.stringify(rowCard ? { title: rowCard.title, buttons: rowCard.buttons } : null).slice(0, 200));
+    check('点行内「详情」不会把这一行展开/收起（事件不冒泡）',
+      await ev(`(() => {
+        const row = document.querySelector('.quest-row');
+        const before = row ? row.querySelectorAll('.quest-detail').length : -1;
+        const btn = row ? row.querySelector('.quest-detail-btn') : null;
+        if (!btn) return false;
+        btn.click();
+        return row.querySelectorAll('.quest-detail').length === before;
+      })()`), '');
+    await shot('quest-row-detail.png');
+    // 行内「详情」把卡片换成了"没有坐标"的那张，后面的用例要点 #qc-goto，得先把地图点开的那张换回来
+    await ev(`(() => {
+      const dot = document.querySelector('.quest-layer .quest-dot');
+      if (dot) dot.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return true;
+    })()`);
+    await sleep(500);
+
     // 详情卡里的"定位到这里"应该真的动视野（先把视野挪开，免得"本来就在那儿"误判）
     await ev(`(() => { const v = window.__view; const b = v.getMapPixelBounds();
       v.setViewport({ cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, scale: 1, rot: 0 });
