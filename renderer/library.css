@@ -186,6 +186,58 @@ code { background: var(--panel2); border: 1px solid var(--line); border-radius: 
 .req-table tr.req-done td { color: var(--muted); }
 .req-table input[type=checkbox] { accent-color: var(--accent); }
 
+/* ---------- 自定义页面（特质 / BTR）：整页可滚动的面板 ---------- */
+.page-scroll {
+  flex: 1; overflow: auto; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel); min-height: 0;
+}
+
+/* ---------- 仪式圈 ---------- */
+.ritual-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ritual-head input[type=number] { width: 110px; }
+.ritual-head input[type=range] { width: 200px; accent-color: var(--accent); }
+.computing { color: var(--yellow); }
+.list-summary b { color: var(--yellow); }
+
+/* ---------- 特质 ---------- */
+.trait-head {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 12px; font-size: 12px; color: var(--muted); margin-bottom: 10px;
+}
+.trait-head b { color: var(--text); font-size: 14px; }
+.trait-head b.up { color: var(--green); }
+.trait-head b.down { color: var(--red); }
+.trait-head input[type=number] { width: 70px; }
+.trait-warn {
+  margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--red); border-radius: 6px;
+  background: rgba(248, 113, 113, .12); color: var(--red); font-size: 12px;
+}
+.trait-title { margin: 14px 0 8px; font-size: 12px; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+.trait-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.trait-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  text-align: left; padding: 8px 10px; white-space: normal;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+}
+.trait-card.selected { background: #0e2a30; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.trait-card.blocked { opacity: .45; cursor: not-allowed; border-style: dashed; }
+.trait-card.blocked:hover { border-color: var(--line); color: var(--text); }
+.trait-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.trait-card.selected .trait-name { color: var(--accent); }
+.trait-points { font-size: 11px; color: var(--muted); }
+.trait-tag { font-size: 10px; color: var(--accent); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; }
+.trait-tag.warn { color: var(--red); border-color: var(--red); white-space: normal; }
+
+/* ---------- BTR ---------- */
+.btr-map { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; background: var(--panel2); }
+.btr-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.btr-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.btr-table { max-height: 320px; }
+.btr-table .lib-table thead th { background: var(--panel); }
+.btr-stops { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.btr-stops .tag b { color: var(--accent); }
+
 /* ---------- 窄屏：详情从右侧改为下方（宽度不够时表格本来就挤） ---------- */
 @media (max-width: 1100px) {
   .brand h1 { font-size: 13px; }

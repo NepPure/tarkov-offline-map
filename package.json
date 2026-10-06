@@ -49,7 +49,10 @@
     "fetch:bosses": "node tools/fetch-bosses.js",
     "fetch:guides": "node tools/fetch-task-guides.js",
     "fetch:shots": "node tools/fetch-task-shots.js",
-    "fetch:item-icons": "node tools/fetch-item-icons.js"
+    "fetch:item-icons": "node tools/fetch-item-icons.js",
+    "fetch:requirements": "node tools/fetch-requirements.js",
+    "fetch:btr": "node tools/fetch-btr.js",
+    "fetch:traits": "node tools/fetch-traits.js"
   },
   "devDependencies": {
     "electron": "^33.2.0",

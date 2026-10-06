@@ -115,12 +115,16 @@ const TABS = [
   { id: 'ammo', label: '弹药', dumps: ['economy'], ph: '搜索弹药名称 / 短名' },
   { id: 'gear', label: '防具', dumps: ['economy'], ph: '搜索防具名称 / 短名' },
   { id: 'keys', label: '钥匙', dumps: ['economy'], ph: '搜索钥匙名称 / 短名' },
+  { id: 'collect', label: '收集', dumps: ['economy', 'market', 'requirements'], ph: '搜索物品名称 / 短名 / id' },
   { id: 'hideout', label: '藏身处', dumps: ['economy', 'market'], ph: '搜索藏身处模块' },
   { id: 'craft', label: '制作', dumps: ['economy', 'market'], ph: '搜索产出物 / 材料 / 设施' },
   { id: 'barter', label: '交换', dumps: ['economy', 'market'], ph: '搜索换取物品 / 材料 / 商人' },
   { id: 'resale', label: '倒卖', dumps: ['economy'], ph: '搜索物品名称' },
+  { id: 'ritual', label: '仪式圈', dumps: ['economy'], ph: '搜索结果物品名称' },
+  { id: 'traits', label: '特质', dumps: ['traits'], ph: '搜索特质名称' },
   { id: 'boss', label: 'BOSS', dumps: ['bosses'], ph: '搜索 BOSS 名称 / 地图' },
-  { id: 'source', label: '来源', dumps: ['economy', 'market', 'bosses', 'taskGuides'], ph: '来源页无需搜索' },
+  { id: 'btr', label: 'BTR', dumps: ['btr'], ph: '搜索地图 / 路线 / 站点' },
+  { id: 'source', label: '来源', dumps: ['economy', 'market', 'bosses', 'taskGuides', 'btr', 'requirements', 'traits'], ph: '来源页无需搜索' },
 ];
 
 const DUMPS = {
@@ -129,6 +133,9 @@ const DUMPS = {
   market: { file: 'market-dump.json', script: 'npm run fetch:market' },
   bosses: { file: 'bosses-dump.json', script: 'npm run fetch:bosses' },
   taskGuides: { file: 'task-guides.json', script: 'npm run fetch:guides' },
+  btr: { file: 'btr-dump.json', script: 'npm run fetch:btr' },
+  requirements: { file: 'requirements-dump.json', script: 'npm run fetch:requirements' },
+  traits: { file: 'traits-dump.json', script: 'npm run fetch:traits' },
 };
 
 // 卢布：藏身处/交换的材料里它就是钱，按面值 1:1 计
@@ -187,6 +194,8 @@ const SOURCE_LINKS = [
 
 const LS_MODE = 'tarkov-lib-mode';
 const LS_HIDEOUT = 'tarkov-lib-hideout-v1';
+const LS_COLLECT = 'tarkov-lib-collect-v1';
+const LS_TRAITS = 'tarkov-lib-traits-v1';
 const PAGE_SIZE = 100;
 
 /* ===========================================================================
@@ -205,6 +214,10 @@ const state = {
   loadErr: {},   // 加载失败的 dump，避免每次渲染都重试同一个 404
   loading: {},   // 进行中的加载 Promise
   hideout: {},   // 藏身处勾选进度
+  collect: {},   // 收集清单勾选（物品 id -> true）
+  traits: { selected: [], budget: 20 },   // 特质模拟器（选择 + 点数预算）
+  ritual: { threshold: 400000, limit: 5, plan: null, planFor: null, pending: null }, // 仪式圈 DP 结果缓存（limit = 每件最多买几件）
+  btrSort: { key: 'spawnTime', dir: 'asc' }, // BTR 路线表排序（本地偏好，不落 localStorage）
 };
 
 let renderSeq = 0;      // 渲染序号：异步加载期间用户又切了页签时，丢掉过期的那次渲染
@@ -224,6 +237,26 @@ function loadHideoutState() {
   try { state.hideout = JSON.parse(lsGet(LS_HIDEOUT, '{}')) || {}; } catch (e) { state.hideout = {}; }
 }
 function saveHideout() { lsSet(LS_HIDEOUT, JSON.stringify(state.hideout || {})); }
+
+function loadCollect() {
+  try { state.collect = JSON.parse(lsGet(LS_COLLECT, '{}')) || {}; } catch (e) { state.collect = {}; }
+}
+function saveCollect() { lsSet(LS_COLLECT, JSON.stringify(state.collect || {})); }
+
+function loadTraitsState() {
+  try {
+    const raw = JSON.parse(lsGet(LS_TRAITS, '{}')) || {};
+    state.traits.selected = Array.isArray(raw.selected)
+      ? raw.selected.filter(function (x) { return typeof x === 'string'; })
+      : [];
+    const b = toNum(raw.budget);
+    state.traits.budget = b == null ? 20 : Math.max(0, Math.round(b));
+  } catch (e) {
+    state.traits.selected = [];
+    state.traits.budget = 20;
+  }
+}
+function saveTraitsState() { lsSet(LS_TRAITS, JSON.stringify(state.traits)); }
 
 /* ===========================================================================
  * 4. 数据加载与索引
@@ -490,7 +523,11 @@ function renderList(cfg) {
   if (cfg.onSelect) {
     for (const tr of host.querySelectorAll('tbody tr[data-idx]')) {
       const pick = function () { cfg.onSelect(slice[Number(tr.getAttribute('data-idx'))]); };
-      tr.addEventListener('click', pick);
+      // 行里可能有勾选框：点它只是勾选，不要顺带把详情面板顶开
+      tr.addEventListener('click', function (e) {
+        if (e.target && e.target.closest && e.target.closest('input, button, select, a')) return;
+        pick();
+      });
       tr.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
       });
@@ -518,7 +555,11 @@ function renderTab(tab) {
     case 'craft': renderCraft(); break;
     case 'barter': renderBarter(); break;
     case 'resale': renderResale(); break;
+    case 'collect': renderCollect(); break;
+    case 'ritual': renderRitual(); break;
+    case 'traits': renderTraits(); break;
     case 'boss': renderBoss(); break;
+    case 'btr': renderBtr(); break;
     case 'source': renderSource(); break;
     default: $('#list-host').innerHTML = '<div class="placeholder">未知页签。</div>';
   }
@@ -1258,7 +1299,7 @@ function renderSource() {
   html += '<div class="detail-note">本软件是开源、非商业项目；下列数据都在构建期抓取并内置，运行时完全离线，不会联网。' +
     '游戏内的名称、图标、头像等素材版权归 <b>Battlestate Games</b> 所有，本站仅作非商业的离线查询用途。</div>';
   html += '<table class="mini-table" style="margin-top:10px"><thead><tr><th>数据文件</th><th>抓取时间</th><th>上游来源</th><th>说明</th></tr></thead><tbody>';
-  for (const key of ['economy', 'market', 'bosses', 'taskGuides']) {
+  for (const key of ['economy', 'market', 'bosses', 'taskGuides', 'btr', 'requirements', 'traits']) {
     const d = state.data[key];
     const meta = DUMPS[key];
     html += '<tr><td><code>data/' + escapeHtml(meta.file) + '</code></td>' +
@@ -1276,10 +1317,682 @@ function renderSource() {
   html += '<h4 style="color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px;margin:14px 0 8px">重新生成数据</h4>';
   html += '<div class="detail-note">物品与价格/弹药/防具/钥匙：<code>npm run fetch:upstream</code> 后 <code>npm run fetch:economy</code>（图标 <code>npm run fetch:item-icons</code>）；'
     + '交换/制作/藏身处：<code>npm run fetch:market</code>；BOSS：<code>npm run fetch:bosses</code>；'
-    + '任务攻略与截图：<code>npm run fetch:guides</code> + <code>npm run fetch:shots</code>。</div>';
+    + '任务攻略与截图：<code>npm run fetch:guides</code> + <code>npm run fetch:shots</code>；'
+    + 'BTR：<code>npm run fetch:btr</code>；收集清单：<code>npm run fetch:requirements</code>；特质：<code>npm run fetch:traits</code>。</div>';
   html += '</div>';
   host.innerHTML = html;
   hideDetail();
+}
+
+/* ---------- 7.11 收集清单（任务需求 + 藏身处需求） ---------- */
+
+// 合并两类需求：
+//   任务需求 = requirements-dump 的 modes[mode][itemId] = [{name, traderName, count, foundInRaid}]
+//   藏身处需求 = market-dump 的 hideout.modules[].levels[].requirements[]
+// 返回 Map<itemId, { tasks, taskCount, hideout, hideoutCount }>
+function collectEntries() {
+  const map = new Map();
+  const get = function (id) {
+    let e = map.get(id);
+    if (!e) {
+      e = { id: id, tasks: [], taskCount: 0, hideout: [], hideoutCount: 0 };
+      map.set(id, e);
+    }
+    return e;
+  };
+  const req = state.data.requirements;
+  const tasks = (req && req.modes && req.modes[state.mode]) || {};
+  for (const itemId of Object.keys(tasks)) {
+    const list = tasks[itemId] || [];
+    const e = get(itemId);
+    for (const t of list) {
+      const c = toNum(t.count);
+      e.taskCount += c == null ? 0 : c;
+      e.tasks.push(t);
+    }
+  }
+  for (const mod of hideoutModules()) {
+    for (const lv of mod.levels || []) {
+      for (const r of lv.requirements || []) {
+        // 卢布是钱不是"要收集的物品"，混进来会多出一行"卢布 × 几百万"
+        if (r.item === RUB_ID) continue;
+        const e = get(r.item);
+        const c = toNum(r.count);
+        e.hideoutCount += c == null ? 0 : c;
+        e.hideout.push({ module: hideoutName(mod), level: lv.level, count: c == null ? 0 : c });
+      }
+    }
+  }
+  return map;
+}
+
+function taskNamesText(tasks) {
+  const names = [];
+  for (const t of tasks) {
+    const n = t && t.name ? String(t.name) : '';
+    if (n && names.indexOf(n) < 0) names.push(n);
+  }
+  if (!names.length) return '';
+  if (names.length <= 3) return names.join('、');
+  return names.slice(0, 3).join('、') + ' 等 ' + names.length + ' 个';
+}
+
+function renderCollect() {
+  const q = state.q.trim().toLowerCase();
+  const rows = [];
+  for (const e of collectEntries().values()) {
+    const it = itemById(e.id);
+    const name = it ? it.name : e.id;
+    if (q && !(matchText(name, q) || (it && matchText(it.short, q)) || matchText(e.id, q))) continue;
+    const total = e.taskCount + e.hideoutCount;
+    const unit = fleaPrice(it, state.mode);
+    rows.push({
+      key: e.id, it: it, name: name,
+      taskCount: e.taskCount, taskText: taskNamesText(e.tasks),
+      hideoutCount: e.hideoutCount, total: total,
+      unit: unit, subtotal: unit * total,
+      collected: !!state.collect[e.id],
+    });
+  }
+  let allValue = 0;
+  let leftValue = 0;
+  let done = 0;
+  for (const r of rows) {
+    allValue += r.subtotal;
+    if (r.collected) done++;
+    else leftValue += r.subtotal;
+  }
+  const columns = [
+    { key: 'check', label: '', sortable: false, width: '30px', cell: function (r) {
+      return '<input type="checkbox" data-act="check-collect" data-item="' + escapeHtml(r.key) + '"' + (r.collected ? ' checked' : '') + ' title="标记为已收集（会从剩余价值里扣掉）" />';
+    } },
+    { key: 'icon', label: '', sortable: false, width: '34px', cell: function (r) { return itemIconHtml(r.it); } },
+    { key: 'name', label: '物品', sortDir: 'asc', value: function (r) { return r.name; }, cell: function (r) {
+      return '<span class="cell-name">' + escapeHtml(r.name) + '</span><span class="cell-sub">' + escapeHtml(r.it && r.it.short ? r.it.short : '') + '</span>';
+    } },
+    { key: 'taskCount', label: '任务需要', sortDir: 'desc', align: 'num', value: function (r) { return r.taskCount; }, cell: function (r) { return r.taskCount ? countText(r.taskCount) : '<span class="muted">—</span>'; } },
+    { key: 'taskText', label: '需要任务', sortable: false, cell: function (r) { return r.taskText ? escapeHtml(r.taskText) : '<span class="muted">—</span>'; } },
+    { key: 'hideoutCount', label: '藏身处需要', sortDir: 'desc', align: 'num', value: function (r) { return r.hideoutCount; }, cell: function (r) { return r.hideoutCount ? countText(r.hideoutCount) : '<span class="muted">—</span>'; } },
+    { key: 'total', label: '合计', sortDir: 'desc', align: 'num', value: function (r) { return r.total; }, cell: function (r) { return countText(r.total); } },
+    { key: 'unit', label: '当前单价', sortDir: 'desc', align: 'num', value: function (r) { return r.unit; }, cell: function (r) { return rub(r.unit); } },
+    { key: 'subtotal', label: '合计价值', sortDir: 'desc', align: 'num', value: function (r) { return r.subtotal; }, cell: function (r) { return rub(r.subtotal); } },
+  ];
+  const summary = '涉及物品 ' + num(rows.length) + ' 种 · 总价值 ' + rub(allValue) + ' · 已收集 ' + done + '/' + rows.length +
+    ' · 剩余价值 ' + rub(leftValue) + ' · ' + escapeHtml(modeLabel()) + ' 价格（卢布不计入）';
+  renderList({
+    tabId: 'collect', columns: columns, rows: rows, defaultSort: { key: 'subtotal', dir: 'desc' },
+    keyOf: function (r) { return r.key; }, selectedKey: state.sel.collect,
+    summary: summary,
+    emptyText: '没有匹配的收集物品。',
+    onSelect: function (r) { state.sel.collect = r.key; showCollectDetail(r.key); },
+  });
+  if (state.sel.collect) showCollectDetail(state.sel.collect);
+}
+
+function setCollected(id, on) {
+  if (on) state.collect[id] = true;
+  else delete state.collect[id];
+  saveCollect();
+  // 勾选后只更新汇总数字，但简单起见整页重渲染；把表格滚动位置记回来，连续勾不会跳回顶部
+  const wrap = $('#list-host').querySelector('.table-wrap');
+  const top = wrap ? wrap.scrollTop : 0;
+  const left = wrap ? wrap.scrollLeft : 0;
+  render().then(function () {
+    const w = $('#list-host').querySelector('.table-wrap');
+    if (w) { w.scrollTop = top; w.scrollLeft = left; }
+  });
+}
+
+function showCollectDetail(id) {
+  const e = collectEntries().get(id);
+  if (!e) { hideDetail(); return; }
+  const it = itemById(id);
+  const name = it ? it.name : id;
+  const unit = fleaPrice(it, state.mode);
+  const total = e.taskCount + e.hideoutCount;
+  let html = '<div class="detail-title">' + itemIconHtml(it, 'big') +
+    '<div><div class="detail-name">' + escapeHtml(name) + '</div>' +
+    '<div class="detail-sub">' + escapeHtml(it && it.short ? it.short : '') + '</div>' +
+    '<div class="detail-sub mono">' + escapeHtml(id) + '</div></div></div>';
+  html += statGrid([
+    ['任务需要', countText(e.taskCount)],
+    ['藏身处需要', countText(e.hideoutCount)],
+    ['合计', countText(total)],
+    ['当前单价', rub(unit)],
+    ['合计价值', rub(unit * total)],
+    ['状态', state.collect[id] ? '已收集' : '未收集'],
+  ]);
+  html += '<h4>任务需求</h4>';
+  if (!e.tasks.length) html += '<div class="detail-note">没有任务需要这件物品。</div>';
+  else {
+    html += '<table class="mini-table"><thead><tr><th>任务</th><th>商人</th><th class="num">数量</th><th>要求</th></tr></thead><tbody>';
+    for (const t of e.tasks) {
+      html += '<tr><td>' + escapeHtml(t.name || '') + '</td><td>' + escapeHtml(t.traderName || '—') + '</td>' +
+        '<td class="num">' + countText(t.count) + '</td><td>' + (t.foundInRaid ? '需战局内找到' : '任意') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '<h4>藏身处需求</h4>';
+  if (!e.hideout.length) html += '<div class="detail-note">藏身处不需要这件物品。</div>';
+  else {
+    html += '<table class="mini-table"><thead><tr><th>模块</th><th>等级</th><th class="num">数量</th></tr></thead><tbody>';
+    for (const h of e.hideout) {
+      html += '<tr><td>' + escapeHtml(h.module) + '</td><td>Lv ' + h.level + '</td><td class="num">' + countText(h.count) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  showDetail(html);
+}
+
+/* ---------- 7.12 仪式圈（基准价达标、跳蚤成本最低的一维 DP） ---------- */
+
+function nowMs() {
+  try {
+    if (typeof performance !== 'undefined' && performance && performance.now) return performance.now();
+  } catch (e) { /* 没有 performance 就用 Date.now（老环境/测试 stub） */ }
+  return Date.now();
+}
+
+// 把基准价按 1000 向下取整成"桶"：
+//   floor 而不是 round/ceil 是为了让 sum(base) >= sum(bucket)*1000 恒成立，
+//   这样只要桶和 >= ceil(阈值/1000)，真实基准价合计就一定达标（不达标就是算错）。
+// 每件物品最多买 limit 件 => 一维多重背包 + 最小成本，用单调队列把"上一件物品"的转移压到 O(桶数)。
+// 候选先做现实性过滤（否则 DP 会去捡 1 ₽ 的孤品挂单，结果看着像 bug）：
+//   - 当前价 < 基准价 10% 的丢掉；
+//   - 报价数 offers 有值且 < 5 的丢掉。
+function computeRitual(threshold, mode, perItemLimit) {
+  const t0 = nowMs();
+  const lim = toNum(perItemLimit);
+  const limit = Math.max(1, Math.min(50, lim == null ? 5 : Math.round(lim)));
+  const all = (state.data.economy && state.data.economy.items) || [];
+  const list = [];
+  let skipPrice = 0;
+  let skipOffers = 0;
+  for (const it of all) {
+    const q = priceRec(it, mode);
+    if (!q || q.base == null || q.base <= 0) continue;
+    const cost = fleaPrice(it, mode);
+    if (!(cost > 0)) continue;
+    if (cost < q.base * 0.10) { skipPrice++; continue; }
+    if (q.offers != null && q.offers < 5) { skipOffers++; continue; }
+    const bucket = Math.floor(q.base / 1000);
+    if (bucket < 1) continue;
+    list.push({ id: it.id, name: it.name, icon: it.icon, base: q.base, cost: cost, bucket: bucket, offers: q.offers == null ? null : q.offers });
+  }
+  const targetBuckets = Math.ceil(threshold / 1000);
+  const cap = targetBuckets + 26;   // +26 桶的余量：允许略微冲高，换更便宜的方案
+  const n = list.length;
+  const W = cap + 1;
+  let dp = new Float64Array(W);     // 只考虑前 i 件时的最小成本（按桶和）
+  let ndp = new Float64Array(W);    // 加上第 i 件之后
+  for (let b = 0; b < W; b++) dp[b] = Infinity;
+  dp[0] = 0;
+  // cntAll[i*W+b] = 只考虑前 i 件时，达到桶和 b 用了第 i 件几件（回溯用；limit <= 50 装得进 Int8）
+  const cntAll = new Int8Array(n * W);
+  const deqIdx = new Int32Array(W);  // 单调队列：桶序号 k
+  const deqVal = new Float64Array(W);
+  for (let i = 0; i < n; i++) {
+    const w = list[i].bucket;
+    const c = list[i].cost;
+    ndp.set(dp);
+    const row = i * W;
+    if (w <= cap) {
+      for (let r = 0; r < w; r++) {
+        let head = 0;
+        let tail = 0;
+        for (let k = 0; r + k * w <= cap; k++) {
+          const b = r + k * w;
+          const val = dp[b] - k * c;
+          while (tail > head && deqVal[tail - 1] >= val) tail--;
+          deqIdx[tail] = k;
+          deqVal[tail] = val;
+          tail++;
+          const minJ = k - limit;
+          while (tail > head && deqIdx[head] < minJ) head++;
+          if (tail > head) {
+            const cand = deqVal[head] + k * c;
+            if (cand < ndp[b]) {
+              ndp[b] = cand;
+              cntAll[row + b] = k - deqIdx[head];
+            }
+          }
+        }
+      }
+    }
+    const tmp = dp;
+    dp = ndp;
+    ndp = tmp;
+  }
+  let bestB = -1;
+  let bestCost = Infinity;
+  for (let b = targetBuckets; b <= cap; b++) {
+    if (dp[b] < bestCost) { bestCost = dp[b]; bestB = b; }
+  }
+  const counts = new Map();
+  if (bestB >= 0 && isFinite(bestCost)) {
+    let b = bestB;
+    for (let i = n - 1; i >= 0; i--) {
+      const k = cntAll[i * W + b];
+      if (k > 0) {
+        counts.set(i, k);
+        b -= k * list[i].bucket;
+      }
+    }
+  }
+  // 单件基准价就够阈值、但桶数超出 DP 窗口的物品也参与比较（否则会漏掉"一件顶十件"的贵件）
+  let singleIdx = -1;
+  let singleCost = Infinity;
+  for (let i = 0; i < n; i++) {
+    if (list[i].base >= threshold && list[i].cost < singleCost) { singleCost = list[i].cost; singleIdx = i; }
+  }
+  if (singleIdx >= 0 && (!counts.size || singleCost < bestCost)) {
+    counts.clear();
+    counts.set(singleIdx, 1);
+    bestCost = singleCost;
+  }
+  const rows = [];
+  let baseSum = 0;
+  let costSum = 0;
+  let qty = 0;
+  counts.forEach(function (c, i) {
+    const it = list[i];
+    const sub = it.cost * c;
+    baseSum += it.base * c;
+    costSum += sub;
+    qty += c;
+    rows.push({
+      key: it.id + '#' + i, id: it.id, name: it.name, icon: it.icon,
+      qty: c, unit: it.cost, subtotal: sub, base: it.base, baseSubtotal: it.base * c,
+    });
+  });
+  return {
+    threshold: threshold, limit: limit, items: rows, baseSum: baseSum, costSum: costSum, qty: qty,
+    over: baseSum - threshold, ms: nowMs() - t0, candidates: list.length,
+    skipPrice: skipPrice, skipOffers: skipOffers, noSolution: counts.size === 0,
+  };
+}
+
+function scheduleRitual(key) {
+  if (state.ritual.pending === key) return;
+  state.ritual.pending = key;
+  // 放到下一个 tick：先把"计算中…"刷到屏幕上，DP 再阻塞也看得见
+  setTimeout(function () {
+    state.ritual.pending = null;
+    let plan = null;
+    try {
+      plan = computeRitual(state.ritual.threshold, state.mode, state.ritual.limit);
+    } catch (e) {
+      console.error('[资料库] 仪式圈计算失败', e);
+      plan = { error: true, items: [], baseSum: 0, costSum: 0, qty: 0, over: 0, ms: 0, threshold: state.ritual.threshold,
+        limit: state.ritual.limit, candidates: 0, skipPrice: 0, skipOffers: 0, noSolution: true };
+    }
+    state.ritual.plan = plan;
+    state.ritual.planFor = key;
+    if (state.tab === 'ritual') render();
+  }, 0);
+}
+
+// 阈值/每件上限一变就丢掉缓存，下一次渲染重新排 DP
+function setRitualThreshold(v) {
+  const n = Math.max(10000, Math.min(2000000, Math.round(Number(v) || 400000)));
+  if (n === state.ritual.threshold) return;
+  state.ritual.threshold = n;
+  state.ritual.plan = null;
+  state.ritual.planFor = null;
+  render();
+}
+function setRitualLimit(v) {
+  const n = Math.max(1, Math.min(50, Math.round(Number(v) || 5)));
+  if (n === state.ritual.limit) return;
+  state.ritual.limit = n;
+  state.ritual.plan = null;
+  state.ritual.planFor = null;
+  render();
+}
+
+const RITUAL_COLUMNS = [
+  { key: 'icon', label: '', sortable: false, width: '34px', cell: function (r) { return itemIconHtml(r); } },
+  { key: 'name', label: '物品', sortDir: 'asc', value: function (r) { return r.name; }, cell: function (r) {
+    return '<span class="cell-name">' + escapeHtml(r.name) + '</span>';
+  } },
+  { key: 'qty', label: '数量', sortDir: 'desc', align: 'num', value: function (r) { return r.qty; }, cell: function (r) { return num(r.qty); } },
+  { key: 'unit', label: '跳蚤单价', sortDir: 'asc', align: 'num', value: function (r) { return r.unit; }, cell: function (r) { return rub(r.unit); } },
+  { key: 'subtotal', label: '跳蚤小计', sortDir: 'desc', align: 'num', value: function (r) { return r.subtotal; }, cell: function (r) { return rub(r.subtotal); } },
+  { key: 'base', label: '基准价单价', sortDir: 'asc', align: 'num', value: function (r) { return r.base; }, cell: function (r) { return rub(r.base); } },
+  { key: 'baseSubtotal', label: '基准价小计', sortDir: 'desc', align: 'num', value: function (r) { return r.baseSubtotal; }, cell: function (r) { return rub(r.baseSubtotal); } },
+];
+
+function renderRitual() {
+  const key = state.ritual.threshold + '|' + state.ritual.limit + '|' + state.mode;
+  if (state.ritual.plan && state.ritual.planFor === key) { renderRitualView(state.ritual.plan); return; }
+  if (state.ritual.planFor !== key) scheduleRitual(key);
+  renderRitualView(null);
+}
+
+function renderRitualView(plan) {
+  const th = state.ritual.threshold;
+  const limit = state.ritual.limit;
+  const q = state.q.trim().toLowerCase();
+  const tools = '<div class="ritual-head">' +
+    '<label>献祭阈值 <input type="number" id="ritual-num" min="10000" max="2000000" step="1000" value="' + th + '" /> ₽</label>' +
+    '<input type="range" id="ritual-range" min="10000" max="2000000" step="1000" value="' + th + '" title="拖动后松手才会重算" />' +
+    '<label>每件上限 <input type="number" id="ritual-limit" min="1" max="50" step="1" value="' + limit + '" title="同一件物品最多买几件（多重背包的件数上限）" /> 件</label>' +
+    '<button type="button" data-act="ritual-preset" data-value="350001">350,001</button>' +
+    '<button type="button" data-act="ritual-preset" data-value="400000">400,000</button>' +
+    '<span class="muted">口径：基准价来自游戏数据 base price，跳蚤价来自价格快照，两者都会过期。</span>' +
+    '<span class="muted">已排除报价数 &lt; 5 或价格低于基准价 10% 的异常挂单；每件最多买 ' + num(limit) + ' 件（可改）。</span>' +
+    '<span class="muted">算法：把每件物品的基准价按 1000 向下取整成桶，做一维多重背包 DP（价值 = 桶数，成本 = 跳蚤价，每种最多 ' + num(limit) + ' 件，单调队列优化）；先满足桶数和 ≥ ceil(阈值 ÷ 1000)，再取跳蚤成本最低的一组。</span>' +
+    '<span class="muted">用法：设好阈值与每件上限后，下面的清单就是「买什么、各买几个、一共花多少」；点表头排序，超过 100 行会自动分页。</span>' +
+    '</div>';
+  let summary;
+  const rows = [];
+  if (!plan) {
+    summary = '<span class="computing">计算中…</span> 正在求「基准价合计 ≥ ' + rub(th) + '、跳蚤成本最低」的组合';
+  } else if (plan.error) {
+    summary = '计算出错了，换个阈值或模式再试。';
+  } else if (plan.noSolution) {
+    summary = '<span class="chg down">当前约束下凑不到这个阈值，试试降低阈值或放宽每件上限。</span>';
+  } else {
+    summary = '基准价合计 <b>' + rub(plan.baseSum) + '</b>（比阈值高 ' + rub(plan.over) + '）· 跳蚤成本合计 <b>' + rub(plan.costSum) +
+      '</b> · 物品 ' + num(plan.qty) + ' 件 / ' + num(plan.items.length) + ' 种 · 候选 ' + num(plan.candidates) +
+      ' 种（过滤异常 ' + num(plan.skipPrice + plan.skipOffers) + ' 种）· 每件上限 ' + num(plan.limit) +
+      ' · 用时 ' + plan.ms.toFixed(0) + ' ms · ' + escapeHtml(modeLabel()) + ' 价格';
+    for (const r of plan.items) {
+      if (q && !matchText(r.name, q)) continue;
+      rows.push(r);
+    }
+  }
+  renderList({
+    tabId: 'ritual', columns: RITUAL_COLUMNS, rows: rows, defaultSort: { key: 'subtotal', dir: 'desc' },
+    tools: tools, summary: summary, keyOf: function (r) { return r.key; },
+    emptyText: plan
+      ? (plan.error ? '计算失败。' : (plan.noSolution ? '当前约束下凑不到这个阈值，试试降低阈值或放宽每件上限。' : '没有匹配的物品。'))
+      : '计算中…',
+    wire: function (host) {
+      const numEl = host.querySelector('#ritual-num');
+      const rangeEl = host.querySelector('#ritual-range');
+      const limitEl = host.querySelector('#ritual-limit');
+      if (numEl) numEl.addEventListener('change', function () { setRitualThreshold(numEl.value); });
+      if (rangeEl) {
+        // 拖动时只同步数字框，松手（change）才重算：否则每动一下都重渲染，滑块会"断"
+        rangeEl.addEventListener('input', function () { if (numEl) numEl.value = rangeEl.value; });
+        rangeEl.addEventListener('change', function () { setRitualThreshold(rangeEl.value); });
+      }
+      if (limitEl) limitEl.addEventListener('change', function () { setRitualLimit(limitEl.value); });
+    },
+  });
+  hideDetail();
+}
+
+/* ---------- 7.13 特质（赛季特质模拟器） ---------- */
+
+function traitList() { return (state.data.traits && state.data.traits.traits) || []; }
+function traitById(id) {
+  for (const t of traitList()) if (t.id === id) return t;
+  return null;
+}
+function traitSelected(id) { return state.traits.selected.indexOf(id) >= 0; }
+// 冲突是双向的：A.conflicts 里有 B，或 B.conflicts 里有 A，都算冲突。
+// 返回"与哪一项已选特质冲突"的名字，没有冲突返回 null。
+function traitConflict(t) {
+  for (const id of state.traits.selected) {
+    if (id === t.id) continue;
+    const sel = traitById(id);
+    if (!sel) continue;
+    if ((t.conflicts || []).indexOf(id) >= 0) return sel.name || id;
+    if ((sel.conflicts || []).indexOf(t.id) >= 0) return sel.name || id;
+  }
+  return null;
+}
+function traitPoints(cat) {
+  let sum = 0;
+  for (const t of traitList()) {
+    if (t.category !== cat || !traitSelected(t.id)) continue;
+    const p = toNum(t.points);
+    sum += p == null ? 0 : p;
+  }
+  return sum;
+}
+function toggleTrait(id) {
+  const t = traitById(id);
+  if (!t) return;
+  if (traitSelected(id)) {
+    state.traits.selected = state.traits.selected.filter(function (x) { return x !== id; });
+  } else {
+    if (traitConflict(t)) return;   // 置灰的卡片点了不生效
+    state.traits.selected = state.traits.selected.concat([id]);
+  }
+  saveTraitsState();
+  renderKeepPageScroll();
+}
+
+function renderKeepPageScroll() {
+  const host = $('#list-host');
+  const sc = host.querySelector('.page-scroll, .table-wrap');
+  const top = sc ? sc.scrollTop : 0;
+  render().then(function () {
+    const sc2 = $('#list-host').querySelector('.page-scroll, .table-wrap');
+    if (sc2) sc2.scrollTop = top;
+  });
+}
+
+function renderTraitSection(title, cat, q) {
+  let cards = '';
+  let count = 0;
+  for (const t of traitList()) {
+    if (t.category !== cat) continue;
+    if (q && !matchText(t.name, q)) continue;
+    count++;
+    const selected = traitSelected(t.id);
+    const conflict = selected ? null : traitConflict(t);
+    const cls = 'trait-card' + (selected ? ' selected' : '') + (conflict ? ' blocked' : '');
+    cards += '<button type="button" class="' + cls + '" data-act="toggle-trait" data-id="' + escapeHtml(t.id) + '"' +
+      (conflict ? ' title="与「' + escapeHtml(conflict) + '」冲突：先取消那一个"' : '') + '>' +
+      '<span class="trait-name">' + escapeHtml(t.name) + '</span>' +
+      '<span class="trait-points">' + (toNum(t.points) == null ? '—' : t.points) + ' 点</span>' +
+      (selected ? '<span class="trait-tag">已选</span>' : '') +
+      (conflict ? '<span class="trait-tag warn">与 ' + escapeHtml(conflict) + ' 冲突</span>' : '') +
+      '</button>';
+  }
+  let html = '<h4 class="trait-title">' + escapeHtml(title) + '</h4><div class="trait-grid">' + cards + '</div>';
+  if (!count) html += '<div class="detail-note">没有匹配的特质。</div>';
+  return html;
+}
+
+function renderTraits() {
+  const q = state.q.trim().toLowerCase();
+  const pos = traitPoints('positive');
+  const neg = traitPoints('negative');
+  const budget = state.traits.budget;
+  // 负向特质是"用缺点换点数"，所以它给预算加回点数；正向扣点数。
+  const remainder = budget - pos + neg;
+  const over = remainder < 0;
+  let html = '<div class="page-scroll"><div class="trait-head">' +
+    '<span>已选 <b>' + state.traits.selected.length + '</b> 个</span>' +
+    '<span>正向点数 <b class="up">' + pos + '</b></span>' +
+    '<span>负向点数 <b class="down">' + neg + '</b></span>' +
+    '<span>剩余可支配 <b class="' + (over ? 'down' : '') + '">' + remainder + '</b>（预算 − 正向 + 负向）</span>' +
+    '<label>点数预算 <input type="number" id="trait-budget" min="0" max="999" step="1" value="' + budget + '" /></label>' +
+    '<button type="button" data-act="clear-traits">清空选择</button>' +
+    '</div>';
+  if (over) html += '<div class="trait-warn">正向点数已超出预算 ' + Math.abs(remainder) + ' 点（不禁止选择，只是标红提示）。</div>';
+  html += renderTraitSection('正向特质', 'positive', q);
+  html += renderTraitSection('负向特质', 'negative', q);
+  html += '<div class="detail-note">冲突规则是双向的：任意一项已选特质与它互指，卡片就会置灰并标注冲突对象。选择与预算都存在本机 localStorage。</div>';
+  html += '</div>';
+  const host = $('#list-host');
+  host.innerHTML = html;
+  wireImages(host);
+  hideDetail();
+  const b = host.querySelector('#trait-budget');
+  if (b) b.addEventListener('change', function () {
+    const v = toNum(b.value);
+    state.traits.budget = v == null ? 20 : Math.max(0, Math.round(v));
+    saveTraitsState();
+    renderKeepPageScroll();
+  });
+}
+
+/* ---------- 7.14 BTR 路线与站点 ---------- */
+
+const BTR_STOP_TOL = 300; // 站点到路线路径点最近距离 <= 300 像素就算"这条路线经过这一站"
+
+function btrGroupName(map, key) {
+  for (const g of map.groups || []) if (g.key === key) return g.name || key;
+  return key || '—';
+}
+function btrRouteStops(map, route, tol) {
+  let n = 0;
+  for (const s of map.stops || []) {
+    let best = Infinity;
+    for (const p of route.path || []) {
+      const dx = p.x - s.x;
+      const dy = p.y - s.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < best) best = d;
+      if (best <= tol) break;
+    }
+    if (best <= tol) n++;
+  }
+  return n;
+}
+// 秒 -> "第 30 分 42 秒"
+function clockText(sec) {
+  const s = toNum(sec);
+  if (s == null) return '—';
+  const m = Math.floor(s / 60);
+  const r = Math.round(s % 60);
+  return '第 ' + m + ' 分 ' + (r < 10 ? '0' + r : r) + ' 秒';
+}
+
+const BTR_COLUMNS = [
+  { key: 'name', label: '路线名', sortDir: 'asc', value: function (r) { return r.name; }, cell: function (r) { return escapeHtml(r.name); } },
+  { key: 'group', label: '分组', sortDir: 'asc', value: function (r) { return r.group; }, cell: function (r) { return escapeHtml(r.group); } },
+  { key: 'spawnTime', label: '出现时刻', sortDir: 'asc', value: function (r) { return r.spawnTime; }, cell: function (r) { return escapeHtml(clockText(r.spawnTime)); } },
+  { key: 'stops', label: '途经站点数', sortDir: 'desc', align: 'num', value: function (r) { return r.stops; }, cell: function (r) { return num(r.stops); } },
+  { key: 'loop', label: '完整一圈耗时', sortDir: 'asc', align: 'num', value: function (r) { return r.loop; }, cell: function (r) { return r.loop == null ? '—' : escapeHtml(fmtDuration(r.loop)); } },
+];
+const BTR_DIR = { name: 'asc', group: 'asc', spawnTime: 'asc', stops: 'desc', loop: 'asc' };
+
+function renderBtr() {
+  const dump = state.data.btr || {};
+  const maps = dump.maps || [];
+  const q = state.q.trim().toLowerCase();
+  const sort = state.btrSort || { key: 'spawnTime', dir: 'asc' };
+  const host = $('#list-host');
+  let totalRoutes = 0;
+  let totalStops = 0;
+  for (const m of maps) { totalRoutes += (m.routes || []).length; totalStops += (m.stops || []).length; }
+  let html = '<div class="page-scroll">';
+  html += '<div class="list-summary">' + num(maps.length) + ' 张地图 · ' + num(totalRoutes) + ' 条路线 · ' + num(totalStops) +
+    ' 个站点' + (dump.version ? ' · 数据版本 v' + escapeHtml(String(dump.version)) : '') +
+    ' · 「途经站点数」按站点到路线路径点最近距离 ≤ ' + BTR_STOP_TOL + ' 像素估算</div>';
+
+  for (const m of maps) {
+    const mapHit = !q || matchText(m.name, q) || matchText(m.key, q);
+    const stopsAll = m.stops || [];
+    const routes = [];
+    for (const rt of m.routes || []) {
+      const group = btrGroupName(m, rt.group);
+      if (q && !mapHit && !matchText(rt.name, q) && !matchText(group, q)) continue;
+      const stops = btrRouteStops(m, rt, BTR_STOP_TOL);
+      routes.push({
+        key: m.key + '|' + rt.id, route: rt, id: rt.id, name: rt.name || rt.id, group: group,
+        spawnTime: rt.spawnTime, stops: stops,
+        loop: toNum(m.stopDuration) == null ? null : stops * m.stopDuration,
+      });
+    }
+    const stops = stopsAll.filter(function (s) { return mapHit || matchText(s.name, q); });
+    if (q && !mapHit && !routes.length && !stops.length) continue;
+
+    html += '<section class="btr-map">';
+    html += '<div class="btr-head"><span class="btr-title">' + escapeHtml(m.name || m.key) + '</span>' +
+      '<span class="tag">整局 <b>' + escapeHtml(fmtDuration(m.raidDuration)) + '</b></span>' +
+      '<span class="tag">刷新率 <b>' + (toNum(m.spawnChance) == null ? '—' : m.spawnChance + '%') + '</b></span>' +
+      '<span class="tag">每站停靠 <b>' + escapeHtml(fmtDuration(m.stopDuration)) + '</b></span>' +
+      '<span class="tag">' + num(stopsAll.length) + ' 站 / ' + num((m.routes || []).length) + ' 条路线</span>' +
+      '<span class="tag">底图 ' + escapeHtml((m.sourceWidth || '?') + '×' + (m.sourceHeight || '?')) + '</span></div>';
+
+    const sorted = sortRows(routes, sort, BTR_COLUMNS);
+    html += '<div class="table-wrap btr-table"><table class="lib-table"><thead><tr>';
+    for (const c of BTR_COLUMNS) {
+      const active = sort.key === c.key;
+      html += '<th class="' + (c.align === 'num' ? 'num ' : '') + 'sortable' + (active ? ' active' : '') +
+        '" data-btr-sort="' + escapeHtml(c.key) + '">' + escapeHtml(c.label) + (active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : '') + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+    if (!sorted.length) html += '<tr class="empty-row"><td colspan="' + BTR_COLUMNS.length + '">没有匹配的路线。</td></tr>';
+    for (const r of sorted) {
+      const isSel = state.sel.btr === r.key;
+      html += '<tr tabindex="0"' + (isSel ? ' class="selected"' : '') + ' data-btr-route="' + escapeHtml(r.route.id) + '" data-btr-map="' + escapeHtml(m.key) + '">';
+      for (const c of BTR_COLUMNS) html += '<td class="' + (c.align === 'num' ? 'num' : '') + '">' + c.cell(r) + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+
+    html += '<div class="btr-stops">';
+    if (!stops.length) html += '<span class="muted">没有匹配的站点。</span>';
+    for (const s of stops) html += '<span class="tag">' + escapeHtml(s.name || s.id) + ' <b>' + num(s.x) + ', ' + num(s.y) + '</b></span>';
+    html += '</div></section>';
+  }
+  html += '</div>';
+  host.innerHTML = html;
+
+  for (const th of host.querySelectorAll('th[data-btr-sort]')) {
+    th.addEventListener('click', function () {
+      const k = th.getAttribute('data-btr-sort');
+      if (sort.key === k) state.btrSort = { key: k, dir: sort.dir === 'asc' ? 'desc' : 'asc' };
+      else state.btrSort = { key: k, dir: BTR_DIR[k] || 'asc' };
+      render();
+    });
+  }
+  for (const tr of host.querySelectorAll('tr[data-btr-route]')) {
+    const pick = function () { showBtrDetail(tr.getAttribute('data-btr-map'), tr.getAttribute('data-btr-route')); };
+    tr.addEventListener('click', pick);
+    tr.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+    });
+  }
+  wireImages(host);
+  if (state.sel.btr) {
+    const parts = String(state.sel.btr).split('|');
+    showBtrDetail(parts[0], parts[1]);
+  } else {
+    hideDetail();
+  }
+}
+
+function showBtrDetail(mapKey, routeId) {
+  const maps = (state.data.btr && state.data.btr.maps) || [];
+  let map = null;
+  let route = null;
+  for (const m of maps) {
+    if (m.key !== mapKey) continue;
+    map = m;
+    for (const rt of m.routes || []) if (rt.id === routeId) route = rt;
+  }
+  if (!map || !route) { hideDetail(); return; }
+  state.sel.btr = mapKey + '|' + routeId;
+  const path = route.path || [];
+  const first = path[0] || null;
+  const last = path[path.length - 1] || null;
+  const stops = btrRouteStops(map, route, BTR_STOP_TOL);
+  const stopDur = toNum(map.stopDuration);
+  const loop = stopDur == null ? null : stops * stopDur;
+  let html = '<div class="detail-title"><div><div class="detail-name">' + escapeHtml(map.name || map.key) + ' · ' + escapeHtml(route.name || route.id) + '</div>' +
+    '<div class="detail-sub">分组 ' + escapeHtml(btrGroupName(map, route.group)) + ' · 出现时刻 ' + escapeHtml(clockText(route.spawnTime)) + '</div>' +
+    '<div class="detail-sub mono">' + escapeHtml(route.id) + '</div></div></div>';
+  html += statGrid([
+    ['path 点数', num(path.length)],
+    ['首点坐标', first ? num(first.x) + ', ' + num(first.y) : '—'],
+    ['尾点坐标', last ? num(last.x) + ', ' + num(last.y) : '—'],
+    ['沿线站点数', num(stops)],
+    ['完整一圈耗时', loop == null ? '—' : escapeHtml(fmtDuration(loop)) + '（估算）'],
+    ['地图底图', escapeHtml((map.sourceWidth || '?') + '×' + (map.sourceHeight || '?'))],
+  ]);
+  html += '<div class="detail-note">坐标是该地图 SVG 的像素坐标（和地图窗口用的是同一套底图）。' +
+    '完整一圈耗时 = 沿线站点数 × 每站停靠时长，不含行驶时间，只是粗略估算。</div>';
+  showDetail(html);
 }
 
 /* ===========================================================================
@@ -1397,12 +2110,26 @@ function wireChrome() {
       api.openExternal(el.getAttribute('data-url'));
     } else if (act === 'toggle-level') {
       toggleHideoutLevel(el.getAttribute('data-module'), Number(el.getAttribute('data-level')));
+    } else if (act === 'check-collect') {
+      e.stopPropagation();   // 勾选不要冒泡到行上（行点击 = 打开详情）
+    } else if (act === 'toggle-trait') {
+      toggleTrait(el.getAttribute('data-id'));
+    } else if (act === 'clear-traits') {
+      state.traits.selected = [];
+      saveTraitsState();
+      renderKeepPageScroll();
+    } else if (act === 'ritual-preset') {
+      setRitualThreshold(Number(el.getAttribute('data-value')));
     }
   });
   document.addEventListener('change', function (e) {
-    const el = e.target.closest('[data-act="check-item"]');
-    if (!el) return;
-    checkHideoutItem(el.getAttribute('data-module'), Number(el.getAttribute('data-level')), el.getAttribute('data-item'), el.checked);
+    const hi = e.target.closest('[data-act="check-item"]');
+    if (hi) {
+      checkHideoutItem(hi.getAttribute('data-module'), Number(hi.getAttribute('data-level')), hi.getAttribute('data-item'), hi.checked);
+      return;
+    }
+    const co = e.target.closest('[data-act="check-collect"]');
+    if (co) setCollected(co.getAttribute('data-item'), co.checked);
   });
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') hideDetail();
@@ -1466,6 +2193,8 @@ async function init() {
     console.warn('[资料库] 读取当前游戏模式失败，按 PVP 显示', e);
   }
   loadHideoutState();
+  loadCollect();
+  loadTraitsState();
   wireChrome();
   render();
 }

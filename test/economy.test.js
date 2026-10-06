@@ -148,6 +148,76 @@ test('价格索引：轻量、可算，且与 economy 一致', () => {
   assert.ok(same / checked > 0.99, `价格索引与 economy 不一致: ${(same / checked * 100).toFixed(1)}%`);
 });
 
+
+test('BTR：路线与站点自洽（坐标落在图内、路线至少两个点）', () => {
+  assert.ok(exists('data/btr-dump.json'), '缺少 data/btr-dump.json（npm run fetch:btr）');
+  const btr = read('data/btr-dump.json');
+  assert.ok(btr.maps.length >= 3, `有 BTR 的图太少: ${btr.maps.length}`);
+  let stops = 0;
+  let routes = 0;
+  for (const m of btr.maps) {
+    assert.ok(m.name && m.stops.length >= 2, `${m.key} 站点太少`);
+    assert.ok(m.routes.length >= 1, `${m.key} 没有路线`);
+    for (const s of m.stops) {
+      stops++;
+      assert.ok(s.x >= 0 && s.y >= 0 && s.x <= m.sourceWidth && s.y <= m.sourceHeight,
+        `${m.key}/${s.name} 坐标越界: ${s.x},${s.y}（图 ${m.sourceWidth}×${m.sourceHeight}）`);
+    }
+    for (const r of m.routes) {
+      routes++;
+      assert.ok(r.path.length >= 2, `${m.key}/${r.name} 路线点太少`);
+      assert.ok(Number.isFinite(r.spawnTime), `${m.key}/${r.name} 缺 spawnTime`);
+    }
+    // 灯塔那张图上游没有 stopDuration（只有部分图有），有值才校验
+    if (m.stopDuration != null) assert.ok(m.stopDuration > 0, `${m.key} 停靠时长不合法`);
+    assert.ok(Number.isFinite(m.raidDuration) && m.raidDuration > 0, `${m.key} 缺整局时长`);
+  }
+  assert.ok(stops >= 20 && routes >= 10, `BTR 数据偏少: ${stops} 站 / ${routes} 路线`);
+});
+
+test('收集：任务需求两边都有，且条目字段完整', () => {
+  assert.ok(exists('data/requirements-dump.json'), '缺少 data/requirements-dump.json（npm run fetch:requirements）');
+  const req = read('data/requirements-dump.json');
+  for (const mode of ['regular', 'pve']) {
+    const ids = Object.keys(req.modes[mode] || {});
+    assert.ok(ids.length >= 200, `${mode} 需求物品太少: ${ids.length}`);
+    // 抽 30 件检查字段
+    for (const id of ids.slice(0, 30)) {
+      assert.ok(/^[0-9a-f]{24}$/.test(id), `物品 id 不合法: ${id}`);
+      const list = req.modes[mode][id];
+      assert.ok(Array.isArray(list) && list.length, `${id} 需求列表为空`);
+      for (const r of list) {
+        assert.ok(r.name, `${id} 缺任务名`);
+        assert.ok(Number(r.count) >= 1, `${id}/${r.name} 数量不合法: ${r.count}`);
+      }
+    }
+  }
+  // 需求里提到的物品绝大多数都应该能在经济数据里查到价格
+  const ids = Object.keys(req.modes.pve || {});
+  const known = ids.filter((id) => itemById.has(id)).length;
+  assert.ok(known / ids.length > 0.95, `需求物品与物品表对不上: ${(known / ids.length * 100).toFixed(1)}%`);
+});
+
+test('赛季特质：冲突关系闭合、点数合理', () => {
+  assert.ok(exists('data/traits-dump.json'), '缺少 data/traits-dump.json（npm run fetch:traits）');
+  const t = read('data/traits-dump.json');
+  assert.ok(t.traits.length >= 30, `特质太少: ${t.traits.length}`);
+  const ids = new Set(t.traits.map((x) => x.id));
+  const cats = new Set(t.traits.map((x) => x.category));
+  assert.ok(cats.has('positive') && cats.has('negative'), `类别不全: ${[...cats].join(',')}`);
+  let conflicts = 0;
+  for (const x of t.traits) {
+    assert.ok(x.name && x.id, '特质缺 id/名字');
+    assert.ok(Number.isFinite(x.points) && x.points >= 0, `${x.name} 点数不合法`);
+    for (const c of x.conflicts || []) {
+      conflicts++;
+      assert.ok(ids.has(c), `${x.name} 的冲突项 ${c} 不在特质表里`);
+      assert.notStrictEqual(c, x.id, `${x.name} 自己和自己冲突`);
+    }
+  }
+  assert.ok(conflicts >= 5, `冲突关系太少: ${conflicts}`);
+});
+
 test('任务攻略：覆盖率与截图引用合法', () => {
   assert.ok(exists('data/task-guides.json'), '缺少 data/task-guides.json（npm run fetch:guides）');
   const g = read('data/task-guides.json');

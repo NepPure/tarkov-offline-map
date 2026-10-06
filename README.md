@@ -93,6 +93,10 @@ v2.5 把"查资料"这件事也搬进了离线包：顶栏多了一个 **资料�
 | 交换 | 1710 条商人交换配方的成本与利润 | 同上 |
 | 倒卖 | 商人买入价与跳蚤价的差价排行 | 由物品价格现算 |
 | BOSS | 各图 BOSS 刷新率 | `data/bosses-dump.json` |
+| BTR | 森林/街区/灯塔的 BTR 路线与站点：出现时刻、停靠时长、整局时长、刷新率 | `data/btr-dump.json` |
+| 收集 | 任务需要 + 藏身处需要的物品合并清单（数量、市价小计、勾选进度） | `data/requirements-dump.json` + 上面两份 |
+| 仪式圈 | 给一个献祭阈值，算出"基准价合计达标、跳蚤成本最低"的物品组合（本地 DP） | 由价格现算 |
+| 特质 | 赛季特质模拟器：正向/负向、点数预算、冲突提示 | `data/traits-dump.json` |
 
 **PVE / PVP 是分开的**：跳蚤价格在两个模式里差得很远（同一张显卡能差一倍），
 资料库顶部有模式切换；默认值来自**游戏日志里的 `Session mode: Pve` 那一行**（状态栏显示
@@ -891,6 +895,9 @@ curl -s -o build/tarkovdev-pve-maps.json https://json.tarkov.dev/pve/maps
 | 物品图标 | `https://assets.tarkov.dev/<id>-icon.webp`（64px，5442+5442 张，约 30MB） | — | `npm run fetch:item-icons` |
 | BOSS 刷新率 | kaedeori 站台 `/api/tarkov/boss/list?gameMode=`（与 tarkov.dev 同源，含每图刷新概率） | — | `npm run fetch:bosses` |
 | 任务描述/攻略/截图 | **逃离塔科夫中文Wiki** `https://www.eftarkov.com/task/<id>`（546 个任务页 + 1472 张攻略截图） | 英文 fandom（次链接） | `npm run fetch:guides` 后 `npm run fetch:shots` |
+| BTR 路线/站点/时刻 | 同一 Wiki 的 `/btr` 内联 JSON（3 张图、22 站、12 条路线，x/y 就是 SVG 像素坐标） | — | `npm run fetch:btr` |
+| 任务物品需求（收集清单） | kaedeori `/api/tarkov/task/requirements?gameMode=pvp\|pve`（注意**没有 regular**，pvp 即常规服） | — | `npm run fetch:requirements` |
+| 赛季特质 | 同一 Wiki 的 `/Traits`（34 条，页面里 window.TARKOV_TRAITS 只有 id，字段在 data-* 上） | — | `npm run fetch:traits` |
 | 图标 | kaedeori CDN（`map-icons/`、`assets/tarkov/images/`） | tarkov-dev 仓库 `public/maps/interactive/*.png` | `npm run fetch:icons` |
 | BTR 站点/线路 | 站台快照 `btrStops`（灯塔/森林源自 TarkovBTR 手工数据） | tarkovbtr.com（纯前端、无公开接口，数据在 JS bundle 里） | 站台数据变化 |
 | 官方改动说明（语义对照） | `escapefromtarkov.com/news`（如 [1.1.5.0](https://www.escapefromtarkov.com/news/id/408) 灯塔重做） | 17173/官方论坛中文转载 | 手动，补丁日看一眼 |

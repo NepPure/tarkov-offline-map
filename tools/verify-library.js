@@ -64,9 +64,9 @@ const clickByText = (text) => `(function(){
 
   const texts = await evaluate(ws, TEXTS).catch(() => []);
   const joined = (texts || []).join('|');
-  const wants = ['物品', '弹药', '防具', '钥匙', '藏身处', '制作', '交换', '倒卖', 'BOSS', '来源'];
+  const wants = ['物品', '弹药', '防具', '钥匙', '藏身处', '制作', '交换', '倒卖', 'BOSS', 'BTR', '收集', '仪式圈', '特质', '来源'];
   const missing = wants.filter((w) => !joined.includes(w));
-  rep.check('10 个页签都在', missing.length === 0, missing.length ? '缺少: ' + missing.join(',') : wants.join('/'));
+  rep.check('14 个页签都在', missing.length === 0, missing.length ? '缺少: ' + missing.join(',') : wants.join('/'));
 
   const bad = await evaluate(ws, BAD).catch(() => []);
   rep.check('页面无坏值', Array.isArray(bad) && bad.length === 0, (bad || []).join(','));
