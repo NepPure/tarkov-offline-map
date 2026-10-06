@@ -112,13 +112,15 @@ const clickByText = (text) => `(function(){
   // 逐个页签点开：内容区必须有东西
   for (const w of wants) {
     const ok = await evaluate(ws, clickByText(w)).catch(() => false);
-    await sleep(900);
+    // 仪式圈要现算一遍组合（延迟到 setTimeout 里跑），给它多一点时间
+    await sleep(w === '仪式圈' ? 1800 : 900);
     const info = await evaluate(ws, `(function(){
       const t = document.body.innerText || '';
       return { len: t.length, rows: document.querySelectorAll('table tbody tr').length };
     })()`).catch(() => null);
-    // 「来源」页是版权说明 + 外链，不含表格数据，门槛单独放宽（其余页签仍要求真实数据量）
-    const minLen = w === '来源' ? 150 : 400;
+    // 「来源」页是版权说明 + 外链；「仪式圈」正常渲染也就是一句话汇总 + 一张小表。
+    // 文案精简后这两个页签天然比别的短，单独放宽；其余页签仍要求真实数据量（不靠废话凑字数）。
+    const minLen = w === '来源' ? 150 : (w === '仪式圈' ? 120 : 400);
     const good = ok && info && info.len > minLen;
     rep.check(`页签「${w}」有内容`, good, info ? `文字 ${info.len} 字 / ${info.rows} 行` : '取不到内容');
   }
