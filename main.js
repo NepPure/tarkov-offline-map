@@ -734,7 +734,17 @@ function createSplashWindow() {
     title: APP_TITLE,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
-  splashWin.loadURL('app://renderer/splash.html');
+  // 加载失败要留痕：顺序一旦被改坏（处理器还没注册就 loadURL），桌面上只会冒一个系统弹窗，
+  // 日志里什么都不剩，查起来很费劲。和小地图窗口（miniWin）用同一套做法。
+  // 实测：这种"协议还没注册"的失败是下面 loadURL() 的 promise 抛出来的
+  // （ERR_FAILED (-2) loading 'app://renderer/splash.html'），did-fail-load **不会**响，
+  // 所以两个都得留 —— 只挂 did-fail-load 会漏掉这个 case。
+  splashWin.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    consoleLog('[splash] did-fail-load ' + code + ' ' + desc + ' ' + url);
+  });
+  splashWin.loadURL('app://renderer/splash.html').catch((e) => {
+    consoleLog('[splash] loadURL 失败 ' + (e && e.message));
+  });
   splashWin.once('ready-to-show', () => {
     if (splashWin && !splashWin.isDestroyed()) splashWin.show();
   });
@@ -2127,8 +2137,14 @@ async function runVisualTest() {
   }, 20000);
 }
 app.whenReady().then(() => {
-  // 越早越好：便携包的 NSIS 启动图在拉起应用前就销毁了，到主窗口画出来之间这一段
-  // 只有这张应用内启动图能顶上，所以放在所有初始化之前。
+  // app:// 的处理器必须**先于任何窗口创建**：启动图窗口一创建就 loadURL('app://…')，
+  // 那时若还没有处理器，Chromium 不认这个自定义 scheme，会把这次顶层导航当**外部协议**
+  // 甩给 Windows ShellExecute，弹出「获取打开此'app'链接的应用」——
+  // 用户反馈的"每次启动一个弹窗"就是这个。**不要把这行挪到 createSplashWindow() 之后。**
+  registerAppProtocol();
+  // 启动图越早越好（紧跟着协议注册，放在其余初始化之前）：便携包的 NSIS 启动图在拉起
+  // 应用前就销毁了，到主窗口画出来之间这一段只有这张应用内启动图能顶上。
+  // registerAppProtocol() 只是登记一个处理器、不碰磁盘，所以它不会推迟启动图出现。
   createSplashWindow();
   settings = loadSettings();
   mapsData.load(path.join(DATA_DIR, 'maps-dump.json'), { dataRoot: DATA_DIR });
@@ -2142,8 +2158,7 @@ app.whenReady().then(() => {
   state.mapsVersion = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'maps-dump.json'), 'utf-8')).fetchedAt || null;
   state.appVersion = app.getVersion();
 
-  registerAppProtocol();
-  Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(null); // app:// 的协议处理器已在 whenReady 第一句注册（见上面的说明）
   startKeyHelper(); // 常驻"Ctrl 是否按着"助手（雷达的 Ctrl 拖动用它判定）
   setupIpc();
   createMainWindow();
