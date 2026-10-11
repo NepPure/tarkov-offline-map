@@ -13,6 +13,32 @@ npm run changelog -- --from v2.1.0 --to HEAD       # 指定区间
 
 ---
 
+## [2.5.2] — 2026-10-11
+
+### 修复
+
+- **每次启动都会弹出「获取打开此'app'链接的应用」系统对话框**（用户反馈）。
+  根因是启动顺序：启动图窗口一创建就 `loadURL('app://renderer/splash.html')`，
+  而 `efb85aa`（"启动图窗口提前创建"）为了缩短冷启动空档把它挪到了 `app.whenReady()` 第一行，
+  排在 `registerAppProtocol()` **之前**。
+  `app` 是自定义 scheme，那一刻还没有 `protocol.handle('app', …)`，Chromium 不认它，
+  把这次顶层导航当**外部协议**交给 Windows `ShellExecute`，于是弹出系统框。
+  中间隔着 `loadSettings()` 与两次 7MB JSON 解析，足够导航发出并失败，所以**每次启动必现**。
+  实测（把错误顺序装回去跑 `npm run smoke`）：
+  `[splash] loadURL 失败 ERR_FAILED (-2) loading 'app://renderer/splash.html'`。
+  现在把 `registerAppProtocol()` 提到 `whenReady()` 第一句、启动图紧跟其后 ——
+  注册处理器不碰磁盘，冷启动观感不变（`8a3f1eb` 的启动图优化完整保留）。
+- **启动图加载失败现在会留日志**：这类"协议还没注册"的失败是 `loadURL()` 的 promise 抛出来的，
+  `did-fail-load` 不会响，所以两个都留才不会漏
+  （以前桌面上弹个系统框、日志里什么都不剩，排查很费劲）。
+
+### 测试
+
+- 新增 `test/startup-protocol-order.test.js`：钉住"`app://` 协议先注册、窗口后创建"这个不变量。
+  已做反向验证 —— 把顺序改回错误版本，该测试必定失败并给出顺序断言。
+
+---
+
 ## [2.5.1] — 2026-10-06
 
 ### 修复
